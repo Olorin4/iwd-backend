@@ -45,7 +45,14 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-            # Step 6: Deploy to Server
+            # Step 6: Prepare for deployment
+            - name: Create deployment package
+              run: |
+                  echo "🚀 Creating deployment package..."
+                  tar --exclude=node_modules --exclude=.git -czf deployment.tar.gz .
+                  ls -lh deployment.tar.gz  # Debugging step to verify the file exists
+
+            # Step 7: Deploy to Server
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
@@ -54,10 +61,13 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
-                  echo "🚀 Transferring files to the server..."
+                  echo "🚀 Verifying deployment package before SCP..."
+                  ls -lh deployment.tar.gz  # Debugging step
+
+                  echo "🚀 Transferring package to the server..."
                   scp -i private_key.pem -o StrictHostKeyChecking=no deployment.tar.gz root@$SERVER_IP:/var/www/ironwing-backend
 
-                  echo "✅ Transfer complete. Extracting files on the server..."
+                  echo "✅ Transfer complete. Extracting on the server..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
                     tar -xzf deployment.tar.gz
