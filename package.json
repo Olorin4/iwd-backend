@@ -4,8 +4,9 @@
     "description": "Server side of ironwingdispatching.com handling form submissions, leads database and intergration with CMR..",
     "main": "server.js",
     "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "start": "node server.js"
+        "test": "jest",
+        "start": "node server.js",
+        "build": "tsc"
     },
     "keywords": [],
     "author": "",
@@ -17,5 +18,8 @@
         "express": "^4.21.2",
         "nodemailer": "^6.10.0",
         "pg": "^8.13.1"
+    },
+    "devDependencies": {
+        "jest": "^29.7.0"
     }
 }
