@@ -49,8 +49,8 @@ jobs:
             - name: Create deployment package
               run: |
                   echo "🚀 Creating deployment package..."
-                  tar --exclude=node_modules --exclude=.git -czf deployment.tar.gz .
-                  ls -lh deployment.tar.gz  # Debugging step to verify the file exists
+                  tar --exclude=node_modules --exclude=.git --warning=no-file-changed -czf deployment.tar.gz .
+                  ls -lh deployment.tar.gz
 
             # Step 7: Deploy to Server
             - name: Deploy to Server
