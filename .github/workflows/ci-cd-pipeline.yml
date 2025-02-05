@@ -54,28 +54,5 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
-                  echo "🚀 Verifying deployment package before SCP..."
-                  ls -lh deployment.tar.gz  # Debugging step
-
-                  echo "🚀 Transferring package to the server..."
-                  scp -i private_key.pem -o StrictHostKeyChecking=no deployment.tar.gz root@$SERVER_IP:/var/www/ironwing-backend
-
-                  echo "✅ Transfer complete. Extracting on the server..."
-                  ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
-                    cd /var/www/ironwing-backend
-                    tar -xzf deployment.tar.gz
-                    rm deployment.tar.gz
-                    echo "✅ Extraction complete."
-
-                    echo "🚀 Installing dependencies..."
-                    npm install --omit=dev
-                    echo "✅ Dependencies installed."
-
-                    echo "🚀 Restarting PM2..."
-                    if pm2 list | grep -q "ironwing-backend"; then
-                      pm2 restart ironwing-backend
-                    else
-                      pm2 start server.js --name ironwing-backend
-                    fi
-                    pm2 save
-                  EOF
+                  echo "🚀 Transferring files to the server..."
+                  scp -r -i private_key.pem -o StrictHostKeyChecking=no ./ root@$SERVER_IP:/var/www/ironwing-backend
