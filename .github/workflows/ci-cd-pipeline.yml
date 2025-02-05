@@ -53,11 +53,14 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
+                  # Debugging: Print the server IP to verify it is correctly set (GitHub masks secrets)
+                  echo "Deploying to server at $SERVER_IP"
+
                   # Transfer project files & .env file to the server
-                  scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ root@SERVER_IP:/var/www/ironwing-backend
+                  scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ root@$SERVER_IP:/var/www/ironwing-backend
 
                   # SSH into the server to install dependencies and restart the app
-                  ssh -i private_key.pem -o StrictHostKeyChecking=no root@SERVER_IP << 'EOF'
+                  ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
 
                     # Ensure the .env file is properly transferred
