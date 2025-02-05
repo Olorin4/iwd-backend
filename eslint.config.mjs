@@ -8,7 +8,6 @@ export default [
         // Global language options
         languageOptions: {
             globals: {
-                ...globals.browser, // Browser globals for frontend
                 ...globals.node, // Node.js globals for backend
             },
         },
@@ -24,19 +23,9 @@ export default [
             "arrow-body-style": ["error", "as-needed"],
         },
     },
-    // Frontend-specific configuration
+    // Backend-specific configuration (Root directory files)
     {
-        files: ["frontend/**/*.js"],
-        languageOptions: {
-            globals: globals.browser,
-        },
-        rules: {
-            "no-console": "warn", // Warn for console logs in frontend
-        },
-    },
-    // Backend-specific configuration
-    {
-        files: ["backend/**/*.js"],
+        files: ["*.js"], // Applies ESLint rules to all JavaScript files in the root
         languageOptions: {
             globals: globals.node,
         },
@@ -47,7 +36,7 @@ export default [
     },
     // Jest-specific configuration
     {
-        files: ["tests/**/*"], // Matches Jest test files
+        files: ["tests/**/*.js"], // Matches Jest test files
         plugins: {
             jest: jestPlugin,
         },

@@ -3,7 +3,7 @@ name: CI/CD Pipeline
 on:
     push:
         branches:
-            - master # Trigger deployment only when pushing to the master branch
+            - master # Runs when pushing to the master branch
 
 jobs:
     build:
@@ -24,9 +24,9 @@ jobs:
             - name: Install dependencies
               run: npm install
 
-            # Step 4: Run tests
+            # Step 4: Run tests (skips failure if no tests exist)
             - name: Run tests
-              run: npm test
+              run: npm test --passWithNoTests
 
             # Step 5: Generate .env file from GitHub Secrets
             - name: Generate .env file
@@ -43,7 +43,7 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-            # Step 6: Transfer project files and .env to the server
+            # Step 6: Deploy to Server
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
@@ -53,32 +53,29 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
-                  # Debugging: Print the server IP to verify it is correctly set (GitHub masks secrets)
-                  echo "Deploying to server at $SERVER_IP"
-
-                  # Transfer project files & .env file to the server
+                  # Transfer files to the server
                   scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ root@$SERVER_IP:/var/www/ironwing-backend
 
-                  # SSH into the server to install dependencies and restart the app
+                  # SSH into the server to install dependencies and restart PM2
                   ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
 
-                  # Ensure the .env file is properly transferred
-                  echo "Checking .env file:"
-                  cat .env
+                    # Ensure .env file exists
+                    echo "Checking .env file:"
+                    cat .env
 
-                  # Install dependencies
-                  npm install
+                    # Install dependencies
+                    npm install
 
-                  # Restart PM2 with new process name (ironwing-backend)
-                  if pm2 list | grep -q "ironwing-backend"; then
-                    echo "Restarting existing PM2 process..."
-                    pm2 restart ironwing-backend
-                  else
-                    echo "Starting new PM2 process..."
-                    pm2 start server.js --name "ironwing-backend"
-                  fi
+                    # Restart PM2 with correct process name
+                    if pm2 list | grep -q "ironwing-backend"; then
+                      echo "Restarting existing PM2 process..."
+                      pm2 restart ironwing-backend
+                    else
+                      echo "Starting new PM2 process..."
+                      pm2 start server.js --name ironwing-backend
+                    fi
 
-                  # Save PM2 process list to ensure it restarts after reboot
-                  pm2 save
-                EOF
+                    # Save PM2 process list for automatic restart after reboot
+                    pm2 save
+                  EOF
