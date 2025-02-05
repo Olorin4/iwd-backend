@@ -43,7 +43,7 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-              # Step 6: Transfer project files and .env to the server using SCP
+            # Step 6: Transfer project files and .env to the server
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
