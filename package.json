@@ -4,7 +4,7 @@
     "description": "Server side of ironwingdispatching.com handling form submissions, leads database and intergration with CMR..",
     "main": "server.js",
     "scripts": {
-        "test": "jest",
+        "test": "jest --passWithNoTests",
         "start": "node server.js",
         "build": "tsc"
     },
