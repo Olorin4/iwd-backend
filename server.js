@@ -38,6 +38,7 @@ pool.query(
         tel TEXT NOT NULL,
         fleetSize TEXT NOT NULL,
         trailerType TEXT NOT NULL,
+        plan TEXT NOT NULL,
         submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
 );
@@ -59,10 +60,21 @@ const transporter = nodemailer.createTransport({
 
 // Handle Form Submissions
 app.post("/submit-form", async (req, res) => {
-    const { firstName, lastName, email, tel, fleetSize, trailerType } = req.body;
+    const { firstName, lastName, email, tel, fleetSize, trailerType, plan } =
+        req.body;
 
-    if (!firstName || !lastName || !email || !tel || !fleetSize || !trailerType) {
-        return res.status(400).json({ error: "All required fields must be filled." });
+    if (
+        !firstName ||
+        !lastName ||
+        !email ||
+        !tel ||
+        !fleetSize ||
+        !trailerType ||
+        !plan
+    ) {
+        return res
+            .status(400)
+            .json({ error: "All required fields must be filled." });
     }
 
     console.log("Form received:", req.body);
@@ -70,10 +82,13 @@ app.post("/submit-form", async (req, res) => {
     try {
         // Insert into PostgreSQL
         const result = await pool.query(
-            "INSERT INTO submissions (firstName, lastName, email, tel, fleetSize, trailerType) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-            [firstName, lastName, email, tel, fleetSize, trailerType]
+            "INSERT INTO submissions (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            [firstName, lastName, email, tel, fleetSize, trailerType, plan]
         );
-        console.log("✅ Data inserted successfully. Submission ID:", result.rows[0].id);
+        console.log(
+            "✅ Data inserted successfully. Submission ID:",
+            result.rows[0].id
+        );
 
         // **1️⃣ Auto-Reply Email to the Potential Client**
         const clientMailOptions = {
@@ -97,13 +112,12 @@ app.post("/submit-form", async (req, res) => {
             subject: "🚛 New Form Submission Received",
             text: `
                 📩 A new form submission has been received!
-
                 👤 Name: ${firstName} ${lastName}
                 📧 Email: ${email}
                 📞 Phone: ${tel}
                 🚛 Fleet Size: ${fleetSize}
                 🛻 Trailer Type: ${trailerType}
-
+                📌 Plan Selected: ${plan}
                 🕒 Submitted At: ${new Date().toLocaleString()}
             `,
         };
@@ -112,10 +126,16 @@ app.post("/submit-form", async (req, res) => {
             await transporter.sendMail(zohoMailOptions);
             console.log("📧 Form Data Sent to Zoho Mail Successfully!");
         } catch (zohoEmailError) {
-            console.error("❌ Error sending form data email to Zoho:", zohoEmailError);
+            console.error(
+                "❌ Error sending form data email to Zoho:",
+                zohoEmailError
+            );
         }
 
-        res.status(200).json({ message: "Form submitted successfully!", id: result.rows[0].id });
+        res.status(200).json({
+            message: "Form submitted successfully!",
+            id: result.rows[0].id,
+        });
     } catch (error) {
         console.error("Database error:", error);
         res.status(500).json({ error: "Database error" });
@@ -125,7 +145,9 @@ app.post("/submit-form", async (req, res) => {
 app.get("/submissions", async (req, res) => {
     try {
         // Fetch all submissions from the database
-        const result = await pool.query("SELECT * FROM submissions ORDER BY submittedAt DESC");
+        const result = await pool.query(
+            "SELECT * FROM submissions ORDER BY submittedAt DESC"
+        );
 
         // Log the data for debugging
         console.log("📂 Retrieved Submissions:", result.rows);
@@ -133,7 +155,9 @@ app.get("/submissions", async (req, res) => {
         res.status(200).json(result.rows);
     } catch (error) {
         console.error("❌ Database error while fetching submissions:", error);
-        res.status(500).json({ error: "Database error while retrieving submissions." });
+        res.status(500).json({
+            error: "Database error while retrieving submissions.",
+        });
     }
 });
 
