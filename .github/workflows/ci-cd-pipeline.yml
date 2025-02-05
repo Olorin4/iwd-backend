@@ -45,22 +45,7 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-            # Step 6: Prepare for deployment
-            - name: Debug File System Before Packaging
-              run: |
-                  echo "🚀 Checking files before packaging..."
-                  ls -lah
-                  du -sh * | sort -hr  # Show largest files
-                  echo "🚀 Checking open files..."
-                  lsof +D . || echo "No open files found"
-
-            - name: Create deployment package
-              run: |
-                  echo "🚀 Creating deployment package..."
-                  tar --exclude=node_modules --exclude=.git --exclude=*.log --exclude=*.cache -czf deployment.tar.gz .
-                  ls -lh deployment.tar.gz  # Debugging step
-
-            # Step 7: Deploy to Server
+            # Step 6: Deploy to Server
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
