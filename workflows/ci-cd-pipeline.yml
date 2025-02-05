@@ -3,35 +3,70 @@ name: CI/CD Pipeline
 on:
     push:
         branches:
-            - main
+            - master # Trigger deployment only when pushing to the master branch
 
 jobs:
     build:
         runs-on: ubuntu-latest
 
         steps:
+            # Step 1: Check out the code
             - name: Checkout code
               uses: actions/checkout@v2
 
+            # Step 2: Set up Node.js
             - name: Set up Node.js
               uses: actions/setup-node@v2
               with:
                   node-version: "14"
 
+            # Step 3: Install dependencies
             - name: Install dependencies
               run: npm install
 
+            # Step 4: Run tests
             - name: Run tests
               run: npm test
 
+            # Step 5: Generate .env file from GitHub Secrets
+            - name: Generate .env file
+              run: |
+                  echo "PORT=${{ secrets.PORT }}" > .env
+                  echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+                  echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+                  echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+                  echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
+                  echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+                  echo "EMAIL_HOST=${{ secrets.EMAIL_HOST }}" >> .env
+                  echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> .env
+                  echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
+                  echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
+                  echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
+
+              # Step 6: Transfer project files and .env to the server using SCP
             - name: Deploy to Server
               env:
-                  DB_HOST: ${{ secrets.DB_HOST }}
-                  DB_USER: ${{ secrets.DB_USER }}
-                  DB_PASS: ${{ secrets.DB_PASS }}
+                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }} # Add SSH private key as secret
+                  SERVER_IP: ${{ secrets.SERVER_IP }}
               run: |
-                  echo "DB_HOST=$DB_HOST" > .env
-                  echo "DB_USER=$DB_USER" >> .env
-                  echo "DB_PASS=$DB_PASS" >> .env
-                  scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ user@your-server-ip:/path/to/your/project
-                  ssh -i private_key.pem -o StrictHostKeyChecking=no user@your-server-ip "cd /path/to/your/project && npm install && pm2 restart app"
+                  # Write SSH private key to a temporary file
+                  echo "$SSH_PRIVATE_KEY" > private_key.pem
+                  chmod 600 private_key.pem
+
+                  # Transfer project files & .env file to the server
+                  scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ root@SERVER_IP:/var/www/ironwing-backend
+
+                  # SSH into the server to install dependencies and restart the app
+                  ssh -i private_key.pem -o StrictHostKeyChecking=no root@SERVER_IP << 'EOF'
+                    cd /var/www/ironwing-backend
+
+                    # Ensure the .env file is properly transferred
+                    echo "Checking .env file:"
+                    cat .env
+
+                    # Install dependencies
+                    npm install
+
+                    # Restart the app using PM2
+                    pm2 restart app
+                  EOF
