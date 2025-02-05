@@ -15,10 +15,12 @@ jobs:
               uses: actions/checkout@v2
 
             # Step 2: Set up Node.js
+            - name: Use Node.js version from .nvmrc
+              run: echo "Using Node.js version $(cat .nvmrc)"
             - name: Set up Node.js
               uses: actions/setup-node@v2
               with:
-                  node-version: "14"
+                  node-version: "$(cat .nvmrc)"
 
             # Step 3: Install dependencies
             - name: Install dependencies
@@ -49,37 +51,28 @@ jobs:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
                   SERVER_IP: ${{ secrets.SERVER_IP }}
               run: |
-                  # Write SSH private key to a temporary file
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
-                  # Transfer files to the server
-                  echo "🚀 Starting SCP file transfer..."
-                  scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ root@$SERVER_IP:/var/www/ironwing-backend
-                  echo "✅ SCP file transfer completed."
+                  echo "🚀 Transferring files to the server..."
+                  scp -i private_key.pem -o StrictHostKeyChecking=no deployment.tar.gz root@$SERVER_IP:/var/www/ironwing-backend
 
-                  # SSH into the server to install dependencies and restart  echo "🚀 SSH into server and executing deployment steps..."
+                  echo "✅ Transfer complete. Extracting files on the server..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
+                    tar -xzf deployment.tar.gz
+                    rm deployment.tar.gz
+                    echo "✅ Extraction complete."
 
-                    echo "🔍 Checking .env file..."
-                    cat .env
+                    echo "🚀 Installing dependencies..."
+                    npm install --omit=dev
+                    echo "✅ Dependencies installed."
 
-                    # Install dependencies
-                    echo "🚀 Running npm install..."
-                    npm install --no-progress
-                    echo "✅ npm install completed."
-
-                    # Restart PM2 with correct process name
-                    echo "🚀 Checking PM2 process..."
+                    echo "🚀 Restarting PM2..."
                     if pm2 list | grep -q "ironwing-backend"; then
-                      echo "✅ Restarting existing PM2 process..."
                       pm2 restart ironwing-backend
                     else
-                      echo "🚀 Starting new PM2 process..."
-                      pm2 start app.js --name ironwing-backend
+                      pm2 start server.js --name ironwing-backend
                     fi
-
-                    echo "✅ Saving PM2 process..."
                     pm2 save
                   EOF
