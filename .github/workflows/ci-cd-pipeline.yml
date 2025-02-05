@@ -54,28 +54,32 @@ jobs:
                   chmod 600 private_key.pem
 
                   # Transfer files to the server
+                  echo "🚀 Starting SCP file transfer..."
                   scp -i private_key.pem -o StrictHostKeyChecking=no -r ./ root@$SERVER_IP:/var/www/ironwing-backend
+                  echo "✅ SCP file transfer completed."
 
-                  # SSH into the server to install dependencies and restart PM2
+                  # SSH into the server to install dependencies and restart  echo "🚀 SSH into server and executing deployment steps..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
 
-                    # Ensure .env file exists
-                    echo "Checking .env file:"
+                    echo "🔍 Checking .env file..."
                     cat .env
 
                     # Install dependencies
-                    npm install
+                    echo "🚀 Running npm install..."
+                    npm install --no-progress
+                    echo "✅ npm install completed."
 
                     # Restart PM2 with correct process name
+                    echo "🚀 Checking PM2 process..."
                     if pm2 list | grep -q "ironwing-backend"; then
-                      echo "Restarting existing PM2 process..."
+                      echo "✅ Restarting existing PM2 process..."
                       pm2 restart ironwing-backend
                     else
-                      echo "Starting new PM2 process..."
-                      pm2 start server.js --name ironwing-backend
+                      echo "🚀 Starting new PM2 process..."
+                      pm2 start app.js --name ironwing-backend
                     fi
 
-                    # Save PM2 process list for automatic restart after reboot
+                    echo "✅ Saving PM2 process..."
                     pm2 save
                   EOF
