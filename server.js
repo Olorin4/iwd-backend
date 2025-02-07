@@ -18,16 +18,27 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
+// Log database connection success or failure
+pool.connect((err, client, release) => {
+    if (err) {
+        console.error("❌ Database connection failed:", err.stack);
+    } else {
+        console.log("✅ Database connected successfully!");
+        release();
+    }
+});
+
 // Middleware
 app.use(bodyParser.json());
-app.set("trust proxy", true); // Trust requests coming from Nginx
-app.get("/", (req, res) => {
-    res.send("API is working!");
-});
+app.set("trust proxy", true);
+// API Test Route
+app.get("/", (req, res) => res.send("API is working!"));
 // Catch-all route for invalid URLs
-app.use((req, res) => {
-    res.status(404).json({ error: "Not Found" });
-});
+app.use((req, res) => res.status(404).json({ error: "Not Found" }));
+// Start Server
+app.listen(PORT, "0.0.0.0", () =>
+    console.log(`Server running at http://0.0.0.0:${PORT}`)
+);
 
 // Create Table If Not Exists.
 pool.query(
@@ -218,9 +229,4 @@ app.get("/submissions", async (req, res) => {
             error: "Database error while retrieving submissions.",
         });
     }
-});
-
-// Start Server
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running at http://0.0.0.0:${PORT}`);
 });
