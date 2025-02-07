@@ -45,7 +45,7 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-            # Step 6: Deploy to Server
+            # Step 6: Deploy to Server (test)
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
