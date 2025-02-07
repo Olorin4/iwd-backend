@@ -54,22 +54,14 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
-                  echo "🚀 Transferring files to the server..."
+                  echo "🚀 Transferring files to the server using rsync..."
                   rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ root@$SERVER_IP:/var/www/ironwing-backend
 
-            # Step 7: Install dependencies and restart the server
-            - name: Install Dependencies on Server
-              run: |
+                  echo "🚀 Installing dependencies and restarting PM2..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
-                    npm install
-                    echo "✅ Dependencies installed."
-
-                    echo "🚀 Restarting PM2 service..."
-                    
-                    ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
-                      cd /var/www/ironwing-backend
-                      pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
-                      pm2 save
-                      echo "✅ PM2 restarted successfully."
+                    npm install --omit=dev
+                    pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
+                    pm2 save
+                    echo "✅ Dependencies installed, PM2 restarted successfully."
                   EOF
