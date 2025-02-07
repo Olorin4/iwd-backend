@@ -60,7 +60,7 @@ jobs:
                   echo "🚀 Installing dependencies and restarting PM2..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no NickKalas@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
-                    npm install --omit=dev
+                    npm install
                     pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
                     pm2 save
                     echo "✅ Dependencies installed, PM2 restarted successfully  as NickKalas."
