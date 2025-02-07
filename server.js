@@ -141,7 +141,7 @@ app.post("/submit-form", async (req, res) => {
         console.error("❌ Error sending email auto-reply:", emailError);
     }
 
-    // **2️⃣ Email to Your Zoho Address with Full Submission Details**
+    // **2️⃣ Email to Your Zoho admin Address with Full Submission Details**
     const adminMailOptions = {
         from: process.env.EMAIL_USER,
         to: process.env.EMAIL_USER,
@@ -154,7 +154,7 @@ app.post("/submit-form", async (req, res) => {
         📞 Phone: ${phone}
         🚛 Fleet Size: ${fleetSize}
         🛻 Trailer Type: ${trailerType}
-        📌 Plan Selected: ${plan}
+        📌 Plan Selected: ${plan} 
 
         🕒 Submitted At: ${new Date().toLocaleString()}
     `,
