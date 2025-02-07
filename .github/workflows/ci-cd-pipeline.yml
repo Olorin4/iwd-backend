@@ -69,5 +69,5 @@ jobs:
                     fi
                     pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
                     pm2 save
-                    echo "✅ Deployment completed successfully!"
+                    echo "✅ Deployment completed successfully."
                   EOF
