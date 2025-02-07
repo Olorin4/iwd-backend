@@ -82,7 +82,7 @@ app.post("/submit-form", async (req, res) => {
     }
 
     try {
-        // Insert into PostgreSQL
+        // Insert into PostgreSQL db
         const result = await pool.query(
             "INSERT INTO sign_up_forms (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
             [firstName, lastName, email, tel, fleetSize, trailerType, plan]
