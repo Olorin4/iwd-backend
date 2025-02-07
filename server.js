@@ -40,14 +40,14 @@ async function initializeDatabase() {
         await pool.query(`
                 CREATE TABLE IF NOT EXISTS sign_up_forms (
                     id SERIAL PRIMARY KEY,
-                    firstName TEXT NOT NULL,
-                    lastName TEXT NOT NULL,
+                    firstname TEXT NOT NULL,
+                    lastname TEXT NOT NULL,
                     email TEXT NOT NULL,
                     tel TEXT NOT NULL,
-                    fleetSize TEXT NOT NULL,
-                    trailerType TEXT NOT NULL,
+                    fleetsize TEXT NOT NULL,
+                    trailertype TEXT NOT NULL,
                     plan TEXT NOT NULL,
-                    submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    submittedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
 
@@ -57,7 +57,7 @@ async function initializeDatabase() {
                     email TEXT NOT NULL,
                     phone TEXT,
                     message TEXT NOT NULL,
-                    submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    submittedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
 
@@ -94,7 +94,7 @@ const transporter = nodemailer.createTransport({
 app.post("/submit-form", async (req, res) => {
     console.log("📩 Received Form Data:", req.body); // Debugging log
 
-    const { firstName, lastName, email, tel, fleetSize, trailerType, plan } =
+    const { firstname, lastname, email, tel, fleetsize, trailertype, plan } =
         req.body;
 
     if (!plan) {
@@ -105,7 +105,7 @@ app.post("/submit-form", async (req, res) => {
         // Insert into PostgreSQL
         const result = await pool.query(
             "INSERT INTO sign_up_forms (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-            [firstName, lastName, email, tel, fleetSize, trailerType, plan]
+            [firstname, lastname, email, tel, fleetsize, trailertype, plan]
         );
 
         console.log("✅ Inserted Sign-Up Form ID:", result.rows[0].id);
@@ -117,7 +117,7 @@ app.post("/submit-form", async (req, res) => {
             from: process.env.EMAIL_FROM,
             to: email,
             subject: "Thank You for Signing Up!",
-            text: `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nBest,\nIron Wing Dispatching Team`,
+            text: `Hello ${firstname},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nBest,\nIron Wing Dispatching Team`,
         };
 
         try {
@@ -137,11 +137,11 @@ app.post("/submit-form", async (req, res) => {
             text: `
                 📩 A new sign-up form has been received!
 
-                👤 Name: ${firstName} ${lastName}
+                👤 Name: ${firstname} ${lastname}
                 📧 Email: ${email}
                 📞 Phone: ${tel}
-                🚛 Fleet Size: ${fleetSize}
-                🛻 Trailer Type: ${trailerType}
+                🚛 Fleet Size: ${fleetsize}
+                🛻 Trailer Type: ${trailertype}
                 📌 Plan Selected: ${plan}
 
                 🕒 Submitted At: ${new Date().toLocaleString()}
