@@ -126,7 +126,7 @@ app.post("/submit-form", async (req, res) => {
 
     // **1️⃣ Auto-Reply Email to the Potential Client**
     const clientMailOptions = {
-        from: process.env.EMAIL_FROM,
+        from: process.env.EMAIL_USER,
         replyTo: email, // The sender’s email
         to: email,
         subject: "Thank You for Signing Up!",
