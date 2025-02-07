@@ -29,7 +29,7 @@ app.use((req, res) => {
     res.status(404).json({ error: "Not Found" });
 });
 
-// Create Table If Not Exists
+// Create Table If Not Exists.
 pool.query(
     `CREATE TABLE IF NOT EXISTS sign_up_forms (
         id SERIAL PRIMARY KEY,
