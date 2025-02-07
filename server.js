@@ -11,19 +11,27 @@ const PORT = process.env.PORT || 3000;
 
 // PostgreSQL Database Configuration
 const pool = new Pool({
-        user: process.env.DB_USER,
-        host: process.env.DB_HOST,
-        database: process.env.DB_NAME,
-        password: process.env.DB_PASS,
-        port: process.env.DB_PORT,
+    user: process.env.DB_USER,
+    host: process.env.DB_HOST,
+    database: process.env.DB_NAME,
+    password: process.env.DB_PASS,
+    port: process.env.DB_PORT,
 });
 
 // Middleware
 app.use(bodyParser.json());
+app.set("trust proxy", true); // Trust requests coming from Nginx
+app.get("/", (req, res) => {
+    res.send("API is working!");
+});
+// Catch-all route for invalid URLs
+app.use((req, res) => {
+    res.status(404).json({ error: "Not Found" });
+});
 
 // Create Table If Not Exists
 pool.query(
-        `CREATE TABLE IF NOT EXISTS sign_up_forms (
+    `CREATE TABLE IF NOT EXISTS sign_up_forms (
         id SERIAL PRIMARY KEY,
         firstName TEXT NOT NULL,
         lastName TEXT NOT NULL,
@@ -38,7 +46,7 @@ pool.query(
 
 // Create Table for Contact Form Submissions
 pool.query(
-        `CREATE TABLE IF NOT EXISTS contact_submissions (
+    `CREATE TABLE IF NOT EXISTS contact_submissions (
         id SERIAL PRIMARY KEY,
         email TEXT NOT NULL,
         phone TEXT,
@@ -49,82 +57,63 @@ pool.query(
 
 // Email Transporter Configuration
 const transporter = nodemailer.createTransport({
-        host: process.env.EMAIL_HOST, // smtp.zoho.eu
-        port: process.env.EMAIL_PORT, // 465
-        secure: false, // Use STARTTLS, NOT SSL
-        auth: {
-                user: process.env.EMAIL_USER, // Your Zoho email
-                pass: process.env.EMAIL_PASS, // Zoho App Password
-        },
-        tls: {
-                ciphers: "SSLv3",
-                rejectUnauthorized: false, // Sometimes needed for Zoho
-        },
+    host: process.env.EMAIL_HOST, // smtp.zoho.eu
+    port: process.env.EMAIL_PORT, // 465
+    secure: false, // Use STARTTLS, NOT SSL
+    auth: {
+        user: process.env.EMAIL_USER, // Your Zoho email
+        pass: process.env.EMAIL_PASS, // Zoho App Password
+    },
+    tls: {
+        ciphers: "SSLv3",
+        rejectUnauthorized: false, // Sometimes needed for Zoho
+    },
 });
 
 // Handle Form Submissions
 app.post("/submit-form", async (req, res) => {
-        console.log("📩 Received Form Data:", req.body); // Debugging log
+    console.log("📩 Received Form Data:", req.body); // Debugging log
 
-        const {
-                firstName,
-                lastName,
-                email,
-                tel,
-                fleetSize,
-                trailerType,
-                plan,
-        } = req.body;
+    const { firstName, lastName, email, tel, fleetSize, trailerType, plan } =
+        req.body;
 
-        if (!plan) {
-                console.warn("⚠️ Warning: Plan is missing in request!");
-        }
+    if (!plan) {
+        console.warn("⚠️ Warning: Plan is missing in request!");
+    }
+
+    try {
+        // Insert into PostgreSQL
+        const result = await pool.query(
+            "INSERT INTO sign_up_forms (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            [firstName, lastName, email, tel, fleetSize, trailerType, plan]
+        );
+
+        console.log("✅ Inserted Sign-Up Form ID:", result.rows[0].id);
+        // **Log the plan before sending emails**
+        console.log("📩 Plan being sent in email:", plan);
+
+        // **1️⃣ Auto-Reply Email to the Potential Client**
+        const clientMailOptions = {
+            from: process.env.EMAIL_FROM,
+            to: email,
+            subject: "Thank You for Signing Up!",
+            text: `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nBest,\nIron Wing Dispatching Team`,
+        };
 
         try {
-                // Insert into PostgreSQL
-                const result = await pool.query(
-                        "INSERT INTO sign_up_forms (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-                        [
-                                firstName,
-                                lastName,
-                                email,
-                                tel,
-                                fleetSize,
-                                trailerType,
-                                plan,
-                        ]
-                );
+            await transporter.sendMail(clientMailOptions);
+            console.log("📧 Email Auto-Reply Sent to Client Successfully!");
+        } catch (emailError) {
+            console.error("❌ Error sending email auto-reply:", emailError);
+        }
 
-                console.log("✅ Inserted Sign-Up Form ID:", result.rows[0].id);
-                // **Log the plan before sending emails**
-                console.log("📩 Plan being sent in email:", plan);
-
-                // **1️⃣ Auto-Reply Email to the Potential Client**
-                const clientMailOptions = {
-                        from: process.env.EMAIL_FROM,
-                        to: email,
-                        subject: "Thank You for Signing Up!",
-                        text: `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nBest,\nIron Wing Dispatching Team`,
-                };
-
-                try {
-                        await transporter.sendMail(clientMailOptions);
-                        console.log(
-                                "📧 Email Auto-Reply Sent to Client Successfully!"
-                        );
-                } catch (emailError) {
-                        console.error(
-                                "❌ Error sending email auto-reply:",
-                                emailError
-                        );
-                }
-
-                // **2️⃣ Email to Your Zoho Address with Full Submission Details**
-                const zohoMailOptions = {
-                        from: process.env.EMAIL_FROM,
-                        to: process.env.EMAIL_USER,
-                        subject: "🚛 New Sign-Up Form Received from iron-wing-dispatching.com",
-                        text: `
+        // **2️⃣ Email to Your Zoho Address with Full Submission Details**
+        const zohoMailOptions = {
+            from: process.env.EMAIL_FROM,
+            to: process.env.EMAIL_USER,
+            subject:
+                "🚛 New Sign-Up Form Received from iron-wing-dispatching.com",
+            text: `
                 📩 A new sign-up form has been received!
 
                 👤 Name: ${firstName} ${lastName}
@@ -136,57 +125,55 @@ app.post("/submit-form", async (req, res) => {
 
                 🕒 Submitted At: ${new Date().toLocaleString()}
             `,
-                };
+        };
 
-                try {
-                        await transporter.sendMail(zohoMailOptions);
-                        console.log(
-                                "📧 Form Data Sent to Zoho Mail Successfully!"
-                        );
-                } catch (zohoEmailError) {
-                        console.error(
-                                "❌ Error sending form data email to Zoho:",
-                                zohoEmailError
-                        );
-                }
-
-                res.status(200).json({
-                        message: "Form submitted successfully!",
-                        id: result.rows[0].id,
-                });
-        } catch (error) {
-                console.error("Database error:", error);
-                res.status(500).json({ error: "Database error" });
+        try {
+            await transporter.sendMail(zohoMailOptions);
+            console.log("📧 Form Data Sent to Zoho Mail Successfully!");
+        } catch (zohoEmailError) {
+            console.error(
+                "❌ Error sending form data email to Zoho:",
+                zohoEmailError
+            );
         }
+
+        res.status(200).json({
+            message: "Form submitted successfully!",
+            id: result.rows[0].id,
+        });
+    } catch (error) {
+        console.error("Database error:", error);
+        res.status(500).json({ error: "Database error" });
+    }
 });
 
 // Handle Contact Form Submissions
 app.post("/contact-form", async (req, res) => {
-        const { email, phone, message } = req.body;
+    const { email, phone, message } = req.body;
 
-        if (!email || !message) {
-                return res
-                        .status(400)
-                        .json({ error: "Email and message are required." });
-        }
+    if (!email || !message) {
+        return res
+            .status(400)
+            .json({ error: "Email and message are required." });
+    }
 
-        console.log("📩 Contact Form Submission:", req.body);
+    console.log("📩 Contact Form Submission:", req.body);
 
-        try {
-                // Insert into PostgreSQL
-                const result = await pool.query(
-                        "INSERT INTO contact_submissions (email, phone, message) VALUES ($1, $2, $3) RETURNING id",
-                        [email, phone, message]
-                );
+    try {
+        // Insert into PostgreSQL
+        const result = await pool.query(
+            "INSERT INTO contact_submissions (email, phone, message) VALUES ($1, $2, $3) RETURNING id",
+            [email, phone, message]
+        );
 
-                console.log("✅ Contact Form Inserted ID:", result.rows[0].id);
+        console.log("✅ Contact Form Inserted ID:", result.rows[0].id);
 
-                // Email to Admin
-                const mailOptions = {
-                        from: process.env.EMAIL_FROM,
-                        to: process.env.EMAIL_USER, // Admin email
-                        subject: "📩 New Contact Form Submission",
-                        text: `
+        // Email to Admin
+        const mailOptions = {
+            from: process.env.EMAIL_FROM,
+            to: process.env.EMAIL_USER, // Admin email
+            subject: "📩 New Contact Form Submission",
+            text: `
                 📩 A visitor submitted a question!
                 
                 📧 Email: ${email}
@@ -195,53 +182,45 @@ app.post("/contact-form", async (req, res) => {
                 
                 🕒 Submitted At: ${new Date().toLocaleString()}
             `,
-                };
+        };
 
-                try {
-                        await transporter.sendMail(mailOptions);
-                        console.log(
-                                "📧 Contact Form Sent to Admin Successfully!"
-                        );
-                } catch (emailError) {
-                        console.error(
-                                "❌ Error sending contact form email:",
-                                emailError
-                        );
-                }
-
-                res.status(200).json({
-                        message: "Contact form submitted successfully!",
-                        id: result.rows[0].id,
-                });
-        } catch (error) {
-                console.error("❌ Database error:", error);
-                res.status(500).json({ error: "Database error" });
+        try {
+            await transporter.sendMail(mailOptions);
+            console.log("📧 Contact Form Sent to Admin Successfully!");
+        } catch (emailError) {
+            console.error("❌ Error sending contact form email:", emailError);
         }
+
+        res.status(200).json({
+            message: "Contact form submitted successfully!",
+            id: result.rows[0].id,
+        });
+    } catch (error) {
+        console.error("❌ Database error:", error);
+        res.status(500).json({ error: "Database error" });
+    }
 });
 
 app.get("/submissions", async (req, res) => {
-        try {
-                // Fetch all submissions from the database
-                const result = await pool.query(
-                        "SELECT * FROM submissions ORDER BY submittedAt DESC"
-                );
+    try {
+        // Fetch all submissions from the database
+        const result = await pool.query(
+            "SELECT * FROM submissions ORDER BY submittedAt DESC"
+        );
 
-                // Log the data for debugging
-                console.log("📂 Retrieved Submissions:", result.rows);
+        // Log the data for debugging
+        console.log("📂 Retrieved Submissions:", result.rows);
 
-                res.status(200).json(result.rows);
-        } catch (error) {
-                console.error(
-                        "❌ Database error while fetching submissions:",
-                        error
-                );
-                res.status(500).json({
-                        error: "Database error while retrieving submissions.",
-                });
-        }
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("❌ Database error while fetching submissions:", error);
+        res.status(500).json({
+            error: "Database error while retrieving submissions.",
+        });
+    }
 });
 
 // Start Server
 app.listen(PORT, "0.0.0.0", () => {
-        console.log(`Server running at http://0.0.0.0:${PORT}`);
+    console.log(`Server running at http://0.0.0.0:${PORT}`);
 });
