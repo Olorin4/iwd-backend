@@ -5,15 +5,15 @@
  */
 
 const config = {
-    trailingComma: "es5",
-    tabWidth: 8,
-    printWidth: 80,
-    semi: true,
-    singleQuote: false,
-    quoteProps: "as-needed",
-    htmlWhitespaceSensitivity: "ignore", // Avoid collapsing white spaces
-    bracketSameLine: true,
-    bracketSpacing: true,
+        trailingComma: "es5",
+        tabWidth: 4,
+        printWidth: 80,
+        semi: true,
+        singleQuote: false,
+        quoteProps: "as-needed",
+        htmlWhitespaceSensitivity: "ignore", // Avoid collapsing white spaces
+        bracketSameLine: true,
+        bracketSpacing: true,
 };
 
 export default config;
