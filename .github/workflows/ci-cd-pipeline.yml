@@ -55,4 +55,4 @@ jobs:
                                   chmod 600 private_key.pem
 
                                   echo "🚀 Transferring files to the server..."
-                                  scp -r -i private_key.pem -o StrictHostKeyChecking=no ./ root@$SERVER_IP:/var/www/ironwing-backend
+                                  rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ root@$SERVER_IP:/var/www/ironwing-backend
