@@ -93,7 +93,6 @@ const transporter = nodemailer.createTransport({
 // Handle Form Submissions
 app.post("/submit-form", async (req, res) => {
     console.log("📩 Received Form Data:", req.body); // Debugging log
-
     const { firstName, lastName, email, tel, fleetSize, trailerType, plan } =
         req.body;
 
@@ -112,10 +111,9 @@ app.post("/submit-form", async (req, res) => {
 
     try {
         const result = await pool.query(
-            "INSERT INTO sign_up_forms (firstname, lastname, email, tel, fleetsize, trailertype, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            "INSERT INTO sign_up_forms (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
             [firstName, lastName, email, tel, fleetSize, trailerType, plan]
         );
-
         console.log("✅ Inserted Sign-Up Form ID:", result.rows[0].id);
         res.status(200).json({
             message: "Form submitted successfully!",
@@ -125,99 +123,71 @@ app.post("/submit-form", async (req, res) => {
         console.error("❌ Full Database Error:", error);
         res.status(500).json({ error: error.message }); // Send full error message in response
     }
+
+    // **1️⃣ Auto-Reply Email to the Potential Client**
+    const clientMailOptions = {
+        from: process.env.EMAIL_FROM,
+        replyTo: email, // The sender’s email
+        to: email,
+        subject: "Thank You for Signing Up!",
+        text: `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`,
+    };
+
+    try {
+        console.log("📨 Sending email to admin...");
+        await transporter.sendMail(clientMailOptions);
+        console.log("📧 Email Auto-Reply Sent to Client Successfully!");
+    } catch (emailError) {
+        console.error("❌ Error sending email auto-reply:", emailError);
+    }
+
+    // **2️⃣ Email to Your Zoho Address with Full Submission Details**
+    const zohoMailOptions = {
+        from: process.env.EMAIL_FROM,
+        to: process.env.EMAIL_USER,
+        subject: "🚛 New Sign-Up Form Received",
+        text: `
+        📩 A new sign-up form has been received!
+
+        👤 Name: ${firstName} ${lastName}
+        📧 Email: ${email}
+        📞 Phone: ${tel}
+        🚛 Fleet Size: ${fleetSize}
+        🛻 Trailer Type: ${trailerType}
+        📌 Plan Selected: ${plan}
+
+        🕒 Submitted At: ${new Date().toLocaleString()}
+    `,
+    };
+
+    try {
+        await transporter.sendMail(zohoMailOptions);
+        console.log("📧 Form Data Sent to Admin Mail Successfully!");
+    } catch (zohoEmailError) {
+        console.error(
+            "❌ Error sending form data email to Admin:",
+            zohoEmailError
+        );
+    }
 });
-
-// **1️⃣ Auto-Reply Email to the Potential Client**
-// const clientMailOptions = {
-//     from: process.env.EMAIL_FROM,
-//     to: email,
-//     subject: "Thank You for Signing Up!",
-//     text: `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nBest,\nIron Wing Dispatching Team`,
-// };
-
-// try {
-//     console.log("📨 Sending email to admin...");
-//     await transporter.sendMail(clientMailOptions);
-//     console.log("📧 Email Auto-Reply Sent to Client Successfully!");
-// } catch (emailError) {
-//     console.error("❌ Error sending email auto-reply:", emailError);
-// }
-
-// **2️⃣ Email to Your Zoho Address with Full Submission Details**
-// const zohoMailOptions = {
-//     from: process.env.EMAIL_FROM,
-//     to: process.env.EMAIL_USER,
-//     subject:
-//         "🚛 New Sign-Up Form Received from iron-wing-dispatching.com",
-//     text: `
-//         📩 A new sign-up form has been received!
-
-//         👤 Name: ${firstName} ${lastName}
-//         📧 Email: ${email}
-//         📞 Phone: ${tel}
-//         🚛 Fleet Size: ${fleetSize}
-//         🛻 Trailer Type: ${trailerType}
-//         📌 Plan Selected: ${plan}
-
-//         🕒 Submitted At: ${new Date().toLocaleString()}
-//     `,
-// };
-
-// try {
-//     await transporter.sendMail(zohoMailOptions);
-//     console.log("📧 Form Data Sent to Zoho Mail Successfully!");
-// } catch (zohoEmailError) {
-//     console.error(
-//         "❌ Error sending form data email to Zoho:",
-//         zohoEmailError
-//     );
-// }
 
 // Handle Contact Form Submissions
 app.post("/contact-form", async (req, res) => {
-    const { email, phone, message } = req.body;
+    const { email, tel, message } = req.body;
 
     if (!email || !message) {
         return res
             .status(400)
             .json({ error: "Email and message are required." });
     }
-
     console.log("📩 Contact Form Submission:", req.body);
 
     try {
-        // Insert into PostgreSQL
         const result = await pool.query(
             "INSERT INTO contact_submissions (email, phone, message) VALUES ($1, $2, $3) RETURNING id",
-            [email, phone, message]
+            [email, tel, message]
         );
-
         console.log("✅ Contact Form Inserted ID:", result.rows[0].id);
-
-        // Email to Admin
-        const mailOptions = {
-            from: process.env.EMAIL_FROM,
-            to: process.env.EMAIL_USER, // Admin email
-            subject: "📩 New Contact Form Submission",
-            text: `
-                📩 A visitor submitted a question!
-                
-                📧 Email: ${email}
-                📞 Phone: ${phone || "Not provided"}
-                📝 Message: ${message}
-                
-                🕒 Submitted At: ${new Date().toLocaleString()}
-            `,
-        };
-
-        try {
-            console.log("📨 Sending email to admin...");
-            await transporter.sendMail(mailOptions);
-            console.log("📧 Contact Form Sent to Admin Successfully!");
-        } catch (emailError) {
-            console.error("❌ Error sending contact form email:", emailError);
-        }
-
         res.status(200).json({
             message: "Contact form submitted successfully!",
             id: result.rows[0].id,
@@ -225,6 +195,49 @@ app.post("/contact-form", async (req, res) => {
     } catch (error) {
         console.error("❌ Database error:", error);
         res.status(500).json({ error: "Database error" });
+    }
+
+    // **1️⃣ Auto-Reply Email to the Potential Client**
+    const clientMailOptions = {
+        from: process.env.EMAIL_FROM,
+        replyTo: email, // The sender’s email
+        to: email,
+        subject: "Thank You for Signing Up!",
+        text: `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.\n\nAll the best,\nIron Wing Dispatching Team`,
+    };
+
+    try {
+        console.log("📨 Sending email to admin...");
+        await transporter.sendMail(clientMailOptions);
+        console.log("📧 Email Auto-Reply Sent to Client Successfully!");
+    } catch (emailError) {
+        console.error("❌ Error sending email auto-reply:", emailError);
+    }
+
+    // **2️⃣ Email to Your Zoho Address with Full Submission Details**
+    const zohoMailOptions = {
+        from: process.env.EMAIL_FROM,
+        to: process.env.EMAIL_USER,
+        subject: "🚛 New Contact Form submission",
+        text: `
+        📩 A visitor submitted a question!
+
+        📧 Email: ${email}
+        📞 Phone: ${tel}
+        📝 Message: ${message}
+
+        🕒 Submitted At: ${new Date().toLocaleString()}
+    `,
+    };
+
+    try {
+        await transporter.sendMail(zohoMailOptions);
+        console.log("📧 Form Data Sent to Admin Mail Successfully!");
+    } catch (zohoEmailError) {
+        console.error(
+            "❌ Error sending form data email to Admin:",
+            zohoEmailError
+        );
     }
 });
 
