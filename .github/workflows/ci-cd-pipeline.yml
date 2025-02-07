@@ -7,6 +7,7 @@ on:
 
 jobs:
     build:
+        if: github.actor == 'Olorin4'
         runs-on: ubuntu-latest
 
         steps:
@@ -60,10 +61,13 @@ jobs:
                   echo "🚀 Installing dependencies and restarting PM2..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no NickKalas@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
-                    echo "🚀 Running npm install..."
-                    npm install
-                    npm list nodemailer
+                    if [ -f package-lock.json ]; then
+                      echo "🚀 package-lock.json exists, checking for updates..."
+                      npm install --omit=dev
+                    else
+                      echo "✅ No dependency changes detected, skipping npm install."
+                    fi
                     pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
                     pm2 save
-                    echo "✅ Dependencies installed, PM2 restarted successfully  as NickKalas."
+                    echo "✅ Deployment completed successfully!"
                   EOF
