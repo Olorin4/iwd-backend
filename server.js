@@ -111,7 +111,7 @@ app.post("/submit-form", async (req, res) => {
 
     try {
         const result = await pool.query(
-            "INSERT INTO sign_up_forms (firstName, lastName, email, phone, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            "INSERT INTO sign_up_forms (firstname, lastname, email, phone, fleetsize, trailertype, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
             [firstName, lastName, email, phone, fleetSize, trailerType, plan]
         );
         console.log("✅ Inserted Sign-Up Form ID:", result.rows[0].id);
