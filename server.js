@@ -41,30 +41,45 @@ app.listen(PORT, "0.0.0.0", () =>
 );
 
 // Create Table If Not Exists.
-pool.query(
-    `CREATE TABLE IF NOT EXISTS sign_up_forms (
-        id SERIAL PRIMARY KEY,
-        firstName TEXT NOT NULL,
-        lastName TEXT NOT NULL,
-        email TEXT NOT NULL,
-        tel TEXT NOT NULL,
-        fleetSize TEXT NOT NULL,
-        trailerType TEXT NOT NULL,
-        plan TEXT NOT NULL,
-        submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`
-);
+async function initializeDatabase() {
+    try {
+        await pool.query(`
+                CREATE TABLE IF NOT EXISTS sign_up_forms (
+                    id SERIAL PRIMARY KEY,
+                    firstName TEXT NOT NULL,
+                    lastName TEXT NOT NULL,
+                    email TEXT NOT NULL,
+                    tel TEXT NOT NULL,
+                    fleetSize TEXT NOT NULL,
+                    trailerType TEXT NOT NULL,
+                    plan TEXT NOT NULL,
+                    submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
 
-// Create Table for Contact Form Submissions
-pool.query(
-    `CREATE TABLE IF NOT EXISTS contact_submissions (
-        id SERIAL PRIMARY KEY,
-        email TEXT NOT NULL,
-        phone TEXT,
-        message TEXT NOT NULL,
-        submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )`
-);
+        await pool.query(`
+                CREATE TABLE IF NOT EXISTS contact_submissions (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT NOT NULL,
+                    phone TEXT,
+                    message TEXT NOT NULL,
+                    submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            `);
+
+        console.log("✅ Database tables checked/created successfully!");
+    } catch (error) {
+        console.error("❌ Error initializing database:", error);
+    }
+}
+
+// Run database initialization AFTER the connection is established
+pool.connect((err, client, release) => {
+    if (err) console.error("❌ Database connection failed:", err.stack);
+    console.log("✅ Database connected successfully!");
+    initializeDatabase();
+    release();
+});
 
 // Email Transporter Configuration
 const transporter = nodemailer.createTransport({
