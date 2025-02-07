@@ -33,20 +33,6 @@ app.use(bodyParser.json());
 app.set("trust proxy", true);
 // API Test Route
 app.get("/", (req, res) => res.send("API is working!"));
-app.post("/submit-form", async (req, res) => {
-    console.log("📩 Received Form Data:", req.body);
-    res.status(200).json({ message: "API is working!" });
-});
-app.post("/contact-form", async (req, res) => {
-    console.log("📩 Contact Form Submission:", req.body);
-    res.status(200).json({ message: "API is working!" });
-});
-// Catch-all route for invalid URLs
-app.use((req, res) => res.status(404).json({ error: "Not Found" }));
-// Start Server
-app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Server running at http://0.0.0.0:${PORT}`)
-);
 
 // Create Table If Not Exists.
 async function initializeDatabase() {
@@ -255,3 +241,10 @@ app.get("/submissions", async (req, res) => {
         });
     }
 });
+
+// Catch-all route for invalid URLs
+app.use((req, res) => res.status(404).json({ error: "Not Found" }));
+// Start Server
+app.listen(PORT, "0.0.0.0", () =>
+    console.log(`Server running at http://0.0.0.0:${PORT}`)
+);
