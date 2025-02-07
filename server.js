@@ -196,7 +196,7 @@ app.post("/contact-form", async (req, res) => {
 
     // **1️⃣ Auto-Reply Email to the Potential Client**
     const clientMailOptions = {
-        from: process.env.EMAIL_FROM,
+        from: process.env.EMAIL_USER,
         replyTo: email, // The sender’s email
         to: email,
         subject: "Thank You for Signing Up!",
@@ -212,8 +212,8 @@ app.post("/contact-form", async (req, res) => {
     }
 
     // **2️⃣ Email to Your Zoho Address with Full Submission Details**
-    const zohoMailOptions = {
-        from: process.env.EMAIL_FROM,
+    const adminMailOptions = {
+        from: process.env.EMAIL_USER,
         to: process.env.EMAIL_USER,
         subject: "🚛 New Contact Form submission",
         text: `
@@ -228,13 +228,10 @@ app.post("/contact-form", async (req, res) => {
     };
 
     try {
-        await transporter.sendMail(zohoMailOptions);
+        await transporter.sendMail(adminMailOptions);
         console.log("📧 Form Data Sent to Admin Mail Successfully!");
-    } catch (zohoEmailError) {
-        console.error(
-            "❌ Error sending form data email to Admin:",
-            zohoEmailError
-        );
+    } catch (emailError) {
+        console.error("❌ Error sending form data email to Admin:", emailError);
     }
 });
 
