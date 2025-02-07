@@ -1,58 +1,75 @@
 name: CI/CD Pipeline
 
 on:
-        push:
-                branches:
-                        - master # Runs when pushing to the master branch
+    push:
+        branches:
+            - master # Runs when pushing to the master branch
 
 jobs:
-        build:
-                runs-on: ubuntu-latest
+    build:
+        runs-on: ubuntu-latest
 
-                steps:
-                        # Step 1: Check out the code
-                        - name: Checkout code
-                          uses: actions/checkout@v2
+        steps:
+            # Step 1: Check out the code
+            - name: Checkout code
+              uses: actions/checkout@v2
 
-                        # Step 2: Set up Node.js
-                        - name: Read Node.js version from .nvmrc
-                          run: echo "NODE_VERSION=$(cat .nvmrc)" >> $GITHUB_ENV
-                        - name: Set up Node.js
-                          uses: actions/setup-node@v2
-                          with:
-                                  node-version: ${{ env.NODE_VERSION }}
+            # Step 2: Set up Node.js
+            - name: Read Node.js version from .nvmrc
+              run: echo "NODE_VERSION=$(cat .nvmrc)" >> $GITHUB_ENV
+            - name: Set up Node.js
+              uses: actions/setup-node@v2
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
 
-                        # Step 3: Install dependencies
-                        - name: Install dependencies
-                          run: npm install
+            # Step 3: Install dependencies
+            - name: Install dependencies
+              run: npm install
 
-                        # Step 4: Run tests (skips failure if no tests exist)
-                        - name: Run tests
-                          run: npm test --passWithNoTests
+            # Step 4: Run tests (skips failure if no tests exist)
+            - name: Run tests
+              run: npm test --passWithNoTests
 
-                        # Step 5: Generate .env file from GitHub Secrets
-                        - name: Generate .env file
-                          run: |
-                                  echo "PORT=${{ secrets.PORT }}" > .env
-                                  echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-                                  echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
-                                  echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-                                  echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
-                                  echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
-                                  echo "EMAIL_HOST=${{ secrets.EMAIL_HOST }}" >> .env
-                                  echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> .env
-                                  echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
-                                  echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
-                                  echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
+            # Step 5: Generate .env file from GitHub Secrets
+            - name: Generate .env file
+              run: |
+                  echo "PORT=${{ secrets.PORT }}" > .env
+                  echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+                  echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+                  echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+                  echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
+                  echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+                  echo "EMAIL_HOST=${{ secrets.EMAIL_HOST }}" >> .env
+                  echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> .env
+                  echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
+                  echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
+                  echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-                        # Step 6: Deploy to Server
-                        - name: Deploy to Server
-                          env:
-                                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
-                                  SERVER_IP: ${{ secrets.SERVER_IP }}
-                          run: |
-                                  echo "$SSH_PRIVATE_KEY" > private_key.pem
-                                  chmod 600 private_key.pem
+            # Step 6: Deploy to Server
+            - name: Deploy to Server
+              env:
+                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
+                  SERVER_IP: ${{ secrets.SERVER_IP }}
+              run: |
+                  echo "$SSH_PRIVATE_KEY" > private_key.pem
+                  chmod 600 private_key.pem
 
-                                  echo "🚀 Transferring files to the server..."
-                                  rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ root@$SERVER_IP:/var/www/ironwing-backend
+                  echo "🚀 Transferring files to the server..."
+                  rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ root@$SERVER_IP:/var/www/ironwing-backend
+
+            # Step 7: Install dependencies and restart the server
+            - name: Install Dependencies on Server
+              run: |
+                  ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
+                    cd /var/www/ironwing-backend
+                    npm install
+                    echo "✅ Dependencies installed."
+
+                    echo "🚀 Restarting PM2 service..."
+                    
+                    ssh -i private_key.pem -o StrictHostKeyChecking=no root@$SERVER_IP << 'EOF'
+                      cd /var/www/ironwing-backend
+                      pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
+                      pm2 save
+                      echo "✅ PM2 restarted successfully."
+                  EOF
