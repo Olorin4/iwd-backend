@@ -43,7 +43,7 @@ async function initializeDatabase() {
                     firstname TEXT NOT NULL,
                     lastname TEXT NOT NULL,
                     email TEXT NOT NULL,
-                    tel TEXT NOT NULL,
+                    phone TEXT NOT NULL,
                     fleetsize TEXT NOT NULL,
                     trailertype TEXT NOT NULL,
                     plan TEXT NOT NULL,
@@ -93,14 +93,14 @@ const transporter = nodemailer.createTransport({
 // Handle Form Submissions
 app.post("/submit-form", async (req, res) => {
     console.log("📩 Received Form Data:", req.body); // Debugging log
-    const { firstName, lastName, email, tel, fleetSize, trailerType, plan } =
+    const { firstName, lastName, email, phone, fleetSize, trailerType, plan } =
         req.body;
 
     if (
         !firstName ||
         !lastName ||
         !email ||
-        !tel ||
+        !phone ||
         !fleetSize ||
         !trailerType ||
         !plan
@@ -111,8 +111,8 @@ app.post("/submit-form", async (req, res) => {
 
     try {
         const result = await pool.query(
-            "INSERT INTO sign_up_forms (firstName, lastName, email, tel, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
-            [firstName, lastName, email, tel, fleetSize, trailerType, plan]
+            "INSERT INTO sign_up_forms (firstName, lastName, email, phone, fleetSize, trailerType, plan) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            [firstName, lastName, email, phone, fleetSize, trailerType, plan]
         );
         console.log("✅ Inserted Sign-Up Form ID:", result.rows[0].id);
         res.status(200).json({
@@ -151,7 +151,7 @@ app.post("/submit-form", async (req, res) => {
 
         👤 Name: ${firstName} ${lastName}
         📧 Email: ${email}
-        📞 Phone: ${tel}
+        📞 Phone: ${phone}
         🚛 Fleet Size: ${fleetSize}
         🛻 Trailer Type: ${trailerType}
         📌 Plan Selected: ${plan}
@@ -170,7 +170,7 @@ app.post("/submit-form", async (req, res) => {
 
 // Handle Contact Form Submissions
 app.post("/contact-form", async (req, res) => {
-    const { email, tel, message } = req.body;
+    const { email, phone, message } = req.body;
 
     if (!email || !message) {
         return res
@@ -182,7 +182,7 @@ app.post("/contact-form", async (req, res) => {
     try {
         const result = await pool.query(
             "INSERT INTO contact_submissions (email, phone, message) VALUES ($1, $2, $3) RETURNING id",
-            [email, tel, message]
+            [email, phone, message]
         );
         console.log("✅ Contact Form Inserted ID:", result.rows[0].id);
         res.status(200).json({
@@ -220,7 +220,7 @@ app.post("/contact-form", async (req, res) => {
         📩 A visitor submitted a question!
 
         📧 Email: ${email}
-        📞 Phone: ${tel}
+        📞 Phone: ${phone}
         📝 Message: ${message}
 
         🕒 Submitted At: ${new Date().toLocaleString()}
