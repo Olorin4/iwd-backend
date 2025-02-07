@@ -127,7 +127,7 @@ app.post("/submit-form", async (req, res) => {
     // **1️⃣ Auto-Reply Email to the Potential Client**
     const clientMailOptions = {
         from: process.env.EMAIL_USER,
-        replyTo: email, // The sender’s email
+        replyTo: email,
         to: email,
         subject: "Thank You for Signing Up!",
         text: `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`,
