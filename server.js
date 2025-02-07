@@ -199,7 +199,7 @@ app.post("/contact-form", async (req, res) => {
         from: process.env.EMAIL_USER,
         replyTo: email, // The sender’s email
         to: email,
-        subject: "Thank You for Signing Up!",
+        subject: "Thank You for contacting us!",
         text: `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.\n\nAll the best,\nIron Wing Dispatching Team`,
     };
 
