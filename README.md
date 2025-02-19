@@ -77,4 +77,3 @@ This project showcases my ability to design and develop a full-stack application
 If you are interested in learning more about this project or discussing potential collaboration, please contact me at info@iron-wing-dispatching.com or connect with me on my [LinkedIn Profile](https://www.linkedin.com/in/nick-kalas-599822303/).
 
 ---
-This README is written with a hiring manager in mind to demonstrate my skill set and readiness for a junior developer position. I am eager to bring my problem-solving abilities and passion for technology to a dynamic team and continue growing as a developer.
