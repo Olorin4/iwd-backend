@@ -5,6 +5,8 @@ This is a custom Transportation Management System (TMS) designed and developed f
 
 ## Current Features
 ### Core Functionalities
+- **CRM Integration:** Automated sales pipeline onboarding and paperwork using CRM tools.
+- **Automated Carrier Packets:** Streamlined broker onboarding with auto-generated packets.
 - **Load Management:**
   - Create, assign, and track loads.
   - Manage load statuses (e.g., pending, in-progress, completed).
@@ -25,20 +27,24 @@ This is a custom Transportation Management System (TMS) designed and developed f
 
 ## Tech Stack
 - **Frontend:** React.js with TypeScript for dynamic and scalable UI components.
-- **Backend:** Django (Python) with Django REST Framework for building secure and robust APIs.
+- **Backend:** Node.js as the primary backend language for high-performance APIs and real-time communication, with **Django** used for authentication, admin dashboard, and other built-in utilities.
 - **Database:** PostgreSQL for relational data management and scalability.
 - **Mapping and Geospatial Tools:** Leaflet.js integrated with OpenStreetMap for interactive mapping and load tracking.
-- **Hosting and Deployment:** Hosted on AWS with Docker for containerization and CI/CD pipelines.
+- **Hosting and Deployment:** Hosted on **Hetzner VPS** for cost-effective scalability, using Docker for containerization and CI/CD pipelines.
 
-## Planned Upgrades and Future Roadmap
+
 ### Phase 1: Advanced Features (Next 6 Months)
-- **Real-Time GPS Tracking:**
-  - Integrate with third-party APIs for live GPS tracking.
-  - Implement WebSocket-based updates for real-time location.
+- **CRM Integration:** Automated sales pipeline onboarding and paperwork using CRM tools.
 
+- **Automated Carrier Packets:** Streamlined broker onboarding with auto-generated packets.
+  
 - **Load Board Integration:**
   - Connect to popular load boards (e.g., DAT, Truckstop) for seamless load matching.
   - Automate load recommendations based on historical data.
+    
+- **Real-Time GPS Tracking:**
+  - Integrate with third-party APIs for live GPS tracking.
+  - Implement WebSocket-based updates for real-time location.
 
 - **User Role Management:**
   - Implement multi-user roles (Admin, Dispatcher, Driver) with custom permissions.
