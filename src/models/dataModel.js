@@ -2,8 +2,27 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
-export const DataModel = {
-    getAll: async () => {
-        return await prisma.user.findMany();
+const DataModel = {
+    getAllSignUpForms: async () => {
+        try {
+            const result = await prisma.signUpForm.findMany();
+            console.log("SignUpForms Retrieved:", result);
+            return result;
+        } catch (error) {
+            console.error("Database Error (getAllSignUpForms):", error);
+            throw error;
+        }
+    },
+    getAllContactSubmissions: async () => {
+        try {
+            const result = await prisma.contactSubmission.findMany();
+            console.log("ContactSubmissions Retrieved:", result);
+            return result;
+        } catch (error) {
+            console.error("Database Error (getAllContactSubmissions):", error);
+            throw error;
+        }
     },
 };
+
+export default DataModel;

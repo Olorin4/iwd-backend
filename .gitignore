@@ -1,6 +1,4 @@
-.env
-.env.production
-.env.development
+.env*
 .vscode
 
 # Logs
