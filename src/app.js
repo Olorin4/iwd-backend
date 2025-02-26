@@ -1,13 +1,15 @@
-const { Pool } = require("pg");
-const express = require("express");
-const bodyParser = require("body-parser");
-const cors = require("cors");
-const dotenv = require("dotenv");
-const nodemailer = require("nodemailer");
+// src/app.js
 
-dotenv.config();
-const app = express();
-const PORT = process.env.PORT || 3000;
+import express from "express";
+const router = require("./routes/router");
+import { Pool } from "pg";
+import bodyParser from "body-parser";
+import nodemailer from "nodemailer";
+const envPath =
+    process.env.NODE_ENV === "production"
+        ? ".env.production"
+        : ".env.development";
+import("dotenv").then((dotenv) => dotenv.config({ path: envPath }));
 
 // PostgreSQL Database Configuration
 const pool = new Pool({
@@ -18,21 +20,19 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-// Log database connection success or failure
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error("❌ Database connection failed:", err.stack);
-    } else {
-        console.log("✅ Database connected successfully!");
-        release();
-    }
-});
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Start Server
+app.listen(PORT, "0.0.0.0", () =>
+    console.log(`Server running at http://0.0.0.0:${PORT}`)
+);
 
 // Middleware
+app.use("/api", router);
 app.use(bodyParser.json());
 app.set("trust proxy", true);
-// API Test Route
-app.get("/", (req, res) => res.send("API is working!"));
+app.get("/", (req, res) => res.send("Iron Wing API is working!"));
 
 // Create Table If Not Exists.
 async function initializeDatabase() {
@@ -47,7 +47,7 @@ async function initializeDatabase() {
                     fleetsize TEXT NOT NULL,
                     trailertype TEXT NOT NULL,
                     plan TEXT NOT NULL,
-                    submittedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    submittedate TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
 
@@ -57,7 +57,7 @@ async function initializeDatabase() {
                     email TEXT NOT NULL,
                     phone TEXT,
                     message TEXT NOT NULL,
-                    submittedat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    submittedate TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             `);
 
@@ -254,9 +254,4 @@ app.get("/submissions", async (req, res) => {
     }
 });
 
-// Catch-all route for invalid URLs
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));
-// Start Server
-app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Server running at http://0.0.0.0:${PORT}`)
-);

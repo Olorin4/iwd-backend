@@ -1,79 +1,201 @@
-# Transportation Management System (TMS) - MVP
+# TMS Project: Tech Stack and Architecture
 
-## Project Overview
-This is a custom Transportation Management System (TMS) designed and developed from scratch as a Minimum Viable Product (MVP). The primary purpose is to manage the core operations of a small to medium-sized dispatching company, with an emphasis on ease of use, scalability, and cost-efficiency. This project demonstrates my ability to handle full-stack development, API integrations, and scalable system design. It is also intended to showcase my problem-solving skills and capability to deliver end-to-end solutions as a junior developer.
+## **Tech Stack**
 
-## Current Features
-### Core Functionalities
-- **CRM Integration:** Automated sales pipeline onboarding and paperwork using CRM tools.
-- **Automated Carrier Packets:** Streamlined broker onboarding with auto-generated packets.
-- **Load Management:**
-  - Create, assign, and track loads.
-  - Manage load statuses (e.g., pending, in-progress, completed).
-  - Filter and search for loads based on destination, status, and date.
+### **1. Languages and Frameworks**
 
-- **Driver and Truck Management:**
-  - Assign drivers and trucks to specific loads.
-  - Track driver availability and vehicle status.
-  - Basic compliance management (e.g., Hours of Service tracking).
+- **Language**: JavaScript
 
-- **Dispatch Dashboard:**
-  - Interactive UI with a map-centered view for load tracking and routing.
-  - Real-time updates for load status changes.
+    - **Key Features**: Versatility for both frontend and backend development, strong community support, extensive library ecosystem, asynchronous programming with async/await.
+    - **Why Use It**: Unified language across the full stack (Node.js, React Native), rapid prototyping, reduces context switching for developers.
 
-- **Basic Reporting and Invoicing:**
-  - Generate invoices for completed loads.
-  - Basic financial reporting tools for revenue tracking.
+- **Frontend Frameworks**: Electron (Desktop), React Native (Mobile)
 
-## Tech Stack
-- **Frontend:** React.js with TypeScript for dynamic and scalable UI components.
-- **Backend:** Node.js as the primary backend language for high-performance APIs and real-time communication, with **Django** used for authentication, admin dashboard, and other built-in utilities.
-- **Database:** PostgreSQL for relational data management and scalability.
-- **Mapping and Geospatial Tools:** Leaflet.js integrated with OpenStreetMap for interactive mapping and load tracking.
-- **Hosting and Deployment:** Hosted on **Hetzner VPS** for cost-effective scalability, using Docker for containerization and CI/CD pipelines.
+    - **Electron**: Acts as a container for React, enabling cross-platform desktop applications outside the browser.
 
+        - **Key Features**: Chromium-based rendering, Node.js integration, cross-platform support (Windows, macOS, Linux).
+        - **Why Use It**: Consistent UI and logic across desktop platforms, full access to system APIs, reusable React components.
+        - **How It Works**: Electron serves as the container, running React in the Renderer Process, while the Main Process handles system-level actions using Node.js APIs. Communication between them is managed through a secure Context Bridge.
 
-### Phase 1: Advanced Features (Next 6 Months)
-- **CRM Integration:** Automated sales pipeline onboarding and paperwork using CRM tools.
+    - **React Native**: For cross-platform mobile applications.
 
-- **Automated Carrier Packets:** Streamlined broker onboarding with auto-generated packets.
-  
-- **Load Board Integration:**
-  - Connect to popular load boards (e.g., DAT, Truckstop) for seamless load matching.
-  - Automate load recommendations based on historical data.
-    
-- **Real-Time GPS Tracking:**
-  - Integrate with third-party APIs for live GPS tracking.
-  - Implement WebSocket-based updates for real-time location.
+        - **Key Features**: Native rendering for iOS and Android, shared components with Electron.
+        - **Why Use It**: Consistent UI patterns across mobile devices, reusable logic with Electron.
 
-- **User Role Management:**
-  - Implement multi-user roles (Admin, Dispatcher, Driver) with custom permissions.
+- **Backend Frameworks**: Node.js (with Express.js)
 
-### Phase 2: Scalability and Enterprise Features (6-12 Months)
-- **Multi-Tenancy Support:**
-  - Expand system architecture to support multiple companies with isolated data environments.
+    - **Key Features**: Non-blocking, event-driven architecture, lightweight and fast I/O operations, scalable for real-time applications, extensive npm library ecosystem.
+    - **Why Use It**: Ideal for building scalable and high-performance APIs, consistent language (TypeScript) across frontend and backend, perfect for microservices and real-time features with WebSockets.: JavaScript and TypeScript
 
-- **Advanced Analytics and Reporting:**
-  - Develop comprehensive dashboards with KPI tracking, profitability analysis, and operational insights.
+### **2. State Management**
 
-- **Route Optimization and Geofencing:**
-  - Implement route optimization using OpenRouteService or GraphHopper APIs.
-  - Add geofencing alerts for operational efficiency and compliance.
+- **React Query**: For server state management and caching.
 
-## Why This Project?
-This project showcases my ability to design and develop a full-stack application from the ground up, with a focus on scalable architecture and modular development. I have managed all aspects of the project, including:
-- Frontend and backend development
-- Database design and optimization
-- API integration with third-party services
-- Deployment and CI/CD pipeline management
+    - **Key Features**: Data fetching, caching, synchronization with server state, automatic background updates, and query invalidation.
+    - **Why Use It**: Simplifies server state management, reduces boilerplate code, improves performance with caching, and enhances user experience with background updates.
 
-## Skills Demonstrated
-- Full-Stack Development (React.js, Node.js, Django, PostgreSQL)
-- API Integration and Microservices Architecture
-- Real-Time Data Handling with WebSockets
-- Cloud Deployment (Cloudfare, Hetzner, Docker)
+- **React's Built-In State (useState, useReducer)**: For local UI state management without global complexity.: (useState/useReducer) for local UI state.
 
-## Contact
-If you are interested in learning more about this project or discussing potential collaboration, please contact me at info@iron-wing-dispatching.com or connect with me on my [LinkedIn Profile](https://www.linkedin.com/in/nick-kalas-599822303/).
+    - **Key Features**: Simple state management hooks for local component state.
+    - **Why Use It**: Lightweight and straightforward for managing local UI state without the complexity of global state management tools.: For server state management and caching
 
----
+### **3. Database**
+
+- **PostgreSQL**: Single source of truth ensuring data consistency and integrity.
+    - **Key Features**: ACID compliance, powerful SQL querying, JSON/JSONB support, advanced indexing, horizontal scalability with read replicas.
+    - **Why Use It**: Reliable and consistent data storage, suitable for complex queries and transactions, supports both relational and semi-structured data.
+
+### **4. ORM**
+
+- **Prisma**: Modern TypeScript ORM with type-safe database queries.
+    - **Key Features**: Type-safe queries, intuitive schema definition, auto-generated TypeScript types, powerful migrations and data modeling.
+    - **Why Use It**: Speeds up development with type safety and auto-generated types, integrates seamlessly with TypeScript and Node.js, and improves maintainability.: Single source of truth ensuring data consistency and integrity
+
+### **5. Caching**
+
+- **Redis**: Caches frequently requested data and handles real-time events (e.g., driver location updates) with Redis Pub/Sub.
+
+    - **Key Features**: In-memory data store, Pub/Sub messaging, persistence options, high availability with Redis Cluster or Redis Sentinel.
+
+    - **Why Use It**: Improves response times by caching frequently requested data, supports real-time messaging for driver location updates, scalable solution for high-throughput systems.: Caches frequently requested data and handles real-time events (e.g., driver location updates) with Redis Pub/Sub
+
+### **6. Real-Time Features**
+
+- **Socket.IO**: Real-time updates for driver tracking and job status changes
+
+### **7. Authentication**
+
+- **JWT (JSON Web Token)**:
+    - Key Features: Stateless authentication, signed tokens (HMAC SHA256 or RSA), self-contained claims.).
+    - Why Use It: Flexible and scalable authentication, no vendor lock-in, works seamlessly across Electron and React Native.
+    - Usage: Used for user authentication and authorization, storing user roles and permissions in token claims.
+    - Integration: Combined with Casl for Role-Based Access Control (RBAC) and enforced in the Core Domain Layer.
+
+### **8. Role-Based Access Control**
+
+- **Casl**: Flexible authorization library for complex permission management.
+    - Key Features: Centralized CRUD abilities, fine-grained control, conditional rules.
+    - Why Use It: Seamless integration with React and Node.js, consistent authorization.
+
+### **9. Observability**
+
+- **Prometheus**: Collects metrics from Node.js backend, PostgreSQL, and infrastructure.
+    - Key Features: Time-series database, pull-based metrics collection, custom metrics tracking.
+    - Why Use It: Detailed visibility into app performance, flexible querying with PromQL.
+
+### **10. Monitoring**
+
+- **Grafana**: Visualizes metrics from Prometheus in customizable dashboards.
+    - Key Features: Rich visualization options, dashboard sharing, multiple data source integrations.
+    - Why Use It: Centralized monitoring, customizable dashboards for TMS-specific metrics.
+
+### **11. Containerization and Deployment**
+
+- **Docker**:
+    - **Key Features**: Consistent environments, isolated dependencies, lightweight containers, and multi-stage builds for production optimization.
+    - **Why Use It**: Ensures consistency across development, testing, and production, simplifies deployment, and enhances scalability.
+    - **Usage**: Used for deploying Node.js API, Redis, PostgreSQL, and Electron in isolated containers using Docker Compose.
+    - **CI/CD Integration**: Facilitates consistent testing and deployment through CI/CD pipelines, ensuring identical environments across all stages.
+
+### **12. CI/CD Pipeline**
+
+- **GitHub Actions**:
+    - **Key Features**: Automated testing, building, and deployment workflows directly from GitHub repositories.
+    - **Why Use It**: Ensures consistent and automated CI/CD pipelines, reducing manual deployment errors and improving productivity.
+    - **Usage**: Integrates with Docker for containerized builds, runs Jest tests for React Native and Electron components, and automates deployments to cloud platforms.
+
+### **13. Testing Tools**
+
+- **Jest and React Testing Library**:
+    - **Key Features**: Unit, integration, and end-to-end testing for React Native and Electron components.
+    - **Why Use It**: Ensures code quality through comprehensive testing coverage, catching bugs early in development.
+    - **Usage**: Used with GitHub Actions for automated testing, maintaining high test quality and consistent code coverage.
+
+## **Architecture**
+
+### **Comprehensive Architecture Overview**
+
+```
++---------------------------------------------------+
+|                   Presentation Layer               |
+|             (Electron, React Native)               |
+|  - UI Components built with React                  |
+|  - Sends JWT in Authorization Header               |
+|  - Shared Components for Consistent UI              |
++---------------------------------------------------+
+                   │
+                   │ JWT in Authorization Header
+                   ▼
++---------------------------------------------------+
+|                  Application Layer                 |
+|                  (Use Cases)                       |
+|  - Orchestrates Requests                           |
+|  - Validates JWT and extracts claims                |
+|  - Manages Business Logic Flow                      |
++---------------------------------------------------+
+                   │
+                   │ User Claims (Roles, Permissions)
+                   ▼
++---------------------------------------------------+
+|                  Core Domain Layer                  |
+|  - Business Rules and Application Logic             |
+|  - Uses Casl to check permissions                   |
+|  - Decoupled from Frameworks and Infrastructure     |
++---------------------------------------------------+
+                   │
+                   │ Database Queries and Integrations
+                   ▼
++---------------------------------------------------+
+|                 Infrastructure Layer                |
+|  - Repositories with Prisma                         |
+|  - PostgreSQL for Data Persistence                  |
+|  - Redis for Caching and Real-Time Pub/Sub           |
+|  - Socket.IO for Real-Time Communication             |
+|  - Integrations with Custom JWT Service              |
++---------------------------------------------------+
+                   │
+                   │ Containerization and Deployment
+                   ▼
++---------------------------------------------------+
+|           Containerization and Deployment           |
+|  - Docker for Consistent Environments               |
+|  - GitHub Actions for CI/CD                         |
+|  - Prometheus and Grafana for Monitoring             |
+|  - Scalable Deployment with Docker Compose           |
++---------------------------------------------------+
+```
+
+```
+
+```
+
+### 1. **MVC (Model-View-Controller) Architecture for Node.js Backend**
+
+- **Model**:
+
+    - Manages data and business logic.
+    - Interacts with **PostgreSQL** using **Prisma** for data persistence.
+
+- **View**:
+
+    - UI components built with **React Native** and **Electron** for consistent cross-platform interfaces.
+
+- **Controller**:
+
+    - Handles HTTP requests and responses using **Express.js**.
+    - Orchestrates data flow between Model and View.
+
+- **Why Use It?**:
+
+    - Simplicity and rapid development with clear separation of concerns.
+    - Easier onboarding for new developers due to familiar and straightforward structure.
+    - Ideal for MVPs with straightforward business logic.
+
+- **State Management**:
+    - **React Query**: Server state management and caching for remote data.
+- **UI Layer**:
+    - **Presentational Components**: Pure components for UI rendering
+    - **Container Components**: State management and domain logic
+- **API Layer**: Centralized API service for consistent data fetching and error handling
+
+This architecture is optimized for the TMS Project's needs, balancing rapid development, scalability, and maintainability.
