@@ -3,7 +3,7 @@
  * https://jestjs.io/docs/configuration
  */
 
-module.exports = {
+export default {
     modulePaths: ["/shared/vendor/modules"],
     moduleFileExtensions: ["js", "jsx", "json", "node"],
     moduleDirectories: ["node_modules", "bower_components", "shared"],
@@ -231,5 +231,3 @@ const config = {
     // Whether to use watchman for file crawling
     // watchman: true,
 };
-
-module.exports = config;
