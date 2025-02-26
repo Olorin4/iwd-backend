@@ -34,7 +34,9 @@ jobs:
             # Step 5: Generate .env file from GitHub Secrets
             - name: Generate .env file
               run: |
-                  echo "PORT=${{ secrets.PORT }}" > .env
+                  echo "NODE_ENV=production" > .env.production
+                  echo "PORT=${{ secrets.PORT }}" >> .env
+                  echo "DB_URL=${{ secrets.DB_URL }}" >> .env.production
                   echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
                   echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
                   echo "DB_USER=${{ secrets.DB_USER }}" >> .env
