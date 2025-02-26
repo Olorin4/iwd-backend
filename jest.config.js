@@ -18,7 +18,7 @@ export default {
     projects: [
         {
             displayName: "frontend",
-            testEnvironment: "jsdom",
+            testEnvironment: "est-environment-jsdom",
             testMatch: ["<rootDir>/frontend/**/*.test.js"], // Matches frontend test files
             moduleNameMapper: {
                 "\\.(css|scss)$": "identity-obj-proxy", // Mock CSS modules in frontend
