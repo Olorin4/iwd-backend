@@ -13,7 +13,7 @@ dotenv.config();
 const prisma = new PrismaClient();
 
 // Handle Form Submissions
-export const submitForm = async (req, res) => {
+export async function submitForm(req, res) {
     console.log("📩 Received Form Data:", req.body);
 
     const { firstName, lastName, email, phone, fleetSize, trailerType, plan } =
@@ -71,10 +71,10 @@ export const submitForm = async (req, res) => {
 
         🕒 Submitted At: ${new Date().toLocaleString()}`
     );
-};
+}
 
 // Handle Contact Form Submissions
-export const contactForm = async (req, res) => {
+export async function contactForm(req, res) {
     const { email, phone, message } = req.body;
 
     if (!email || !message) {
@@ -115,4 +115,4 @@ export const contactForm = async (req, res) => {
 
         🕒 Submitted At: ${new Date().toLocaleString()} `
     );
-};
+}

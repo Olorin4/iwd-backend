@@ -20,7 +20,7 @@ const transporter = nodemailer.createTransport({
 });
 
 // Reusable Function to Send Emails
-export const sendEmail = async (mailOptions) => {
+export async function sendEmail(mailOptions) {
     try {
         const info = await transporter.sendMail(mailOptions);
         console.log("📧 Email Sent Successfully:", info.messageId);
@@ -29,10 +29,10 @@ export const sendEmail = async (mailOptions) => {
         console.error("❌ Error Sending Email:", error);
         throw error;
     }
-};
+}
 
 // Send Client Auto-Reply Email
-export const sendClientReply = async (to, subject, text) => {
+export async function sendClientReply(to, subject, text) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         replyTo: to,
@@ -41,10 +41,10 @@ export const sendClientReply = async (to, subject, text) => {
         text: text,
     };
     return sendEmail(mailOptions);
-};
+}
 
 // Send Admin Notification Email
-export const sendAdminNotification = async (subject, text) => {
+export async function sendAdminNotification(subject, text) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: process.env.EMAIL_USER,
@@ -52,4 +52,4 @@ export const sendAdminNotification = async (subject, text) => {
         text: text,
     };
     return sendEmail(mailOptions);
-};
+}

@@ -3,7 +3,6 @@
 import dotenv from "dotenv-flow";
 import express from "express";
 import router from "./routes/router.js";
-import DataModel from "./models/dataModel.js";
 
 dotenv.config();
 console.log("Database URL:", process.env.DATABASE_URL);
@@ -16,16 +15,6 @@ app.set("trust proxy", true);
 app.get("/", (req, res) => res.send("Iron Wing API is working!"));
 
 app.use(router);
-
-// Route to Test Database Connection
-app.get("/api/signup-forms", async (req, res) => {
-    try {
-        const forms = await DataModel.getAllSignUpForms();
-        res.json(forms);
-    } catch (error) {
-        res.status(500).json({ error: "Failed to retrieve sign-up forms." });
-    }
-});
 
 // Fallback Route for Not Found
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));
