@@ -167,10 +167,9 @@ model call_logs {
   @@map("call_logs")
 }
 
-
 model messages {
   id          Int       @id @default(autoincrement())
-  from_number String
+  from_number String    @map("from")
   to_number   String
   body        String
   timestamp   DateTime @default(now())
