@@ -156,22 +156,32 @@ model call_logs {
   duration    Int?     @default(0)
   direction   String?  @default("unknown")
 
-  driver_id Int?
-  driver    drivers? @relation(fields: [driver_id], references: [id])
+  // Relation to drivers (optional)
+  driver_id   Int?
+  driver      drivers? @relation(fields: [driver_id], references: [id])
+
+  // Relation to companies through drivers
+  companyId   Int?
+  company     companies? @relation("CompanyCallLogs", fields: [companyId], references: [id])
 
   @@map("call_logs")
 }
 
+
 model messages {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   from_number String
   to_number   String
   body        String
   timestamp   DateTime @default(now())
 
-  driver_id Int?
-  driver    drivers? @relation(fields: [driver_id], references: [id])
+  // Relation to drivers (optional)
+  driver_id   Int?
+  driver      drivers? @relation(fields: [driver_id], references: [id])
 
-  @@unique([from_number, to_number, body, timestamp])
+  // Relation to companies through drivers
+  companyId   Int?
+  company     companies? @relation("CompanyMessages", fields: [companyId], references: [id])
+
   @@map("messages")
 }

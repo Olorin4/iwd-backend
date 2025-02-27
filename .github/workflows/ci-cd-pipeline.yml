@@ -57,10 +57,12 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
+                  echo "🚀 Transferring files to the server using rsync..."
                   rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' \
                     -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ \
                     NickKalas@$SERVER_IP:/var/www/ironwing-backend
 
+                  echo "🚀 Installing dependencies and restarting PM2..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no NickKalas@$SERVER_IP << 'EOF'
                     cd /var/www/ironwing-backend
                     mv .env.production .env
@@ -68,7 +70,8 @@ jobs:
                     # Reinstall deps if package-lock.json changed
                     npm install --omit=dev
 
-                    # Run Prisma migrations:
+                    # Apply database migrations safely
+                    echo "🚀 Applying Prisma Migrations..."
                     npx prisma migrate deploy
 
                     # Restart (or start) your PM2 process
