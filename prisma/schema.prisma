@@ -5,6 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 // prisma/schema.prisma
+// WARNING: This schema is the single source of truth for the entire server
 
 datasource db {
   provider = "postgresql"
@@ -15,6 +16,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ---------------------------------------------------------------------------
+// iron-wing-dispatching.com
+// ---------------------------------------------------------------------------
 model SignUpForm {
   id          Int      @id @default(autoincrement())
   firstName   String   @map("first_name")
@@ -39,3 +43,135 @@ model ContactSubmission {
   @@map("contact_submissions")
 }
 
+
+// ---------------------------------------------------------------------------
+// Companies
+// ---------------------------------------------------------------------------
+model companies {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  phone    String?
+  email    String?
+  website  String?
+
+  mcNumber  String? @map("mc_number")
+  dotNumber String? @map("dot_number")
+  einNumber String? @map("ein_number")
+
+  // Numeric fields for how many trucks/trailers a company has
+  trucksNumber    Int? @default(0)
+  trailersNumber  Int? @default(0)
+
+  // Relations
+  drivers  drivers[]
+  trucks   trucks[]
+  trailers trailers[]
+
+  @@map("companies")
+}
+
+
+// ---------------------------------------------------------------------------
+// Drivers
+// ---------------------------------------------------------------------------
+model drivers {
+  id       Int    @id @default(autoincrement())
+  fullName String
+  phone    String? @unique
+  email    String? @unique
+
+  // Link driver to a company
+  companyId Int?
+  company   companies? @relation(fields: [companyId], references: [id])
+
+  // Link driver to a single truck (optional)
+  truckId Int?
+  truck   trucks? @relation(fields: [truckId], references: [id])
+
+  // Link driver to a single trailer (optional)
+  trailerId Int?
+  trailer   trailers? @relation(fields: [trailerId], references: [id])
+
+  // Twilio-related relations
+  call_logs  call_logs[]
+  messages   messages[]
+
+  @@map("drivers")
+}
+
+
+// ---------------------------------------------------------------------------
+// Trucks
+// ---------------------------------------------------------------------------
+model trucks {
+  id          Int    @id @default(autoincrement())
+  model       String
+  make        String
+  trailerType String
+  plateNumber String
+
+  // Link truck to a company
+  companyId Int?
+  company   companies? @relation(fields: [companyId], references: [id])
+
+  // If multiple drivers can share a single truck
+  drivers drivers[]
+
+  @@map("trucks")
+}
+
+
+// ---------------------------------------------------------------------------
+// Trailers
+// ---------------------------------------------------------------------------
+model trailers {
+  id          Int    @id @default(autoincrement())
+  type        String
+  model       String
+  make        String
+  trailerType String
+  plateNumber String
+
+  // Link trailer to a company
+  companyId Int?
+  company   companies? @relation(fields: [companyId], references: [id])
+
+  // If multiple drivers can share a single trailer
+  drivers drivers[]
+
+  @@map("trailers")
+}
+
+
+// ---------------------------------------------------------------------------
+// Twilio-voip
+// ---------------------------------------------------------------------------
+model call_logs {
+  id          Int      @id @default(autoincrement())
+  call_sid    String   @unique
+  timestamp   DateTime @default(now())
+  from_number String
+  to_number   String
+  status      String?
+  duration    Int?     @default(0)
+  direction   String?  @default("unknown")
+
+  driver_id Int?
+  driver    drivers? @relation(fields: [driver_id], references: [id])
+
+  @@map("call_logs")
+}
+
+model messages {
+  id          Int      @id @default(autoincrement())
+  from_number String
+  to_number   String
+  body        String
+  timestamp   DateTime @default(now())
+
+  driver_id Int?
+  driver    drivers? @relation(fields: [driver_id], references: [id])
+
+  @@unique([from_number, to_number, body, timestamp])
+  @@map("messages")
+}
