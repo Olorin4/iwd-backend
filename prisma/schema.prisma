@@ -156,8 +156,8 @@ model call_logs {
   id            Int      @id @default(autoincrement())
   call_sid      String   @unique
   timestamp     DateTime @default(now())
-  from          String
-  to            String
+  from_number   String
+  to_number     String
   status        String?
   duration      Int?     @default(0)
   direction     String?  @default("unknown")
@@ -175,8 +175,8 @@ model call_logs {
 
 model message_logs {
   id            Int       @id @default(autoincrement())
-  from          String
-  to            String
+  from_number   String
+  to_number     String
   body          String
   timestamp     DateTime @default(now())
 

@@ -73,6 +73,7 @@ jobs:
                     # Apply database migrations safely
                     echo "🚀 Applying Prisma Migrations..."
                     npx prisma migrate deploy
+                    npx prisma generate
 
                     # Restart (or start) your PM2 process
                     pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
