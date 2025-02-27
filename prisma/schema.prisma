@@ -175,6 +175,7 @@ model call_logs {
 
 model message_logs {
   id            Int       @id @default(autoincrement())
+  message_sid   String    @unique
   from_number   String
   to_number     String
   body          String
