@@ -5,7 +5,7 @@ import express from "express";
 import router from "./routes/router.js";
 
 dotenv.config();
-console.log("Database URL:", process.env.DATABASE_URL);
+console.log("Database URL:", process.env.DB_URL);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
