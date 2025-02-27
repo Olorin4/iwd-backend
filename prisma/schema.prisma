@@ -16,29 +16,30 @@ generator client {
   provider = "prisma-client-js"
 }
 
+
 // ---------------------------------------------------------------------------
 // iron-wing-dispatching.com
 // ---------------------------------------------------------------------------
 model SignUpForm {
-  id          Int      @id @default(autoincrement())
-  firstName   String   @map("first_name")
-  lastName    String   @map("last_name")
-  email       String   @unique
-  phone       String
-  fleetSize   String   @map("fleet_size")
-  trailerType String   @map("trailer_type")
-  plan        String
-  submitDate  DateTime @default(now()) @map("submit_date")
+  id           Int      @id @default(autoincrement())
+  first_name   String
+  last_name    String
+  email        String   @unique
+  phone        String
+  fleet_size   String
+  trailer_type String
+  plan         String
+  submit_date  DateTime @default(now())
 
   @@map("sign_up_forms")
 }
 
 model ContactSubmission {
-  id         Int      @id @default(autoincrement())
-  email      String
-  phone      String?
-  message    String
-  submitDate DateTime @default(now()) @map("submit_date")
+  id          Int      @id @default(autoincrement())
+  email       String
+  phone       String?
+  message     String
+  submit_date DateTime @default(now())
 
   @@map("contact_submissions")
 }
@@ -48,24 +49,26 @@ model ContactSubmission {
 // Companies
 // ---------------------------------------------------------------------------
 model companies {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
-  phone    String?
-  email    String?
-  website  String?
-
-  mcNumber  String? @map("mc_number")
-  dotNumber String? @map("dot_number")
-  einNumber String? @map("ein_number")
+  id            Int      @id @default(autoincrement())
+  name          String   @unique
+  phone         String?
+  email         String?
+  website       String?
+  mc_number     String?
+  dot_number    String?
+  ein_number    String?
 
   // Numeric fields for how many trucks/trailers a company has
-  trucksNumber    Int? @default(0)
-  trailersNumber  Int? @default(0)
+  driver_total   Int? @default(0)
+  trucks_total   Int? @default(0)
+  trailers_total Int? @default(0)
 
   // Relations
-  drivers  drivers[]
-  trucks   trucks[]
-  trailers trailers[]
+  drivers        drivers[]
+  trucks         trucks[]
+  trailers       trailers[]
+  call_logs      call_logs[] @relation("CompanyCallLogs")
+  message_logs   message_logs[] @relation("CompanyMessages")
 
   @@map("companies")
 }
@@ -75,26 +78,29 @@ model companies {
 // Drivers
 // ---------------------------------------------------------------------------
 model drivers {
-  id       Int    @id @default(autoincrement())
-  fullName String
-  phone    String? @unique
-  email    String? @unique
+  id          Int      @id @default(autoincrement())
+  first_name  String
+  middle_name String
+  last_name   String
+  full_name   String
+  phone       String? @unique
+  email       String? @unique
 
   // Link driver to a company
-  companyId Int?
-  company   companies? @relation(fields: [companyId], references: [id])
+  company_id  Int?
+  company     companies? @relation(fields: [company_id], references: [id])
 
-  // Link driver to a single truck (optional)
-  truckId Int?
-  truck   trucks? @relation(fields: [truckId], references: [id])
+  // Link driver to a single truck
+  truck_id    Int?
+  truck       trucks? @relation(fields: [truck_id], references: [id])
 
-  // Link driver to a single trailer (optional)
-  trailerId Int?
-  trailer   trailers? @relation(fields: [trailerId], references: [id])
+  // Link driver to a single trailer
+  trailer_id  Int?
+  trailer     trailers? @relation(fields: [trailer_id], references: [id])
 
   // Twilio-related relations
-  call_logs  call_logs[]
-  messages   messages[]
+  call_logs      call_logs[]
+  message_logs   message_logs[]
 
   @@map("drivers")
 }
@@ -104,15 +110,15 @@ model drivers {
 // Trucks
 // ---------------------------------------------------------------------------
 model trucks {
-  id          Int    @id @default(autoincrement())
-  model       String
-  make        String
-  trailerType String
-  plateNumber String
+  id            Int    @id @default(autoincrement())
+  model         String
+  make          String
+  trailer_type  String
+  plate_number  String
 
   // Link truck to a company
-  companyId Int?
-  company   companies? @relation(fields: [companyId], references: [id])
+  company_id Int?
+  company    companies? @relation(fields: [company_id], references: [id])
 
   // If multiple drivers can share a single truck
   drivers drivers[]
@@ -125,16 +131,16 @@ model trucks {
 // Trailers
 // ---------------------------------------------------------------------------
 model trailers {
-  id          Int    @id @default(autoincrement())
-  type        String
-  model       String
-  make        String
-  trailerType String
-  plateNumber String
+  id            Int    @id @default(autoincrement())
+  type          String
+  model         String
+  make          String
+  trailer_type  String
+  plate_number  String
 
   // Link trailer to a company
-  companyId Int?
-  company   companies? @relation(fields: [companyId], references: [id])
+  company_id Int?
+  company    companies? @relation(fields: [company_id], references: [id])
 
   // If multiple drivers can share a single trailer
   drivers drivers[]
@@ -147,40 +153,40 @@ model trailers {
 // Twilio-voip
 // ---------------------------------------------------------------------------
 model call_logs {
-  id          Int      @id @default(autoincrement())
-  call_sid    String   @unique
-  timestamp   DateTime @default(now())
-  from_number String
-  to_number   String
-  status      String?
-  duration    Int?     @default(0)
-  direction   String?  @default("unknown")
+  id            Int      @id @default(autoincrement())
+  call_sid      String   @unique
+  timestamp     DateTime @default(now())
+  from          String
+  to            String
+  status        String?
+  duration      Int?     @default(0)
+  direction     String?  @default("unknown")
 
-  // Relation to drivers (optional)
-  driver_id   Int?
-  driver      drivers? @relation(fields: [driver_id], references: [id])
+  // Relation to drivers
+  driver_id     Int?
+  driver        drivers? @relation(fields: [driver_id], references: [id])
 
   // Relation to companies through drivers
-  companyId   Int?
-  company     companies? @relation("CompanyCallLogs", fields: [companyId], references: [id])
+  company_id    Int?
+  company       companies? @relation("CompanyCallLogs", fields: [company_id], references: [id])
 
   @@map("call_logs")
 }
 
-model messages {
-  id          Int       @id @default(autoincrement())
-  from_number String    @map("from")
-  to_number   String
-  body        String
-  timestamp   DateTime @default(now())
+model message_logs {
+  id            Int       @id @default(autoincrement())
+  from          String
+  to            String
+  body          String
+  timestamp     DateTime @default(now())
 
-  // Relation to drivers (optional)
-  driver_id   Int?
-  driver      drivers? @relation(fields: [driver_id], references: [id])
+  // Relation to drivers
+  driver_id     Int?
+  driver        drivers? @relation(fields: [driver_id], references: [id])
 
   // Relation to companies through drivers
-  companyId   Int?
-  company     companies? @relation("CompanyMessages", fields: [companyId], references: [id])
+  company_id    Int?
+  company       companies? @relation("CompanyMessages", fields: [company_id], references: [id])
 
-  @@map("messages")
+  @@map("message_logs")
 }
