@@ -16,16 +16,25 @@ const prisma = new PrismaClient();
 export async function submitForm(req, res) {
     console.log("📩 Received Form Data:", req.body);
 
-    const { firstName, lastName, email, phone, fleetSize, trailerType, plan } =
-        req.body;
+    // Mapping camelCase to snake_case for Prisma
+    const {
+        firstName: first_name,
+        lastName: last_name,
+        email,
+        phone,
+        fleetSize: fleet_size,
+        trailerType: trailer_type,
+        plan,
+    } = req.body;
 
+    // Validate required fields
     if (
-        !firstName ||
-        !lastName ||
+        !first_name ||
+        !last_name ||
         !email ||
         !phone ||
-        !fleetSize ||
-        !trailerType ||
+        !fleet_size ||
+        !trailer_type ||
         !plan
     ) {
         console.warn("⚠️ Missing required fields:", req.body);
@@ -34,7 +43,15 @@ export async function submitForm(req, res) {
 
     try {
         const result = await prisma.signUpForm.create({
-            data: req.body,
+            data: {
+                first_name,
+                last_name,
+                email,
+                phone,
+                fleet_size,
+                trailer_type,
+                plan,
+            },
         });
         console.log("✅ Inserted Sign-Up Form ID:", result.id);
 
@@ -54,7 +71,7 @@ export async function submitForm(req, res) {
     await sendClientReply(
         email,
         "Thank You for Signing Up!",
-        `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
+        `Hello ${first_name},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
     );
 
     await sendAdminNotification(
@@ -62,11 +79,11 @@ export async function submitForm(req, res) {
         `
         📩 A new sign-up form has been received!
 
-        👤 Name: ${firstName} ${lastName}
+        👤 Name: ${first_name} ${last_name}
         📧 Email: ${email}
         📞 Phone: ${phone}
-        🚛 Fleet Size: ${fleetSize}
-        🛻 Trailer Type: ${trailerType}
+        🚛 Fleet Size: ${fleet_size}
+        🛻 Trailer Type: ${trailer_type}
         📌 Plan Selected: ${plan} 
 
         🕒 Submitted At: ${new Date().toLocaleString()}`
