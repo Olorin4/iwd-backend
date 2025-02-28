@@ -2,7 +2,7 @@
 
 import nodemailer from "nodemailer";
 import dotenv from "dotenv-flow";
-import signature from "../assets/signature.js";
+import { signature } from "../assets/signature.js";
 
 dotenv.config();
 
