@@ -2,6 +2,7 @@
 
 import nodemailer from "nodemailer";
 import dotenv from "dotenv-flow";
+import signature from "../assets/signature.js";
 
 dotenv.config();
 
@@ -21,6 +22,26 @@ const transporter = nodemailer.createTransport({
 
 // Reusable Function to Send Emails
 export async function sendEmail(mailOptions) {
+    // Always send emails in HTML format with the signature
+    mailOptions.html = `
+        <p>${mailOptions.text}</p>
+        ${signature}
+    `;
+    delete mailOptions.text;
+
+    mailOptions.attachments = [
+        {
+            filename: "linkedin_32.png",
+            path: "src/assets/linkedin_32.png",
+            cid: "linkedinIcon",
+        },
+        {
+            filename: "logo.jpg",
+            path: "src/assets/logo.jpg",
+            cid: "companyLogo",
+        },
+    ];
+
     try {
         const info = await transporter.sendMail(mailOptions);
         console.log("📧 Email Sent Successfully:", info.messageId);
