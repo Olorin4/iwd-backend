@@ -60,10 +60,6 @@ export async function submitForm(req, res) {
             id: result.id,
         });
     } catch (error) {
-        if (error.code === "P2002" && error.meta.target.includes("email")) {
-            console.warn("⚠️ Duplicate Email Error:", email);
-            return res.status(409).json({ error: "Email already registered." });
-        }
         console.error("❌ Prisma Error:", error);
         res.status(500).json({ error: error.message });
     }
@@ -76,7 +72,7 @@ export async function submitForm(req, res) {
 
     await sendAdminNotification(
         "🚛 New Sign-Up Form Received",
-        `
+        `<pre>
         📩 A new sign-up form has been received!
 
         👤 Name: ${first_name} ${last_name}
@@ -86,7 +82,8 @@ export async function submitForm(req, res) {
         🛻 Trailer Type: ${trailer_type}
         📌 Plan Selected: ${plan} 
 
-        🕒 Submitted At: ${new Date().toLocaleString()}`
+        🕒 Submitted At: ${new Date().toLocaleString()}
+        </pre>`
     );
 }
 
@@ -123,13 +120,14 @@ export async function contactForm(req, res) {
 
     await sendAdminNotification(
         "🚛 New Contact Form submission",
-        `
+        `<pre>
         📩 A visitor submitted a question!
 
         📧 Email: ${email}
         📞 Phone: ${phone}
         📝 Message: ${message}
 
-        🕒 Submitted At: ${new Date().toLocaleString()} `
+        🕒 Submitted At: ${new Date().toLocaleString()} 
+        </pre>`
     );
 }
