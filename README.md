@@ -1,4 +1,8 @@
-# TMS Project: Tech Stack and Architecture
+# Iron Wing TMS Project
+
+## **Summary**
+
+The TMS (Transportation Management System) Project is a modern, scalable, and high-performance logistics platform designed to streamline freight management, driver tracking, and job dispatching. Built with TypeScript, React (Electron for Desktop, React Native for Mobile), and Node.js, it ensures a unified development experience, leveraging a clean architecture for maintainability and scalability.
 
 ## **Tech Stack**
 
@@ -65,11 +69,27 @@
 
 ### **7. Authentication**
 
-- **JWT (JSON Web Token)**:
-    - Key Features: Stateless authentication, signed tokens (HMAC SHA256 or RSA), self-contained claims.).
-    - Why Use It: Flexible and scalable authentication, no vendor lock-in, works seamlessly across Electron and React Native.
-    - Usage: Used for user authentication and authorization, storing user roles and permissions in token claims.
-    - Integration: Combined with Casl for Role-Based Access Control (RBAC) and enforced in the Core Domain Layer.
+- **Hybrid Authentication (Session-Based for Web, JWT for Mobile & APIs)**:
+
+    - **Session-Based Authentication (Electron Admin Panel)**:
+        - Uses **Passport.js with session strategy**.
+        - Stores session IDs securely in **Redis**.
+        - Uses **HttpOnly, Secure cookies** to prevent token theft.
+    - **JWT Authentication (Mobile Users & APIs)**:
+        - Uses **Passport.js with JWT strategy**.
+        - Provides stateless authentication for **React Native mobile users**.
+        - Works with **RESTful APIs and microservices**.
+    - **Why Use It?**:
+        - Provides **better security** for web users (session-based authentication is more secure).
+        - Ensures **scalability** for mobile users and APIs (JWT is stateless).
+        - Supports **role-based access control (RBAC) with Casl**.
+
+- **Passport.js + JWT (JSON Web Token)**:
+
+    - **Key Features**: Modular authentication with multiple strategies, stateless authentication, signed tokens (HMAC SHA256 or RSA), self-contained claims.
+    - **Why Use It**: Provides full control over authentication, flexible and scalable, no vendor lock-in, integrates seamlessly with Express.js.
+    - **Usage**: Used for username/password authentication, social logins (Google, Facebook), and API token validation.
+    - **Integration**: Combined with Casl for Role-Based Access Control (RBAC) and enforced in the Core Domain Layer.
 
 ### **8. Role-Based Access Control**
 
@@ -192,10 +212,14 @@
     - Ideal for MVPs with straightforward business logic.
 
 - **State Management**:
+
     - **React Query**: Server state management and caching for remote data.
+
 - **UI Layer**:
+
     - **Presentational Components**: Pure components for UI rendering
     - **Container Components**: State management and domain logic
+
 - **API Layer**: Centralized API service for consistent data fetching and error handling
 
 This architecture is optimized for the TMS Project's needs, balancing rapid development, scalability, and maintainability.

@@ -19,13 +19,21 @@
     "license": "ISC",
     "dependencies": {
         "@prisma/client": "^6.4.1",
+        "bcryptjs": "^3.0.2",
         "body-parser": "^1.20.3",
+        "connect-redis": "^8.0.1",
         "cors": "^2.8.5",
         "date-fns": "^3.6.0",
         "dotenv": "^16.4.7",
         "dotenv-flow": "^4.1.0",
         "express": "^4.21.2",
-        "nodemailer": "^6.10.0"
+        "express-session": "^1.18.1",
+        "jsonwebtoken": "^9.0.2",
+        "nodemailer": "^6.10.0",
+        "passport": "^0.7.0",
+        "passport-jwt": "^4.0.1",
+        "passport-local": "^1.0.0",
+        "redis": "^4.7.0"
     },
     "devDependencies": {
         "@babel/cli": "^7.25.9",

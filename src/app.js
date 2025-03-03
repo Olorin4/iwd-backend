@@ -1,7 +1,8 @@
 // src/app.js
 
-import dotenv from "dotenv-flow";
 import express from "express";
+import dotenv from "dotenv-flow";
+import passportJWT from "./config/passport-jwt.js";
 import router from "./routes/router.js";
 
 dotenv.config();
@@ -14,11 +15,14 @@ app.use(express.json());
 app.set("trust proxy", true);
 app.get("/", (req, res) => res.send("Iron Wing API is working!"));
 
+// Initialize JWT authentication globally since it's used in APIs and mobile authentication.
+app.use(passportJWT.initialize());
+
 app.use(router);
 
 // Fallback Route for Not Found
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));
-// Error Handling Middleware (optional)
+// Error Handling Middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ error: "Internal Server Error" });
@@ -26,5 +30,5 @@ app.use((err, req, res, next) => {
 
 // Start Server
 app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Server running at http://0.0.0.0:${PORT}`)
+    console.log(`Iron Wing Server running at http://0.0.0.0:${PORT}`)
 );
