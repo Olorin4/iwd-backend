@@ -2,6 +2,8 @@
 
 import express from "express";
 import dotenv from "dotenv-flow";
+import sessionMiddleware from "./config/session.js";
+import passport from "./config/passport.js";
 import router from "./routes/router.js";
 
 dotenv.config();
@@ -9,12 +11,16 @@ console.log("Database URL:", process.env.DB_URL);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Global Middleware
 app.use(express.json());
+app.use(sessionMiddleware); // Apply session middleware globally
+app.use(passport.initialize()); // Initialize Passport globally
+app.use(passport.session()); // Enable session handling for authenticated users
+
 app.set("trust proxy", true);
 app.get("/", (req, res) => res.send("Iron Wing API is working!"));
 
-app.use(router);
+app.use(router); // Register all routes AFTER applying middleware
 
 // Fallback Route for Not Found
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));

@@ -20,6 +20,7 @@ const redisStore = new RedisStore({
     disableTouch: true, // Optional: Reduces unnecessary session refreshing
 });
 
+// This ensures sessions persist and are stored in Redis
 const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET,
     resave: false,

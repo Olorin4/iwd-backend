@@ -82,7 +82,7 @@ export const loginJWT = async (req, res) => {
     }
 };
 
-// Login for desktop users
+// Session-based Login for desktop users
 export const loginSession = (req, res) => {
     console.log("Session Login Attempt:", req.body.email);
     if (!req.user) {

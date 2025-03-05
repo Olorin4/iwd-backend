@@ -2,8 +2,6 @@
 
 import express from "express";
 import dotenv from "dotenv-flow";
-import sessionMiddleware from "../config/session.js";
-import passport from "../config/passport.js";
 import authRouter from "./authRoutes.js";
 import {
     getAllSignUpForms,
@@ -15,11 +13,6 @@ import {
 dotenv.config();
 
 const router = express.Router();
-
-// Apply session-based middleware before any routes
-router.use(sessionMiddleware);
-router.use(passport.initialize());
-router.use(passport.session());
 
 // Register Authentication Routes
 router.use("/auth", authRouter);
