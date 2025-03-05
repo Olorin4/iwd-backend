@@ -1,16 +1,10 @@
-// src/controllers/handler.js
+// src/controllers/formsController.js
 
 import dotenv from "dotenv-flow";
-import { PrismaClient } from "@prisma/client";
-import {
-    sendClientReply,
-    sendAdminNotification,
-} from "../services/emailService.js";
+import { prisma } from "../config/prismaClient.js";
+import { emailClient, emailAdmin } from "../services/emailService.js";
 
 dotenv.config();
-
-// Connect to the Database
-const prisma = new PrismaClient();
 
 // Handle Form Submissions
 export async function submitForm(req, res) {
@@ -51,6 +45,7 @@ export async function submitForm(req, res) {
                 fleet_size,
                 trailer_type,
                 plan,
+                status: "pending", // Default status
             },
         });
         console.log("✅ Inserted Sign-Up Form ID:", result.id);
@@ -64,13 +59,13 @@ export async function submitForm(req, res) {
         res.status(500).json({ error: error.message });
     }
 
-    await sendClientReply(
+    await emailClient(
         email,
         "Thank You for Signing Up!",
         `Hello ${first_name},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
     );
 
-    await sendAdminNotification(
+    await emailAdmin(
         "🚛 New Sign-Up Form Received",
         `<pre>
         📩 A new sign-up form has been received!
@@ -112,13 +107,13 @@ export async function contactForm(req, res) {
         res.status(500).json({ error: error.message });
     }
 
-    await sendClientReply(
+    await emailClient(
         email,
         "Thank You for contacting us!",
         `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.\n\nAll the best,\nIron Wing Dispatching Team`
     );
 
-    await sendAdminNotification(
+    await emailAdmin(
         "🚛 New Contact Form submission",
         `<pre>
         📩 A visitor submitted a question!
@@ -130,4 +125,32 @@ export async function contactForm(req, res) {
         🕒 Submitted At: ${new Date().toLocaleString()} 
         </pre>`
     );
+}
+
+export async function getAllSignUpForms(limit = 50, offset = 0) {
+    try {
+        const result = await prisma.signUpForm.findMany({
+            take: limit,
+            skip: offset,
+        });
+        console.log(`SignUpForms Retrieved: ${result.length} records`);
+        return result;
+    } catch (error) {
+        console.error("Database Error (getAllSignUpForms):", error);
+        throw error;
+    }
+}
+
+export async function getAllContactForms(limit = 50, offset = 0) {
+    try {
+        const result = await prisma.contactForm.findMany({
+            take: limit,
+            skip: offset,
+        });
+        console.log(`ContactForms Retrieved: ${result.length} records`);
+        return result;
+    } catch (error) {
+        console.error("Database Error (getAllContactForms):", error);
+        throw error;
+    }
 }

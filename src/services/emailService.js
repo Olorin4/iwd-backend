@@ -53,7 +53,7 @@ export async function sendEmail(mailOptions) {
 }
 
 // Send Client Auto-Reply Email
-export async function sendClientReply(to, subject, text) {
+export async function emailClient(to, subject, text) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         replyTo: to,
@@ -65,7 +65,7 @@ export async function sendClientReply(to, subject, text) {
 }
 
 // Send Admin Notification Email
-export async function sendAdminNotification(subject, text) {
+export async function emailAdmin(subject, text) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: process.env.EMAIL_USER,

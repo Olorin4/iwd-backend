@@ -46,7 +46,7 @@ Based on the current tech stack:
 
 3. **Database and Caching Setup:**
 
-   - Configure PostgreSQL as the primary data store.
+   - Configure PostgreSQL as the primary data store with Prisma ORM.
    - Set up Redis for caching and real-time communication.
 
 

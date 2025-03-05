@@ -1,0 +1,2 @@
+config/ is the standard folder for database connections, 
+environment configurations, and app settings.

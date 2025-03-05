@@ -2,7 +2,6 @@
 
 import express from "express";
 import dotenv from "dotenv-flow";
-import passportJWT from "./config/passport-jwt.js";
 import router from "./routes/router.js";
 
 dotenv.config();
@@ -14,9 +13,6 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.set("trust proxy", true);
 app.get("/", (req, res) => res.send("Iron Wing API is working!"));
-
-// Initialize JWT authentication globally since it's used in APIs and mobile authentication.
-app.use(passportJWT.initialize());
 
 app.use(router);
 

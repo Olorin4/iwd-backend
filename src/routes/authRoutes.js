@@ -1,10 +1,9 @@
 // authRouter.js
 
 import express from "express";
-import passportJWT from "../config/passport-jwt.js";
-import passportLocal from "../config/passport-local.js";
+import passport from "../config/passport.js";
 import {
-    register,
+    registerUser,
     loginJWT,
     loginSession,
     logoutSession,
@@ -12,23 +11,23 @@ import {
 
 const authRouter = express.Router();
 
-// JWT Authentication (for API & Mobile)
-authRouter.post("/register", register);
+authRouter.post("/register", registerUser);
+
+// JWT Authentication (for APIs & mobile users)
 authRouter.post("/login/jwt", loginJWT);
+
+// Protected route requiring a valid JWT token
 authRouter.get(
     "/profile",
-    passportJWT.authenticate("jwt", { session: false }),
+    passport.authenticate("jwt", { session: false }),
     (req, res) => {
+        console.log("Authenticated user:", req.user);
         res.json({ user: req.user });
     }
 );
 
-// Session-Based Authentication (for Electron)
-authRouter.post(
-    "/login/session",
-    passportLocal.authenticate("local"),
-    loginSession
-);
+// Session-Based Authentication (for desktop users)
+authRouter.post("/login/session", passport.authenticate("local"), loginSession);
 authRouter.post("/logout", logoutSession);
 
 export default authRouter;
