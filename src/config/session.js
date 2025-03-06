@@ -20,6 +20,11 @@ const redisStore = new RedisStore({
     disableTouch: true, // Optional: Reduces unnecessary session refreshing
 });
 
+if (!process.env.SESSION_SECRET) {
+    console.error("⚠️ SESSION_SECRET is not set! Add it to your .env file.");
+    process.exit(1); // Stop the server if SESSION_SECRET is missing
+}
+
 // This ensures sessions persist and are stored in Redis
 const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET,
