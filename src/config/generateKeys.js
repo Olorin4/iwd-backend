@@ -4,7 +4,7 @@ import { generateKeyPairSync } from "crypto";
 
 const keysDir = path.resolve("./src/config/keys");
 
-// Ensure the "keys" directory exists
+// Ensure the "keys" directory exists, if not, create it
 if (!fs.existsSync(keysDir)) fs.mkdirSync(keysDir);
 
 // Paths for private and public key files
@@ -24,7 +24,6 @@ if (!fs.existsSync(privateKeyPath) || !fs.existsSync(publicKeyPath)) {
     // Write keys to files
     fs.writeFileSync(privateKeyPath, privateKey);
     fs.writeFileSync(publicKeyPath, publicKey);
-
     console.log("RSA key pair generated and saved in ./keys directory.");
 }
 

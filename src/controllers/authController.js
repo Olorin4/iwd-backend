@@ -62,7 +62,7 @@ export async function loginJWT(req, res) {
 
         const token = jwt.sign({ id: user.id, email: user.email }, privateKey, {
             algorithm: "RS256",
-            expiresIn: "1d",
+            expiresIn: "14d",
         });
 
         res.status(200).json({ token });
@@ -70,11 +70,6 @@ export async function loginJWT(req, res) {
         console.error("JWT Login Error:", error);
         res.status(500).json({ error: "Server error" });
     }
-}
-
-export async function getProfile(req, res) {
-    console.log("Authenticated user:", req.user);
-    res.json({ user: req.user });
 }
 
 // Session-based Login for desktop users
@@ -105,6 +100,20 @@ export async function logoutSession(req, res, next) {
             res.json({ message: "Logged out successfully" });
         });
     });
+}
+
+export async function checkAuthenticated(req, res, next) {
+    if (!req.isAuthenticated())
+        return res.status(401).json({ message: "Unauthorized: Please log in" });
+    next();
+}
+
+export async function getProfile(req, res) {
+    if (!req.user)
+        return res.status(401).json({ message: "Unauthorized: No user found" });
+
+    console.log("Authenticated user:", req.user);
+    res.json({ user: req.user });
 }
 
 export function isAdmin(req, res, next) {}
