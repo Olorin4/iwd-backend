@@ -5,6 +5,7 @@ import passport from "../config/passport.js";
 import {
     registerUser,
     loginJWT,
+    getProfile,
     loginSession,
     logoutSession,
 } from "../controllers/authController.js";
@@ -20,10 +21,7 @@ authRouter.post("/login/jwt", loginJWT);
 authRouter.get(
     "/profile",
     passport.authenticate("jwt", { session: false }),
-    (req, res) => {
-        console.log("Authenticated user:", req.user);
-        res.json({ user: req.user });
-    }
+    getProfile
 );
 
 // Session-Based Authentication (for desktop users)

@@ -1,7 +1,6 @@
 // routes/router.js
 
 import express from "express";
-import dotenv from "dotenv-flow";
 import authRouter from "./authRoutes.js";
 import {
     getAllSignUpForms,
@@ -9,8 +8,6 @@ import {
     submitForm,
     contactForm,
 } from "../controllers/formsController.js";
-
-dotenv.config();
 
 const router = express.Router();
 
@@ -21,10 +18,8 @@ router.use("/auth", authRouter);
 // router.use('/users', userRouter);
 // router.use('/jobs', jobRouter);
 
-// Routes for Sign-Up Forms from iron-wing-dispatching.com
+// Routes for Sign-Up & Contact Forms from iron-wing-dispatching.com
 router.route("/sign-up-forms").post(submitForm).get(getAllSignUpForms);
-
-// Routes for Contact Forms from iron-wing-dispatching.com
 router.route("/contact-forms").post(contactForm).get(getAllContactForms);
 
 // Example of other grouped routes (optional)

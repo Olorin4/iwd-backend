@@ -3,8 +3,9 @@
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { prisma } from "../config/prismaClient.js";
+import { privateKey } from "../config/generateKeys.js";
 
-export const registerUser = async (req, res) => {
+export async function registerUser(req, res) {
     try {
         const { email, password, role } = req.body;
         if (!email || !password || !role) {
@@ -47,43 +48,37 @@ export const registerUser = async (req, res) => {
         console.error("Register Error:", error);
         res.status(500).json({ error: "Error creating user" });
     }
-};
+}
 
 // Login for mobile users
-export const loginJWT = async (req, res) => {
+export async function loginJWT(req, res) {
     try {
         const { email, password } = req.body;
-        console.log(`JWT Login Attempt: ${email}`);
-
         const user = await prisma.user.findUnique({ where: { email } });
 
-        if (!user) {
-            console.error("Invalid credentials: No user found");
+        if (!user || !(await bcrypt.compare(password, user.password))) {
             return res.status(400).json({ message: "Invalid credentials" });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            console.error("Invalid credentials: Wrong password");
-            return res.status(400).json({ message: "Invalid credentials" });
-        }
+        const token = jwt.sign({ id: user.id, email: user.email }, privateKey, {
+            algorithm: "RS256",
+            expiresIn: "1d",
+        });
 
-        const token = jwt.sign(
-            { id: user.id, email: user.email },
-            process.env.JWT_SECRET,
-            { expiresIn: "1d" }
-        );
-
-        console.log("JWT Token Issued:", token);
         res.status(200).json({ token });
     } catch (error) {
         console.error("JWT Login Error:", error);
         res.status(500).json({ error: "Server error" });
     }
-};
+}
+
+export async function getProfile(req, res) {
+    console.log("Authenticated user:", req.user);
+    res.json({ user: req.user });
+}
 
 // Session-based Login for desktop users
-export const loginSession = (req, res) => {
+export async function loginSession(req, res) {
     console.log("Session Login Attempt:", req.body.email);
     if (!req.user) {
         console.error("Session Login Failed: No user found");
@@ -92,9 +87,9 @@ export const loginSession = (req, res) => {
 
     console.log("Session Login Success:", req.user);
     res.json({ user: req.user });
-};
+}
 
-export const logoutSession = (req, res, next) => {
+export async function logoutSession(req, res, next) {
     if (!req.isAuthenticated()) {
         return res
             .status(401)
@@ -110,4 +105,6 @@ export const logoutSession = (req, res, next) => {
             res.json({ message: "Logged out successfully" });
         });
     });
-};
+}
+
+export function isAdmin(req, res, next) {}

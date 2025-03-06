@@ -1,29 +1,25 @@
 import passport from "passport";
-import dotenv from "dotenv-flow";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prismaClient.js";
 import { Strategy as JwtStrategy, ExtractJwt } from "passport-jwt";
 import { Strategy as LocalStrategy } from "passport-local";
-
-dotenv.config();
+import { publicKey } from "../config/generateKeys.js";
 
 // JWT Strategy (For API & Mobile Users)
-const jwtOpts = {
-    jwtFromRequest: (req) => {
-        if (req && req.cookies) return req.cookies.token; // Supports token in cookies
-        if (req && req.query && req.query.token) return req.query.token; // Supports token in WebSocket query params
-        return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
-    },
-    secretOrKey: process.env.JWT_SECRET,
+const jwtOptions = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: publicKey,
+    algorithms: ["RS256"],
 };
 
 passport.use(
-    new JwtStrategy(jwtOpts, async (jwt_payload, done) => {
+    new JwtStrategy(jwtOptions, async (jwt_payload, done) => {
         try {
             const user = await prisma.user.findUnique({
                 where: { id: jwt_payload.id },
             });
-            return user ? done(null, user) : done(null, false);
+            if (user) return done(null, user);
+            return done(null, false);
         } catch (err) {
             return done(err, false);
         }

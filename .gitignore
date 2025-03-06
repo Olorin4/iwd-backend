@@ -1,6 +1,9 @@
 .env*
 .vscode
 
+keys
+*.pem
+
 # Logs
 logs
 *.log
