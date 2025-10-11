@@ -1,61 +1,19 @@
 import express from "express";
 import dotenv from "dotenv";
-import cors from "cors";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import router from "./router.js";
+import morgan from "morgan";
+import { configureSecurity } from "./security.js";
+import { configureLogging, logger } from "./logging.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Security Middleware
-app.use(helmet());
-app.use(
-    helmet.contentSecurityPolicy({
-        directives: {
-            defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"],
-            styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "data:"],
-            connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
-            objectSrc: ["'none'"],
-            mediaSrc: ["'self'"],
-            frameSrc: ["'none'"],
-        },
-    })
-);
-
-// CORS Configuration
-const whitelist = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://iron-wing-dispatching.com",
-    "https://api.iron-wing-dispatching.com",
-];
-
-const corsOptions = {
-    origin(origin, callback) {
-        if (whitelist.indexOf(origin) !== -1 || !origin) {
-            callback(null, true);
-        } else {
-            callback(new Error("Not allowed by CORS"));
-        }
-    },
-    credentials: true,
-};
-
-app.use(cors(corsOptions));
-
-// Rate Limiting
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+// Apply security configurations
+configureSecurity(app);
+// Apply logging configurations
+configureLogging(app);
 
 // Global Middleware
 app.use(express.json());
@@ -65,15 +23,38 @@ app.get("/", (req, res) => res.send("Iron Wing API is working!"));
 
 app.use(router); // Register all routes AFTER applying middleware
 
+// Log security events
+app.use((req, res, next) => {
+    req.logger.info({
+        message: "Security Event",
+        method: req.method,
+        route: req.originalUrl,
+        ip: req.ip,
+    });
+    next();
+});
+
 // Fallback Route for Not Found
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));
 // Error Handling Middleware
 app.use((err, req, res, next) => {
-    console.error(err.stack);
+    req.logger.error({
+        message: err.message,
+        stack: err.stack,
+        route: req.originalUrl,
+    });
     res.status(500).json({ error: "Internal Server Error" });
+});
+
+// Replace console logs with Winston
+app.use((req, res, next) => {
+    req.logger = logger;
+    next();
 });
 
 // Start Server
 app.listen(PORT, "0.0.0.0", () =>
-    console.log(`Iron Wing Server running at http://0.0.0.0:${PORT}`)
+    logger.info(`Iron Wing Server running at http://0.0.0.0:${PORT}`)
 );
+
+export { app, PORT };

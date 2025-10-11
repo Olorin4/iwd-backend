@@ -4,21 +4,24 @@ import {
     getAllContactForms,
     submitForm,
     contactForm,
+    validateSignUpForm,
+    sanitizeSignUpForm,
+    validateContactForm,
+    sanitizeContactForm
 } from "./formsController.js";
 
 const router = express.Router();
 
-// Register Authentication Routes
-
-// Future feature-based routes
-// router.use('/users', userRouter);
-// router.use('/jobs', jobRouter);
-
 // Routes for Sign-Up & Contact Forms from iron-wing-dispatching.com
-router.route("/sign-up-forms").post(submitForm).get(getAllSignUpForms);
-router.route("/contact-forms").post(contactForm).get(getAllContactForms);
+router.route("/sign-up-forms")
+    .post(validateSignUpForm, sanitizeSignUpForm, submitForm)
+    .get(getAllSignUpForms);
 
-// Example of other grouped routes (optional)
+router.route("/contact-forms")
+    .post(validateContactForm, sanitizeContactForm, contactForm)
+    .get(getAllContactForms);
+
+// Health check route
 router.get("/health-check", (req, res) => res.json({ status: "OK" }));
 
 export default router;

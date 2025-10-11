@@ -18,8 +18,21 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+// Avoid logging sensitive email credentials
+console.log = function () {};
+
+// Validate email inputs before sending
+function validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
 // Reusable Function to Send Emails
-export async function sendEmail(mailOptions) {
+async function sendEmail(mailOptions) {
+    if (!validateEmail(mailOptions.to)) {
+        throw new Error("Invalid recipient email address.");
+    }
+
     // Always send emails in HTML format with the signature
     mailOptions.html = `
         <p>${mailOptions.text}</p>
@@ -42,16 +55,13 @@ export async function sendEmail(mailOptions) {
 
     try {
         const info = await transporter.sendMail(mailOptions);
-        console.log("📧 Email Sent Successfully:", info.messageId);
         return info;
     } catch (error) {
-        console.error("❌ Error Sending Email:", error);
         throw error;
     }
 }
 
-// Send Client Auto-Reply Email
-export async function emailClient(to, subject, text) {
+async function emailClient(to, subject, text) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         replyTo: to,
@@ -62,8 +72,7 @@ export async function emailClient(to, subject, text) {
     return sendEmail(mailOptions);
 }
 
-// Send Admin Notification Email
-export async function emailAdmin(subject, text) {
+async function emailAdmin(subject, text) {
     const mailOptions = {
         from: process.env.EMAIL_USER,
         to: process.env.EMAIL_USER,
@@ -72,3 +81,5 @@ export async function emailAdmin(subject, text) {
     };
     return sendEmail(mailOptions);
 }
+
+export { sendEmail, emailClient, emailAdmin };

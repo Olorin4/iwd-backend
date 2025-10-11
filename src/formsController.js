@@ -1,14 +1,47 @@
 import dotenv from "dotenv";
 import { prisma } from "./prismaClient.js";
 import { emailClient, emailAdmin } from "./emailService.js";
+import { body, validationResult } from "express-validator";
 
 dotenv.config();
 
-// Handle Form Submissions
-export async function submitForm(req, res) {
+const validateSignUpForm = [
+    body("first_name").trim().notEmpty().withMessage("First name is required."),
+    body("last_name").trim().notEmpty().withMessage("Last name is required."),
+    body("email").isEmail().withMessage("Invalid email address."),
+    body("phone").trim().notEmpty().withMessage("Phone number is required."),
+    body("fleet_size").trim().notEmpty().withMessage("Fleet size is required."),
+    body("trailer_type").trim().notEmpty().withMessage("Trailer type is required."),
+    body("plan").trim().notEmpty().withMessage("Plan is required."),
+];
+
+const validateContactForm = [
+    body("email").isEmail().withMessage("Invalid email address."),
+    body("message").trim().notEmpty().withMessage("Message is required."),
+];
+
+const sanitizeSignUpForm = [
+    body("first_name").trim().escape(),
+    body("last_name").trim().escape(),
+    body("email").normalizeEmail(),
+    body("phone").trim().escape(),
+    body("fleet_size").trim().escape(),
+    body("trailer_type").trim().escape(),
+    body("plan").trim().escape(),
+];
+
+const sanitizeContactForm = [
+    body("email").normalizeEmail(),
+    body("phone").trim().escape(),
+    body("message").trim().escape(),
+];
+
+async function submitForm(req, res) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
     console.log("📩 Received Form Data:", req.body);
 
-    // Mapping camelCase to snake_case for Prisma
     const {
         first_name,
         last_name,
@@ -19,7 +52,6 @@ export async function submitForm(req, res) {
         plan,
     } = req.body;
 
-    // Validate required fields
     if (
         !first_name ||
         !last_name ||
@@ -57,7 +89,6 @@ export async function submitForm(req, res) {
         return res.status(500).json({ error: error.message });
     }
 
-    // Send emails asynchronously after confirming DB write
     try {
         await emailClient(
             email,
@@ -82,19 +113,17 @@ export async function submitForm(req, res) {
         );
     } catch (emailError) {
         console.error("❌ Email Error:", emailError);
-        // Optional: Add more robust error handling here, like a retry mechanism
     }
 }
 
-// Handle Contact Form Submissions
-export async function contactForm(req, res) {
+async function contactForm(req, res) {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
     const { email, phone, message } = req.body;
 
-    if (!email || !message) {
-        return res
-            .status(400)
-            .json({ error: "Email and message are required." });
-    }
     console.log("📩 Contact Form Submission:", req.body);
 
     try {
@@ -111,15 +140,16 @@ export async function contactForm(req, res) {
         res.status(500).json({ error: error.message });
     }
 
-    await emailClient(
-        email,
-        "Thank You for contacting us!",
-        `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.\n\nAll the best,\nIron Wing Dispatching Team`
-    );
+    try {
+        await emailClient(
+            email,
+            "Thank You for contacting us!",
+            `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.\n\nAll the best,\nIron Wing Dispatching Team`
+        );
 
-    await emailAdmin(
-        "🚛 New Contact Form submission",
-        `<pre>
+        await emailAdmin(
+            "🚛 New Contact Form submission",
+            `<pre>
         📩 A visitor submitted a question!
 
         📧 Email: ${email}
@@ -128,10 +158,13 @@ export async function contactForm(req, res) {
 
         🕒 Submitted At: ${new Date().toLocaleString()} 
         </pre>`
-    );
+        );
+    } catch (emailError) {
+        console.error("❌ Email Error:", emailError);
+    }
 }
 
-export async function getAllSignUpForms(req, res) {
+async function getAllSignUpForms(req, res) {
     try {
         const result = await prisma.signUpForm.findMany({
             take: 50,
@@ -145,7 +178,7 @@ export async function getAllSignUpForms(req, res) {
     }
 }
 
-export async function getAllContactForms(req, res) {
+async function getAllContactForms(req, res) {
     try {
         const result = await prisma.contactForm.findMany({
             take: 50,
@@ -158,3 +191,14 @@ export async function getAllContactForms(req, res) {
         res.status(500).json({ error: "Internal Server Error" });
     }
 }
+
+export {
+    validateSignUpForm,
+    validateContactForm,
+    sanitizeSignUpForm,
+    sanitizeContactForm,
+    submitForm,
+    contactForm,
+    getAllSignUpForms,
+    getAllContactForms,
+};
