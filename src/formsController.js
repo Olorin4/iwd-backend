@@ -11,12 +11,12 @@ const logRequestBody = (req, res, next) => {
 };
 
 const validateSignUpForm = [
-    body("first_name").trim().notEmpty().withMessage("First name is required."),
-    body("last_name").trim().notEmpty().withMessage("Last name is required."),
+    body("firstName").trim().notEmpty().withMessage("First name is required."),
+    body("lastName").trim().notEmpty().withMessage("Last name is required."),
     body("email").isEmail().withMessage("Invalid email address."),
     body("phone").trim().notEmpty().withMessage("Phone number is required."),
-    body("fleet_size").trim().notEmpty().withMessage("Fleet size is required."),
-    body("trailer_type").trim().notEmpty().withMessage("Trailer type is required."),
+    body("fleetSize").trim().notEmpty().withMessage("Fleet size is required."),
+    body("trailerType").trim().notEmpty().withMessage("Trailer type is required."),
     body("plan").trim().notEmpty().withMessage("Plan is required."),
 ];
 
@@ -26,12 +26,12 @@ const validateContactForm = [
 ];
 
 const sanitizeSignUpForm = [
-    body("first_name").trim().escape(),
-    body("last_name").trim().escape(),
+    body("firstName").trim().escape(),
+    body("lastName").trim().escape(),
     body("email").normalizeEmail(),
     body("phone").trim().escape(),
-    body("fleet_size").trim().escape(),
-    body("trailer_type").trim().escape(),
+    body("fleetSize").trim().escape(),
+    body("trailerType").trim().escape(),
     body("plan").trim().escape(),
 ];
 
@@ -51,22 +51,22 @@ async function signUpForm(req, res) {
     console.log("📩 Received Form Data:", req.body);
 
     const {
-        first_name,
-        last_name,
+        firstName,
+        lastName,
         email,
         phone,
-        fleet_size,
-        trailer_type,
+        fleetSize,
+        trailerType,
         plan,
     } = req.body;
 
     if (
-        !first_name ||
-        !last_name ||
+        !firstName ||
+        !lastName ||
         !email ||
         !phone ||
-        !fleet_size ||
-        !trailer_type ||
+        !fleetSize ||
+        !trailerType ||
         !plan
     ) {
         console.warn("⚠️ Missing required fields:", req.body);
@@ -76,12 +76,12 @@ async function signUpForm(req, res) {
     try {
         const result = await prisma.signUpForm.create({
             data: {
-                first_name,
-                last_name,
+                first_name: firstName,
+                last_name: lastName,
                 email,
                 phone,
-                fleet_size,
-                trailer_type,
+                fleet_size: fleetSize,
+                trailer_type: trailerType,
                 plan,
                 status: "pending", // Default status
             },
@@ -101,7 +101,7 @@ async function signUpForm(req, res) {
         await emailClient(
             email,
             "Thank You for Signing Up!",
-            `Hello ${first_name},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
+            `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
         );
 
         await emailAdmin(
@@ -109,11 +109,11 @@ async function signUpForm(req, res) {
             `<pre>
         📩 A new sign-up form has been received!
 
-        👤 Name: ${first_name} ${last_name}
+        👤 Name: ${firstName} ${lastName}
         📧 Email: ${email}
         📞 Phone: ${phone}
-        🚛 Fleet Size: ${fleet_size}
-        🛻 Trailer Type: ${trailer_type}
+        🚛 Fleet Size: ${fleetSize}
+        🛻 Trailer Type: ${trailerType}
         📌 Plan Selected: ${plan}
 
         🕒 Submitted At: ${new Date().toLocaleString()}
