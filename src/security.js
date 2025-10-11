@@ -37,7 +37,7 @@ function configureSecurity(app) {
     );
 
     // Middleware to generate CSP nonce
-    app.use((res, next) => {
+    app.use((req, res, next) => {
         res.locals.cspNonce = crypto.randomBytes(16).toString("base64");
         next();
     });
