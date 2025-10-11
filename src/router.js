@@ -7,14 +7,15 @@ import {
     validateSignUpForm,
     sanitizeSignUpForm,
     validateContactForm,
-    sanitizeContactForm
+    sanitizeContactForm,
+    logRequestBody
 } from "./formsController.js";
 
 const router = express.Router();
 
 // Routes for Sign-Up & Contact Forms from iron-wing-dispatching.com
 router.route("/sign-up-forms")
-    .post(validateSignUpForm, sanitizeSignUpForm, signUpForm)
+    .post(logRequestBody, validateSignUpForm, sanitizeSignUpForm, signUpForm)
     .get(getAllSignUpForms);
 
 router.route("/contact-forms")

@@ -28,12 +28,12 @@ describe("signUpForm", () => {
     beforeEach(() => {
         req = {
             body: {
-                first_name: "John",
-                last_name: "Doe",
+                firstName: "John",
+                lastName: "Doe",
                 email: "john.doe@example.com",
                 phone: "1234567890",
-                fleet_size: "5",
-                trailer_type: "Flatbed",
+                fleetSize: "5",
+                trailerType: "Flatbed",
                 plan: "Premium",
             },
         };

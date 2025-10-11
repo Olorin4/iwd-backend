@@ -14,12 +14,12 @@ describe('signUpForm - Integration', () => {
   beforeEach(async () => {
     req = {
       body: {
-        first_name: 'Jane',
-        last_name: 'Doe',
+        firstName: 'Jane',
+        lastName: 'Doe',
         email: 'jane.doe@example.com',
         phone: '0987654321',
-        fleet_size: '10',
-        trailer_type: 'Reefer',
+        fleetSize: '10',
+        trailerType: 'Reefer',
         plan: 'Basic',
       },
     };
@@ -59,7 +59,7 @@ describe('signUpForm - Integration', () => {
   });
 
   it('should return a 400 error if required fields are missing', async () => {
-    delete req.body.first_name;
+    delete req.body.firstName;
     await signUpForm(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);

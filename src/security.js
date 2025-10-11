@@ -5,6 +5,17 @@ import crypto from "crypto";
 import morgan from "morgan";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 function configureSecurity(app) {
     // Helmet for setting security-related HTTP headers
@@ -26,7 +37,7 @@ function configureSecurity(app) {
     );
 
     // Middleware to generate CSP nonce
-    app.use((res, next) => {
+    app.use((req, res, next) => {
         res.locals.cspNonce = crypto.randomBytes(16).toString("base64");
         next();
     });
@@ -48,16 +59,8 @@ function configureSecurity(app) {
     };
 
     app.use(cors(corsOptions));
-
-    // Rate Limiting
-    const limiter = rateLimit({
-        windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 100, // limit each IP to 100 requests per windowMs
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
-
     app.use(limiter);
+
 
     // Morgan for logging security-related events
     const accessLogStream = fs.createWriteStream(
@@ -73,4 +76,4 @@ function configureSecurity(app) {
     );
 }
 
-export { configureSecurity };
+export { configureSecurity, limiter };

@@ -4,9 +4,7 @@ import { PrismaClient } from "@prisma/client";
 
 // Ensure only one instance of PrismaClient is created and reused
 let prisma;
-if (!global.prisma) {
-    global.prisma = new PrismaClient();
-}
+if (!global.prisma) global.prisma = new PrismaClient();
 prisma = global.prisma;
 
 export { prisma };

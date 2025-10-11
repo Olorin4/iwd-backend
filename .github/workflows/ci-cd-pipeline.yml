@@ -7,16 +7,24 @@ on:
 jobs:
     test:
         runs-on: ubuntu-latest
+        env:
+          DB_URL: postgresql://olorin4:password@localhost:5432/iwd_test
+          PGPASSWORD: password
 
         services:
           postgres:
             image: postgres:13
             env:
               POSTGRES_USER: olorin4
-              POSTGRES_PASSWORD: ""
+              POSTGRES_PASSWORD: password
               POSTGRES_DB: iwd_test
             ports:
               - 5432:5432
+            options: >-
+              --health-cmd pg_isready
+              --health-interval 10s
+              --health-timeout 5s
+              --health-retries 5
 
         steps:
             # Step 1: Check out the code
@@ -35,11 +43,7 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            # Step 4: Set test DATABASE_URL for Prisma
-            - name: Set DATABASE_URL
-              run: echo "DATABASE_URL=postgresql://olorin4@localhost:5432/iwd_test" >> $GITHUB_ENV
-
-            # Step 5: Wait for PostgreSQL to be ready
+            # Step 4: Wait for PostgreSQL to be ready
             - name: Wait for PostgreSQL
               run: |
                 until pg_isready -h localhost -p 5432 -U olorin4; do
@@ -47,13 +51,13 @@ jobs:
                   sleep 2
                 done
 
-            # Step 6: Create and set up the test database
+            # Step 5: Create and set up the test database
             - name: Create and set up test database
               run: |
                 npm run db:test:create
                 npm run db:test:setup
 
-            # Step 7: Run tests
+            # Step 6: Run tests
             - name: Run tests
               run: npm test
 
