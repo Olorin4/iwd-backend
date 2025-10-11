@@ -42,7 +42,12 @@ jobs:
 
             # Step 4: Set test DATABASE_URL for Prisma
             - name: Set DATABASE_URL
-              run: echo "DATABASE_URL=postgresql://olorin4@localhost:5432/iwd_test" >> $GITHUB_ENV
+              run: |
+                echo "DATABASE_URL=postgresql://olorin4:password@localhost:5432/iwd_test" >> $GITHUB_ENV
+                echo "PGPASSWORD=password" >> $GITHUB_ENV
+              env:
+                DATABASE_URL: postgresql://olorin4:password@localhost:5432/iwd_test
+                PGPASSWORD: password
 
             # Step 5: Wait for PostgreSQL to be ready
             - name: Wait for PostgreSQL
