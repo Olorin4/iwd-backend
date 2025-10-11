@@ -5,6 +5,11 @@ import { body, validationResult } from "express-validator";
 
 dotenv.config();
 
+const logRequestBody = (req, res, next) => {
+    console.log("Request body before validation:", req.body);
+    next();
+};
+
 const validateSignUpForm = [
     body("first_name").trim().notEmpty().withMessage("First name is required."),
     body("last_name").trim().notEmpty().withMessage("Last name is required."),
@@ -196,6 +201,7 @@ async function getAllContactForms(req, res) {
 }
 
 export {
+    logRequestBody,
     validateSignUpForm,
     validateContactForm,
     sanitizeSignUpForm,
