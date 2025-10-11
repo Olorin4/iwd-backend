@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Routes for Sign-Up & Contact Forms from iron-wing-dispatching.com
 router.route("/sign-up-forms")
-    .post(validateSignUpForm, sanitizeSignUpForm, signUpForm)
+    .post(sanitizeSignUpForm, signUpForm)
     .get(getAllSignUpForms);
 
 router.route("/contact-forms")

@@ -9,15 +9,15 @@ dotenvFlow.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Apply logging configurations
-configureLogging(app);
-// Apply security configurations
-configureSecurity(app);
-
 // Global Middleware
 app.use(express.json());
 app.set("trust proxy", "loopback");
 app.use(limiter);
+
+// Apply logging configurations
+configureLogging(app);
+// Apply security configurations
+configureSecurity(app);
 app.get("/", (res) => res.send("Iron Wing API is working!"));
 
 app.use(router); // Register all routes AFTER applying middleware
