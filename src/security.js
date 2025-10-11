@@ -5,6 +5,10 @@ import crypto from "crypto";
 import morgan from "morgan";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes

@@ -2,6 +2,10 @@ import morgan from "morgan";
 import fs from "fs";
 import path from "path";
 import winston from "winston";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const logger = winston.createLogger({
     level: "info",
