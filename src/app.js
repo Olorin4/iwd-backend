@@ -22,17 +22,6 @@ app.get("/", (res) => res.send("Iron Wing API is working!"));
 
 app.use(router); // Register all routes AFTER applying middleware
 
-// Log security events
-app.use((req, next) => {
-    req.logger.info({
-        message: "Security Event",
-        method: req.method,
-        route: req.originalUrl,
-        ip: req.ip,
-    });
-    next();
-});
-
 // Fallback Route for Not Found
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));
 // Error Handling Middleware
@@ -43,12 +32,6 @@ app.use((err, req, res, next) => {
         route: req.originalUrl,
     });
     res.status(500).json({ error: "Internal Server Error" });
-});
-
-// Replace console logs with Winston
-app.use((req, res, next) => {
-    req.logger = logger;
-    next();
 });
 
 // Start Server
