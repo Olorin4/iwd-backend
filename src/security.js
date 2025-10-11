@@ -6,6 +6,13 @@ import morgan from "morgan";
 import fs from "fs";
 import path from "path";
 
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 function configureSecurity(app) {
     // Helmet for setting security-related HTTP headers
     app.use(helmet());
@@ -48,16 +55,8 @@ function configureSecurity(app) {
     };
 
     app.use(cors(corsOptions));
-
-    // Rate Limiting
-    const limiter = rateLimit({
-        windowMs: 15 * 60 * 1000, // 15 minutes
-        max: 100, // limit each IP to 100 requests per windowMs
-        standardHeaders: true,
-        legacyHeaders: false,
-    });
-
     app.use(limiter);
+
 
     // Morgan for logging security-related events
     const accessLogStream = fs.createWriteStream(
@@ -73,4 +72,4 @@ function configureSecurity(app) {
     );
 }
 
-export { configureSecurity };
+export { configureSecurity, limiter };

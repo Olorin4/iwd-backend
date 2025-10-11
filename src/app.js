@@ -1,8 +1,7 @@
 import express from "express";
 import dotenvFlow from "dotenv-flow";
 import router from "./router.js";
-import morgan from "morgan";
-import { configureSecurity } from "./security.js";
+import { configureSecurity, limiter } from "./security.js";
 import { configureLogging, logger } from "./logging.js";
 
 dotenvFlow.config();
@@ -10,21 +9,21 @@ dotenvFlow.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Global Middleware
+app.use(express.json());
+app.set("trust proxy", "loopback");
+app.use(limiter);
+
 // Apply security configurations
 configureSecurity(app);
 // Apply logging configurations
 configureLogging(app);
-
-// Global Middleware
-app.use(express.json());
-app.use(limiter);
-app.set("trust proxy", "loopback");
-app.get("/", (req, res) => res.send("Iron Wing API is working!"));
+app.get("/", (res) => res.send("Iron Wing API is working!"));
 
 app.use(router); // Register all routes AFTER applying middleware
 
 // Log security events
-app.use((req, res, next) => {
+app.use((req, next) => {
     req.logger.info({
         message: "Security Event",
         method: req.method,
