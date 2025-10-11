@@ -3,11 +3,63 @@ name: CI/CD Pipeline
 on:
     push:
         branches:
-            - master # Runs when pushing to the master branch
-
+            - master
 jobs:
+    test:
+        runs-on: ubuntu-latest
+
+        services:
+          postgres:
+            image: postgres:13
+            env:
+              POSTGRES_USER: olorin4
+              POSTGRES_PASSWORD: ""
+              POSTGRES_DB: iwd_test
+            ports:
+              - 5432:5432
+
+        steps:
+            # Step 1: Check out the code
+            - name: Checkout code
+              uses: actions/checkout@v2
+
+            # Step 2: Set up Node.js
+            - name: Read Node.js version from .nvmrc
+              run: echo "NODE_VERSION=$(cat .nvmrc)" >> $GITHUB_ENV
+            - name: Set up Node.js
+              uses: actions/setup-node@v2
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+
+            # Step 3: Install dependencies
+            - name: Install dependencies
+              run: npm ci
+
+            # Step 4: Set test DATABASE_URL for Prisma
+            - name: Set DATABASE_URL
+              run: echo "DATABASE_URL=postgresql://olorin4@localhost:5432/iwd_test" >> $GITHUB_ENV
+
+            # Step 5: Wait for PostgreSQL to be ready
+            - name: Wait for PostgreSQL
+              run: |
+                until pg_isready -h localhost -p 5432 -U olorin4; do
+                  echo "Waiting for PostgreSQL..."
+                  sleep 2
+                done
+
+            # Step 6: Create and set up the test database
+            - name: Create and set up test database
+              run: |
+                npm run db:test:create
+                npm run db:test:setup
+
+            # Step 7: Run tests
+            - name: Run tests
+              run: npm test
+
     build:
         if: github.actor == 'Olorin4'
+        needs: test
         runs-on: ubuntu-latest
 
         steps:
@@ -27,15 +79,7 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            # Step 4: Run tests (skips failure if no tests exist)
-            - name: Run tests
-              run: npm test --passWithNoTests
-
-            # Step 4.1: Run integration tests
-            - name: Run integration tests
-              run: npm run test:integration
-
-            # Step 5: Generate .env file from GitHub Secrets
+            # Step 4: Generate .env file from GitHub Secrets
             - name: Generate .env file
               run: |
                   echo "NODE_ENV=production" > .env
@@ -52,7 +96,7 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-            # Step 6: Deploy to Server (test)
+            # Step 5: Deploy to Server (test)
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_AWS_SERVER_KEY }}
