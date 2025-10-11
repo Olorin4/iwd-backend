@@ -14,10 +14,10 @@ app.use(express.json());
 app.set("trust proxy", "loopback");
 app.use(limiter);
 
-// Apply security configurations
-configureSecurity(app);
 // Apply logging configurations
 configureLogging(app);
+// Apply security configurations
+configureSecurity(app);
 app.get("/", (res) => res.send("Iron Wing API is working!"));
 
 app.use(router); // Register all routes AFTER applying middleware
