@@ -1,6 +1,0 @@
-The models/ Folder is for Data Structures
-
-It should contain business logic related to data, such as:
-ORM models (if using Sequelize, Mongoose, etc.)
-Prisma queries specific to each model (e.g., userModel.js, companyModel.js).
-Functions that interact with the database using prismaClient.js.

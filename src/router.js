@@ -1,18 +1,14 @@
-// routes/router.js
-
 import express from "express";
-import authRouter from "./authRoutes.js";
 import {
     getAllSignUpForms,
     getAllContactForms,
     submitForm,
     contactForm,
-} from "../controllers/formsController.js";
+} from "./formsController.js";
 
 const router = express.Router();
 
 // Register Authentication Routes
-router.use("/auth", authRouter);
 
 // Future feature-based routes
 // router.use('/users', userRouter);

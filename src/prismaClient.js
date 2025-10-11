@@ -1,4 +1,4 @@
-/* src/models/prismaClient.js initializes a global database connection that is used throughout the application. */
+/* prismaClient.js initializes a global database connection that is used throughout the application. */
 
 import { PrismaClient } from "@prisma/client";
 

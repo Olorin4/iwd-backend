@@ -1,8 +1,6 @@
-// src/controllers/formsController.js
-
-import dotenv from "dotenv-flow";
-import { prisma } from "../config/prismaClient.js";
-import { emailClient, emailAdmin } from "../services/emailService.js";
+import dotenv from "dotenv";
+import { prisma } from "./prismaClient.js";
+import { emailClient, emailAdmin } from "./emailService.js";
 
 dotenv.config();
 
@@ -12,12 +10,12 @@ export async function submitForm(req, res) {
 
     // Mapping camelCase to snake_case for Prisma
     const {
-        firstName: first_name,
-        lastName: last_name,
+        first_name,
+        last_name,
         email,
         phone,
-        fleetSize: fleet_size,
-        trailerType: trailer_type,
+        fleet_size,
+        trailer_type,
         plan,
     } = req.body;
 
@@ -56,18 +54,20 @@ export async function submitForm(req, res) {
         });
     } catch (error) {
         console.error("❌ Prisma Error:", error);
-        res.status(500).json({ error: error.message });
+        return res.status(500).json({ error: error.message });
     }
 
-    await emailClient(
-        email,
-        "Thank You for Signing Up!",
-        `Hello ${first_name},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
-    );
+    // Send emails asynchronously after confirming DB write
+    try {
+        await emailClient(
+            email,
+            "Thank You for Signing Up!",
+            `Hello ${first_name},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
+        );
 
-    await emailAdmin(
-        "🚛 New Sign-Up Form Received",
-        `<pre>
+        await emailAdmin(
+            "🚛 New Sign-Up Form Received",
+            `<pre>
         📩 A new sign-up form has been received!
 
         👤 Name: ${first_name} ${last_name}
@@ -75,11 +75,15 @@ export async function submitForm(req, res) {
         📞 Phone: ${phone}
         🚛 Fleet Size: ${fleet_size}
         🛻 Trailer Type: ${trailer_type}
-        📌 Plan Selected: ${plan} 
+        📌 Plan Selected: ${plan}
 
         🕒 Submitted At: ${new Date().toLocaleString()}
         </pre>`
-    );
+        );
+    } catch (emailError) {
+        console.error("❌ Email Error:", emailError);
+        // Optional: Add more robust error handling here, like a retry mechanism
+    }
 }
 
 // Handle Contact Form Submissions
@@ -127,30 +131,30 @@ export async function contactForm(req, res) {
     );
 }
 
-export async function getAllSignUpForms(limit = 50, offset = 0) {
+export async function getAllSignUpForms(req, res) {
     try {
         const result = await prisma.signUpForm.findMany({
-            take: limit,
-            skip: offset,
+            take: 50,
+            skip: 0,
         });
         console.log(`SignUpForms Retrieved: ${result.length} records`);
-        return result;
+        res.status(200).json(result);
     } catch (error) {
         console.error("Database Error (getAllSignUpForms):", error);
-        throw error;
+        res.status(500).json({ error: "Internal Server Error" });
     }
 }
 
-export async function getAllContactForms(limit = 50, offset = 0) {
+export async function getAllContactForms(req, res) {
     try {
         const result = await prisma.contactForm.findMany({
-            take: limit,
-            skip: offset,
+            take: 50,
+            skip: 0,
         });
         console.log(`ContactForms Retrieved: ${result.length} records`);
-        return result;
+        res.status(200).json(result);
     } catch (error) {
         console.error("Database Error (getAllContactForms):", error);
-        throw error;
+        res.status(500).json({ error: "Internal Server Error" });
     }
 }

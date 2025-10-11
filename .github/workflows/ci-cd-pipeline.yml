@@ -25,34 +25,33 @@ jobs:
 
             # Step 3: Install dependencies
             - name: Install dependencies
-              run: npm install
+              run: npm ci
 
             # Step 4: Run tests (skips failure if no tests exist)
             - name: Run tests
               run: npm test --passWithNoTests
 
             # Step 5: Generate .env file from GitHub Secrets
-            - name: Generate .env.production file
+            - name: Generate .env file
               run: |
-                  echo "NODE_ENV=production" > .env.production
-                  echo "PORT=${{ secrets.PORT }}" >> .env.production
-                  echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}" >> .env.production
-                  echo "DB_URL=${{ secrets.DB_URL }}" >> .env.production
-                  echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env.production
-                  echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env.production
-                  echo "DB_USER=${{ secrets.DB_USER }}" >> .env.production
-                  echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env.production
-                  echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env.production
-                  echo "EMAIL_HOST=${{ secrets.EMAIL_HOST }}" >> .env.production
-                  echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> .env.production
-                  echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env.production
-                  echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env.production
-                  echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env.production
+                  echo "NODE_ENV=production" > .env
+                  echo "PORT=${{ secrets.PORT }}" >> .env
+                  echo "DB_URL=${{ secrets.DB_URL }}" >> .env
+                  echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
+                  echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+                  echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+                  echo "DB_PASS=${{ secrets.DB_PASS }}" >> .env
+                  echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+                  echo "EMAIL_HOST=${{ secrets.EMAIL_HOST }}" >> .env
+                  echo "EMAIL_USER=${{ secrets.EMAIL_USER }}" >> .env
+                  echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
+                  echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
+                  echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
             # Step 6: Deploy to Server (test)
             - name: Deploy to Server
               env:
-                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_HETZNER_SERVER_KEY }}
+                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_AWS_SERVER_KEY }}
                   SERVER_IP: ${{ secrets.SERVER_IP }}
               run: |
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
@@ -61,24 +60,32 @@ jobs:
                   echo "🚀 Transferring files to the server using rsync..."
                   rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' \
                     -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ \
-                    NickKalas@$SERVER_IP:/var/www/ironwing-backend
+                    nick-kalas@$SERVER_IP:/home/nick-kalas/apps/iwd-backend
 
                   echo "🚀 Installing dependencies and restarting PM2..."
-                  ssh -i private_key.pem -o StrictHostKeyChecking=no NickKalas@$SERVER_IP << 'EOF'
-                    cd /var/www/ironwing-backend
-                    mv .env.production .env
+                  ssh -i private_key.pem -o StrictHostKeyChecking=no nick-kalas@$SERVER_IP << 'EOF'
+                    # Source NVM to make node, npm, npx, and pm2 available
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+                    
+                    cd /home/nick-kalas/apps/iwd-backend
 
                     # Reinstall deps if package-lock.json changed
+                    # Prune dev dependencies and then install prod dependencies
+                    npm prune --production
                     npm install --omit=dev
 
                     # Apply database migrations safely
                     echo "🚀 Applying Prisma Migrations..."
-                    npx prisma migrate deploy
+                    # Explicitly run prisma migrate deploy
+                    npx dotenv-cli -e .env -- npx prisma migrate deploy
                     npx prisma generate
 
-                    # Restart (or start) your PM2 process
-                    pm2 restart ironwing-backend || pm2 start server.js --name ironwing-backend
+                    # Force a clean restart of the application
+                    pm2 flush
+                    pm2 reload iwd-backend --update-env || pm2 start src/app.js --name iwd-backend --update-env
                     pm2 save
+
 
                     echo "✅ Deployment completed successfully."
                   EOF
