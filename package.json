@@ -9,7 +9,7 @@
         "start:dev": "NODE_ENV=development node -r dotenv/config src/app.js",
         "test": "NODE_ENV=test jest --passWithNoTests",
         "test:integration": "NODE_ENV=test jest --testMatch '**/__tests__/**/*.integration.test.js'",
-        "db:test:create": "psql -d postgres -c 'CREATE DATABASE iwd_test;' -U olorin4 -h localhost",
+        "db:test:create": "psql -d postgres -c 'DROP DATABASE IF EXISTS iwd_test;' -U olorin4 -h localhost && psql -d postgres -c 'CREATE DATABASE iwd_test;' -U olorin4 -h localhost",
         "db:test:setup": "npx prisma migrate deploy",
         "lint": "eslint src --ext .js",
         "lint:fix": "eslint src --ext .js --fix",
