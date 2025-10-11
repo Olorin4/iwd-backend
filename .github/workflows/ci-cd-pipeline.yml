@@ -59,12 +59,16 @@ jobs:
 
             # Step 6: Create and set up the test database
             - name: Create and set up test database
+              env:
+                DATABASE_URL: postgresql://olorin4:password@localhost:5432/iwd_test
               run: |
                 npm run db:test:create
                 npm run db:test:setup
 
             # Step 7: Run tests
             - name: Run tests
+              env:
+                DATABASE_URL: postgresql://olorin4:password@localhost:5432/iwd_test
               run: npm test
 
     build:
