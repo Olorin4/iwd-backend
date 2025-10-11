@@ -13,7 +13,7 @@ jobs:
             image: postgres:13
             env:
               POSTGRES_USER: olorin4
-              POSTGRES_PASSWORD: ""
+              POSTGRES_PASSWORD: ''
               POSTGRES_DB: iwd_test
             ports:
               - 5432:5432
