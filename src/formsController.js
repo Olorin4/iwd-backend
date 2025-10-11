@@ -36,7 +36,7 @@ const sanitizeContactForm = [
     body("message").trim().escape(),
 ];
 
-async function submitForm(req, res) {
+async function signUpForm(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
 
@@ -197,7 +197,7 @@ export {
     validateContactForm,
     sanitizeSignUpForm,
     sanitizeContactForm,
-    submitForm,
+    signUpForm,
     contactForm,
     getAllSignUpForms,
     getAllContactForms,

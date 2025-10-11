@@ -14,22 +14,6 @@ export default {
         "^react(.*)$": "<rootDir>/vendor/react-master$1",
         "^config$": "<rootDir>/configs/app-config.js",
     },
-    testEnvironment: "node", // Default test environment for backend
-    projects: [
-        {
-            displayName: "frontend",
-            testEnvironment: "jest-environment-jsdom",
-            testMatch: ["<rootDir>/frontend/**/*.test.js"], // Matches frontend test files
-            moduleNameMapper: {
-                "\\.(css|scss)$": "identity-obj-proxy", // Mock CSS modules in frontend
-            },
-        },
-        {
-            displayName: "backend",
-            testEnvironment: "node",
-            testMatch: ["<rootDir>/backend/**/*.test.js"], // Matches backend test files
-        },
-    ],
     collectCoverage: true, // Enable coverage reporting
     collectCoverageFrom: [
         "frontend/**/*.{js,jsx}",
@@ -38,6 +22,20 @@ export default {
         "!**/dist/**",
     ],
     coverageDirectory: "<rootDir>/coverage", // Output directory for coverage reports
+    projects: [
+        {
+            displayName: "backend",
+            testEnvironment: "node",
+            testMatch: ["<rootDir>/__tests__/**/*.test.js"], // Matches unit tests
+            testPathIgnorePatterns: ["/node_modules/", "\\.integration\\.test\\.js$"],
+        },
+        {
+            displayName: 'integration',
+            testEnvironment: 'node',
+            testMatch: ["<rootDir>/__tests__/**/*.integration.test.js"],
+            setupFilesAfterEnv: ['<rootDir>/__tests__/setup-integration.js'],
+        },
+    ],
 };
 
 /** @type {import('jest').Config} */

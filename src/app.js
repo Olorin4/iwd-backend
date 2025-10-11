@@ -1,11 +1,11 @@
 import express from "express";
-import dotenv from "dotenv";
+import dotenvFlow from "dotenv-flow";
 import router from "./router.js";
 import morgan from "morgan";
 import { configureSecurity } from "./security.js";
 import { configureLogging, logger } from "./logging.js";
 
-dotenv.config();
+dotenvFlow.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;

@@ -2,7 +2,7 @@ import express from "express";
 import {
     getAllSignUpForms,
     getAllContactForms,
-    submitForm,
+    signUpForm,
     contactForm,
     validateSignUpForm,
     sanitizeSignUpForm,
@@ -14,7 +14,7 @@ const router = express.Router();
 
 // Routes for Sign-Up & Contact Forms from iron-wing-dispatching.com
 router.route("/sign-up-forms")
-    .post(validateSignUpForm, sanitizeSignUpForm, submitForm)
+    .post(validateSignUpForm, sanitizeSignUpForm, signUpForm)
     .get(getAllSignUpForms);
 
 router.route("/contact-forms")

@@ -31,6 +31,10 @@ jobs:
             - name: Run tests
               run: npm test --passWithNoTests
 
+            # Step 4.1: Run integration tests
+            - name: Run integration tests
+              run: npm run test:integration
+
             # Step 5: Generate .env file from GitHub Secrets
             - name: Generate .env file
               run: |
