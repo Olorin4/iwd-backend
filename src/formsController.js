@@ -14,9 +14,12 @@ const validateSignUpForm = [
     body("firstName").trim().notEmpty().withMessage("First name is required."),
     body("lastName").trim().notEmpty().withMessage("Last name is required."),
     body("email").isEmail().withMessage("Invalid email address."),
-    body("phone").trim().notEmpty().withMessage("Phone number is required."),
+    body("phone").trim(),
     body("fleetSize").trim().notEmpty().withMessage("Fleet size is required."),
-    body("trailerType").trim().notEmpty().withMessage("Trailer type is required."),
+    body("trailerType")
+        .trim()
+        .notEmpty()
+        .withMessage("Trailer type is required."),
     body("plan").trim().notEmpty().withMessage("Plan is required."),
 ];
 
@@ -50,15 +53,8 @@ async function signUpForm(req, res) {
 
     console.log("📩 Received Form Data:", req.body);
 
-    const {
-        firstName,
-        lastName,
-        email,
-        phone,
-        fleetSize,
-        trailerType,
-        plan,
-    } = req.body;
+    const { firstName, lastName, email, phone, fleetSize, trailerType, plan } =
+        req.body;
 
     if (
         !firstName ||
