@@ -60,7 +60,6 @@ async function signUpForm(req, res) {
         !firstName ||
         !lastName ||
         !email ||
-        !phone ||
         !fleetSize ||
         !trailerType ||
         !plan
