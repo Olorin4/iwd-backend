@@ -24,8 +24,14 @@ function configureSecurity(app) {
         helmet.contentSecurityPolicy({
             directives: {
                 defaultSrc: ["'self'"],
-                scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
-                styleSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
+                scriptSrc: [
+                    "'self'",
+                    (req, res) => `'nonce-${res.locals.cspNonce}'`,
+                ],
+                styleSrc: [
+                    "'self'",
+                    (req, res) => `'nonce-${res.locals.cspNonce}'`,
+                ],
                 imgSrc: ["'self'", "data:"],
                 connectSrc: ["'self'"],
                 fontSrc: ["'self'"],
@@ -52,15 +58,14 @@ function configureSecurity(app) {
 
     const corsOptions = {
         origin(origin, callback) {
-            if (whitelist.indexOf(origin) !== -1 || !origin) callback(null, true);
+            if (whitelist.indexOf(origin) !== -1 || !origin)
+                callback(null, true);
             else callback(new Error("Not allowed by CORS"));
         },
         credentials: true,
     };
 
-    app.use(cors(corsOptions));
     app.use(limiter);
-
 
     // Morgan for logging security-related events
     const accessLogStream = fs.createWriteStream(
