@@ -18,7 +18,7 @@ const limiter = rateLimit({
 });
 
 function configureSecurity(app) {
-    // Helmet for setting security-related HTTP headers
+    // Helmet for setting security-related HTTP headers:
     app.use(helmet());
     app.use(
         helmet.contentSecurityPolicy({
