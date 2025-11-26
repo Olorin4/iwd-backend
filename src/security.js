@@ -65,6 +65,8 @@ function configureSecurity(app) {
         credentials: true,
     };
 
+    app.use(cors(corsOptions));
+
     app.use(limiter);
 
     // Morgan for logging security-related events
