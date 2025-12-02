@@ -67,7 +67,7 @@ function configureSecurity(app) {
 
     app.use(limiter);
 
-    // Morgan for logging security-related events
+    // Morgan for logging security-related events:
     const accessLogStream = fs.createWriteStream(
         path.join(__dirname, "../logs/access.log"),
         { flags: "a" }
