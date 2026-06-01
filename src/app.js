@@ -18,7 +18,7 @@ app.use(limiter);
 configureLogging(app);
 // Apply security configurations
 configureSecurity(app);
-app.get("/", (res) => res.send("Iron Wing API is working!"));
+app.get("/", (req, res) => res.send("Iron Wing API is working!"));
 
 app.use(router); // Register all routes AFTER applying middleware
 
