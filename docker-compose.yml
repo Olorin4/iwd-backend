@@ -1,0 +1,22 @@
+name: iwd-backend
+
+# api.iron-wing-dispatching.com — joins the shared `edge` network so the
+# containerized nginx edge reaches it by service name (http://iwd-backend:3000).
+# No host ports: only the edge talks to it. Create .env on the box first.
+services:
+    api:
+        build: .
+        image: iwd-backend:latest
+        container_name: iwd-backend
+        restart: unless-stopped
+        environment:
+            NODE_ENV: production
+            PORT: 3000
+        env_file:
+            - .env
+        networks:
+            - edge
+
+networks:
+    edge:
+        external: true

@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+logs
+.env
+.env.*
+.git
+.github
+__tests__
+*.code-workspace
