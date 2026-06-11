@@ -65,6 +65,9 @@ function configureSecurity(app) {
         credentials: true,
     };
 
+    // Apply CORS (also handles preflight OPTIONS requests)
+    app.use(cors(corsOptions));
+
     app.use(limiter);
 
     // Morgan for logging security-related events:
