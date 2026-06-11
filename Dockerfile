@@ -21,4 +21,6 @@ COPY . .
 ENV NODE_ENV=production
 EXPOSE 3000
 # app.js loads env via dotenv-flow; in the container it comes from env_file.
-CMD ["node", "src/app.js"]
+# Apply pending DB migrations (idempotent) before starting the server, so a
+# `docker compose up` is a complete deploy — no host-side prisma/node needed.
+CMD ["sh", "-c", "npx prisma migrate deploy && node src/app.js"]

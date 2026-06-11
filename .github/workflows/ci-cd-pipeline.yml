@@ -100,7 +100,14 @@ jobs:
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
 
-            # Step 5: Deploy to Server (test)
+            # Step 5: Deploy to Server (Docker)
+            #
+            # The backend runs as a Docker container (service `api`, name
+            # `iwd-backend`) on the shared external `edge` network, behind the
+            # containerized nginx edge. We rsync the build context + the .env
+            # generated above, then rebuild and recreate the container. DB
+            # migrations run inside the container at startup (see Dockerfile CMD),
+            # so no host-side node/npm/prisma/pm2 is involved.
             - name: Deploy to Server
               env:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_AWS_SERVER_KEY }}
@@ -109,35 +116,23 @@ jobs:
                   echo "$SSH_PRIVATE_KEY" > private_key.pem
                   chmod 600 private_key.pem
 
-                  echo "🚀 Transferring files to the server using rsync..."
+                  echo "🚀 Transferring build context to the server using rsync..."
                   rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' \
                     -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ \
                     nick-kalas@$SERVER_IP:/home/nick-kalas/apps/iwd-backend
 
-                  echo "🚀 Installing dependencies and restarting PM2..."
+                  echo "🚀 Rebuilding and restarting the Docker container..."
                   ssh -i private_key.pem -o StrictHostKeyChecking=no nick-kalas@$SERVER_IP << 'EOF'
-                    # Source NVM to make node, npm, npx, and pm2 available
-                    export NVM_DIR="$HOME/.nvm"
-                    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-                    
+                    set -e
                     cd /home/nick-kalas/apps/iwd-backend
 
-                    # Reinstall deps if package-lock.json changed
-                    # Prune dev dependencies and then install prod dependencies
-                    npm prune --production
-                    npm install --omit=dev
+                    # Rebuild the image from the rsync'd source and recreate the
+                    # container, picking up code + .env changes. Migrations run on
+                    # container start via the Dockerfile CMD.
+                    docker compose up -d --build
 
-                    # Apply database migrations safely
-                    echo "🚀 Applying Prisma Migrations..."
-                    # Explicitly run prisma migrate deploy
-                    npx dotenv-cli -e .env -- npx prisma migrate deploy
-                    npx prisma generate
-
-                    # Force a clean restart of the application
-                    pm2 flush
-                    pm2 reload iwd-backend --update-env || pm2 start src/app.js --name iwd-backend --update-env
-                    pm2 save
-
+                    # Drop dangling images left by the rebuild.
+                    docker image prune -f
 
                     echo "✅ Deployment completed successfully."
                   EOF
