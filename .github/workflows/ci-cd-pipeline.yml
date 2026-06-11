@@ -29,13 +29,13 @@ jobs:
         steps:
             # Step 1: Check out the code
             - name: Checkout code
-              uses: actions/checkout@v2
+              uses: actions/checkout@v4
 
             # Step 2: Set up Node.js
             - name: Read Node.js version from .nvmrc
               run: echo "NODE_VERSION=$(cat .nvmrc)" >> $GITHUB_ENV
             - name: Set up Node.js
-              uses: actions/setup-node@v2
+              uses: actions/setup-node@v4
               with:
                   node-version: ${{ env.NODE_VERSION }}
 
@@ -69,13 +69,13 @@ jobs:
         steps:
             # Step 1: Check out the code
             - name: Checkout code
-              uses: actions/checkout@v2
+              uses: actions/checkout@v4
 
             # Step 2: Set up Node.js
             - name: Read Node.js version from .nvmrc
               run: echo "NODE_VERSION=$(cat .nvmrc)" >> $GITHUB_ENV
             - name: Set up Node.js
-              uses: actions/setup-node@v2
+              uses: actions/setup-node@v4
               with:
                   node-version: ${{ env.NODE_VERSION }}
 
