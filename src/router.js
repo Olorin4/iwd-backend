@@ -10,6 +10,13 @@ import {
     sanitizeContactForm,
     logRequestBody,
 } from "./formsController.js";
+import {
+    validateNewsletter,
+    sanitizeNewsletter,
+    newsletterSignup,
+} from "./newsletterController.js";
+import { requireAdmin } from "./adminAuth.js";
+import { newsletterLimiter } from "./newsletterLimiter.js";
 
 const router = express.Router();
 
@@ -17,12 +24,21 @@ const router = express.Router();
 router
     .route("/sign-up-forms")
     .post(logRequestBody, validateSignUpForm, sanitizeSignUpForm, signUpForm)
-    .get(getAllSignUpForms);
+    .get(requireAdmin, getAllSignUpForms);
 
 router
     .route("/contact-forms")
     .post(validateContactForm, sanitizeContactForm, contactForm)
-    .get(getAllContactForms);
+    .get(requireAdmin, getAllContactForms);
+
+// Newsletter signup from the footer form on iron-wing-dispatching.com
+router.post(
+    "/newsletter",
+    newsletterLimiter,
+    validateNewsletter,
+    sanitizeNewsletter,
+    newsletterSignup
+);
 
 // Health check route
 router.get("/health-check", (req, res) => res.json({ status: "OK" }));

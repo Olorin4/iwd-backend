@@ -99,6 +99,7 @@ jobs:
                   echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
+                  echo "ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}" >> .env
 
             # Step 5: Deploy to Server (Docker)
             #

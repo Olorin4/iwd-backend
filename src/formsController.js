@@ -183,7 +183,7 @@ async function getAllSignUpForms(req, res) {
 
 async function getAllContactForms(req, res) {
     try {
-        const result = await prisma.contactForm.findMany({
+        const result = await prisma.contactSubmission.findMany({
             take: 50,
             skip: 0,
         });

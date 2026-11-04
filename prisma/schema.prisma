@@ -199,6 +199,16 @@ model ContactSubmission {
   @@map("contact_submission")
 }
 
+model NewsletterSubscriber {
+  id              Int       @id @default(autoincrement())
+  email           String    @unique
+  source          String    @default("website")
+  subscribed_at   DateTime  @default(now())
+  unsubscribed_at DateTime?
+
+  @@map("newsletter_subscriber")
+}
+
 // ---------------------------------------------------------------------------
 // Twilio-voip
 // ---------------------------------------------------------------------------
