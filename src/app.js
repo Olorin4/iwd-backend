@@ -1,7 +1,7 @@
 import express from "express";
 import dotenvFlow from "dotenv-flow";
 import router from "./router.js";
-import { configureSecurity, limiter } from "./security.js";
+import { configureSecurity } from "./security.js";
 import { configureLogging, logger } from "./logging.js";
 
 dotenvFlow.config();
@@ -11,8 +11,12 @@ const PORT = process.env.PORT || 3000;
 
 // Global Middleware
 app.use(express.json());
-app.set("trust proxy", "loopback");
-app.use(limiter);
+// The API sits behind exactly one proxy hop: the containerized nginx edge,
+// which sets the real client IP (from Cloudflare's CF-Connecting-IP) as the
+// last X-Forwarded-For entry. Trusting one hop makes req.ip the real client, so
+// rate limits apply per visitor instead of to the proxy's address. Rate
+// limiting itself is applied once, in configureSecurity.
+app.set("trust proxy", 1);
 
 // Apply logging configurations
 configureLogging(app);

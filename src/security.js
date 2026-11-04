@@ -1,6 +1,6 @@
 import helmet from "helmet";
 import cors from "cors";
-import rateLimit from "express-rate-limit";
+import { limiter } from "./rateLimiter.js";
 import crypto from "crypto";
 import morgan from "morgan";
 import fs from "fs";
@@ -9,13 +9,6 @@ import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true,
-    legacyHeaders: false,
-});
 
 function configureSecurity(app) {
     // Helmet for setting security-related HTTP headers:
@@ -84,4 +77,4 @@ function configureSecurity(app) {
     );
 }
 
-export { configureSecurity, limiter };
+export { configureSecurity };

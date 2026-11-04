@@ -16,7 +16,7 @@ import {
     newsletterSignup,
 } from "./newsletterController.js";
 import { requireAdmin } from "./adminAuth.js";
-import { newsletterLimiter } from "./newsletterLimiter.js";
+import { newsletterLimiter } from "./rateLimiter.js";
 
 const router = express.Router();
 
