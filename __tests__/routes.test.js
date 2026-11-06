@@ -12,7 +12,30 @@ jest.mock("../src/emailService", () => ({
     emailAdmin: jest.fn().mockResolvedValue(true),
 }));
 
+// The newsletter limiter allows 10 requests per IP per hour and every test here
+// comes from one IP, so a pass-through keeps the suite independent of how many
+// newsletter requests it makes. The limiter has its own tests in
+// rateLimiter.test.js.
+jest.mock("../src/rateLimiter", () => ({
+    newsletterLimiter: (req, res, next) => next(),
+}));
+
+// Wrap the real middleware so the tests can see when it runs and what the
+// request body looked like at that point.
+const mockAttributionSeen = [];
+jest.mock("../src/attribution", () => {
+    const actual = jest.requireActual("../src/attribution");
+    return {
+        ...actual,
+        attributionFields: jest.fn((req, res, next) => {
+            mockAttributionSeen.push({ ...req.body });
+            return actual.attributionFields(req, res, next);
+        }),
+    };
+});
+
 const { prisma } = require("../src/prismaClient");
+const { attributionFields } = require("../src/attribution");
 const { emailClient } = require("../src/emailService");
 const router = require("../src/router").default;
 
@@ -111,6 +134,52 @@ describe("routes", () => {
             expect(res.status).toBe(503);
             expect(siteverify).not.toHaveBeenCalled();
             nothingStored();
+        });
+    });
+
+    describe.each([
+        ["/sign-up-forms", { email: "A.B+x@Gmail.com", firstName: "A" }],
+        ["/contact-forms", { email: "A.B+x@Gmail.com", message: "hi" }],
+        ["/newsletter", { email: "A.B+x@Gmail.com" }],
+    ])("attributionFields on POST %s", (path, payload) => {
+        const post = (body) =>
+            fetch(base + path, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+
+        beforeEach(() => {
+            attributionFields.mockClear();
+            mockAttributionSeen.length = 0;
+        });
+
+        it("never runs when Turnstile rejects the request", async () => {
+            const res = await post({ ...payload, outreachRef: "abcdefghijk2" });
+            expect(res.status).toBe(403);
+            expect(attributionFields).not.toHaveBeenCalled();
+        });
+
+        it("runs after requireTurnstile and before the validators", async () => {
+            // The invalid email still reaches the middleware, and the 400
+            // proves a validator ran after it.
+            const res = await post({
+                ...payload,
+                email: "not-an-email",
+                turnstileToken: "valid-token",
+            });
+            expect(res.status).toBe(400);
+            expect(attributionFields).toHaveBeenCalledTimes(1);
+            // After requireTurnstile (token already removed) ...
+            expect(mockAttributionSeen[0]).not.toHaveProperty("turnstileToken");
+            // ... and before any sanitizer (email still as typed).
+            expect(mockAttributionSeen[0].email).toBe("not-an-email");
+        });
+
+        it("sees the email before the sanitizers rewrite it", async () => {
+            await post({ ...payload, turnstileToken: "valid-token" });
+            expect(attributionFields).toHaveBeenCalledTimes(1);
+            expect(mockAttributionSeen[0].email).toBe("A.B+x@Gmail.com");
         });
     });
 

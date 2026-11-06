@@ -18,18 +18,22 @@ import {
 import { requireAdmin } from "./adminAuth.js";
 import { newsletterLimiter } from "./rateLimiter.js";
 import { requireTurnstile } from "./turnstile.js";
+import { attributionFields } from "./attribution.js";
 
 const router = express.Router();
 
 // Every public POST below must carry a valid Cloudflare Turnstile token
 // (`turnstileToken` in the JSON body). requireTurnstile runs first so nothing
 // is logged, validated or stored for a request that fails the bot check.
+// attributionFields follows it, ahead of the sanitizers, to capture the typed
+// email and the optional attribution fields.
 
 // Routes for Sign-Up & Contact Forms from iron-wing-dispatching.com
 router
     .route("/sign-up-forms")
     .post(
         requireTurnstile,
+        attributionFields,
         logRequestBody,
         validateSignUpForm,
         sanitizeSignUpForm,
@@ -41,6 +45,7 @@ router
     .route("/contact-forms")
     .post(
         requireTurnstile,
+        attributionFields,
         validateContactForm,
         sanitizeContactForm,
         contactForm
@@ -52,6 +57,7 @@ router.post(
     "/newsletter",
     newsletterLimiter,
     requireTurnstile,
+    attributionFields,
     validateNewsletter,
     sanitizeNewsletter,
     newsletterSignup
