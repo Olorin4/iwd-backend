@@ -53,12 +53,7 @@ async function sendEmail(mailOptions) {
         },
     ];
 
-    try {
-        const info = await transporter.sendMail(mailOptions);
-        return info;
-    } catch (error) {
-        throw error;
-    }
+    return transporter.sendMail(mailOptions);
 }
 
 async function emailClient(to, subject, text) {
