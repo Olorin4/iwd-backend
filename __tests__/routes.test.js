@@ -16,6 +16,12 @@ const { prisma } = require("../src/prismaClient");
 const { emailClient } = require("../src/emailService");
 const router = require("../src/router").default;
 
+// The tests use global fetch as their HTTP client, so Cloudflare's siteverify
+// call is intercepted here and everything else passes through untouched.
+const realFetch = global.fetch;
+const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+let siteverify;
+
 describe("routes", () => {
     let server;
     let base;
@@ -36,7 +42,76 @@ describe("routes", () => {
     beforeEach(() => {
         jest.clearAllMocks();
         process.env.ADMIN_API_TOKEN = TOKEN;
+        process.env.TURNSTILE_SECRET_KEY = "test-turnstile-secret";
         jest.spyOn(console, "error").mockImplementation(() => {});
+        jest.spyOn(console, "warn").mockImplementation(() => {});
+        siteverify = jest.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({ success: true }),
+        });
+        jest.spyOn(global, "fetch").mockImplementation((url, options) =>
+            String(url) === SITEVERIFY
+                ? siteverify(url, options)
+                : realFetch(url, options)
+        );
+    });
+
+    afterEach(() => {
+        global.fetch.mockRestore();
+    });
+
+    describe.each([
+        ["/sign-up-forms", { email: "a@example.com", firstName: "A" }],
+        ["/contact-forms", { email: "a@example.com", message: "hi" }],
+        ["/newsletter", { email: "a@example.com" }],
+    ])("Turnstile enforcement on POST %s", (path, payload) => {
+        const post = (body) =>
+            fetch(base + path, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+        const nothingStored = () => {
+            expect(prisma.signUpForm.create).not.toHaveBeenCalled();
+            expect(prisma.contactSubmission.create).not.toHaveBeenCalled();
+            expect(prisma.newsletterSubscriber.create).not.toHaveBeenCalled();
+            expect(emailClient).not.toHaveBeenCalled();
+        };
+
+        it("rejects a request with no token without calling Cloudflare", async () => {
+            const res = await post(payload);
+            expect(res.status).toBe(403);
+            expect(siteverify).not.toHaveBeenCalled();
+            nothingStored();
+        });
+
+        it("rejects a token Cloudflare says is invalid", async () => {
+            siteverify.mockResolvedValue({
+                ok: true,
+                json: async () => ({
+                    success: false,
+                    "error-codes": ["invalid-input-response"],
+                }),
+            });
+            const res = await post({ ...payload, turnstileToken: "bad" });
+            expect(res.status).toBe(403);
+            nothingStored();
+        });
+
+        it("fails closed when Cloudflare cannot be reached", async () => {
+            siteverify.mockRejectedValue(new Error("network down"));
+            const res = await post({ ...payload, turnstileToken: "tok" });
+            expect(res.status).toBe(503);
+            nothingStored();
+        });
+
+        it("fails closed when the secret is not configured", async () => {
+            delete process.env.TURNSTILE_SECRET_KEY;
+            const res = await post({ ...payload, turnstileToken: "tok" });
+            expect(res.status).toBe(503);
+            expect(siteverify).not.toHaveBeenCalled();
+            nothingStored();
+        });
     });
 
     describe.each([
@@ -81,7 +156,10 @@ describe("routes", () => {
             fetch(`${base}/newsletter`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+                body: JSON.stringify({
+                    turnstileToken: "valid-token",
+                    ...body,
+                }),
             });
 
         it("stores a new subscriber and sends a welcome email", async () => {
