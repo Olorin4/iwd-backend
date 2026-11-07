@@ -184,6 +184,10 @@ model SignUpForm {
   company_id Int?
   company    company? @relation(fields: [company_id], references: [id])
 
+  // Lead attribution
+  outreach_ref        String?
+  posthog_distinct_id String?
+
   @@index([company_id])
   @@index([user_id])
   @@map("sign_up_form")
@@ -196,6 +200,10 @@ model ContactSubmission {
   message     String
   submit_date DateTime @default(now())
 
+  // Lead attribution
+  outreach_ref        String?
+  posthog_distinct_id String?
+
   @@map("contact_submission")
 }
 
@@ -205,6 +213,10 @@ model NewsletterSubscriber {
   source          String    @default("website")
   subscribed_at   DateTime  @default(now())
   unsubscribed_at DateTime?
+
+  // Lead attribution
+  outreach_ref        String?
+  posthog_distinct_id String?
 
   @@map("newsletter_subscriber")
 }
