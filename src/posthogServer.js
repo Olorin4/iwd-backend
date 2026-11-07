@@ -54,11 +54,18 @@ function captureConversion(
     });
 }
 
-/** Flush queued events and stop the client. Safe to call when none exists. */
+// Upper bound on the flush at exit, so a SIGTERM exit fits well inside
+// `docker stop`'s 10 s grace period even when PostHog is slow or unreachable.
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
+/**
+ * Flush queued events (for at most SHUTDOWN_TIMEOUT_MS) and stop the client.
+ * Safe to call when none exists.
+ */
 async function shutdownPosthog() {
     const client = sharedClient;
     sharedClient = null;
-    if (client) await client.shutdown();
+    if (client) await client.shutdown(SHUTDOWN_TIMEOUT_MS);
 }
 
 export { captureConversion, shutdownPosthog };

@@ -121,4 +121,35 @@ describe("shutdownPosthog", () => {
     it("resolves when no client was ever created", async () => {
         await expect(shutdownPosthog()).resolves.toBeUndefined();
     });
+
+    it("bounds the flush of the shared client to 5 s", async () => {
+        const shutdown = jest.fn().mockResolvedValue(undefined);
+        let mod;
+        jest.isolateModules(() => {
+            jest.doMock("posthog-node", () => ({
+                PostHog: jest.fn(() => ({ capture: jest.fn(), shutdown })),
+            }));
+            mod = require("../src/posthogServer");
+        });
+        process.env.POSTHOG_PROJECT_TOKEN = "phc_test_token";
+        try {
+            mod.captureConversion({
+                event: "lead_signed_up",
+                identityEmail: "a@b.co",
+                posthogDistinctId: null,
+                outreachRef: null,
+                properties: { form: "sign_up", source: "server" },
+            });
+            await mod.shutdownPosthog();
+        } finally {
+            if (ORIGINAL_TOKEN === undefined) {
+                delete process.env.POSTHOG_PROJECT_TOKEN;
+            } else {
+                process.env.POSTHOG_PROJECT_TOKEN = ORIGINAL_TOKEN;
+            }
+            jest.dontMock("posthog-node");
+        }
+        expect(shutdown).toHaveBeenCalledTimes(1);
+        expect(shutdown).toHaveBeenCalledWith(5000);
+    });
 });
