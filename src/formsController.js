@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { prisma } from "./prismaClient.js";
 import { emailClient, emailAdmin } from "./emailService.js";
 import { body, validationResult } from "express-validator";
+import { attributionOf, recordAfterResponse } from "./formConversions.js";
 
 dotenv.config();
 
@@ -68,6 +69,8 @@ async function signUpForm(req, res) {
         return res.status(400).json({ error: "All fields are required." });
     }
 
+    const { identityEmail, attribution } = attributionOf(res);
+
     try {
         const result = await prisma.signUpForm.create({
             data: {
@@ -79,6 +82,8 @@ async function signUpForm(req, res) {
                 trailer_type: trailerType,
                 plan,
                 status: "pending", // Default status
+                outreach_ref: attribution.outreachRef,
+                posthog_distinct_id: attribution.posthogDistinctId,
             },
         });
         console.log("✅ Inserted Sign-Up Form ID:", result.id);
@@ -86,6 +91,19 @@ async function signUpForm(req, res) {
         res.status(200).json({
             message: "Form submitted successfully!",
             id: result.id,
+        });
+
+        recordAfterResponse({
+            type: "sign_up",
+            leadId: result.id,
+            identityEmail,
+            attribution,
+            properties: {
+                plan,
+                fleet_size: Number(fleetSize) || null,
+                trailer_type: trailerType,
+                has_phone: Boolean(phone),
+            },
         });
     } catch (error) {
         console.error("❌ Prisma Error:", error);
@@ -129,14 +147,31 @@ async function contactForm(req, res) {
 
     console.log("📩 Contact Form Submission:", req.body);
 
+    const { identityEmail, attribution } = attributionOf(res);
+
     try {
+        // Built field by field so no other body key can reach the database.
         const result = await prisma.contactSubmission.create({
-            data: req.body,
+            data: {
+                email,
+                phone,
+                message,
+                outreach_ref: attribution.outreachRef,
+                posthog_distinct_id: attribution.posthogDistinctId,
+            },
         });
         console.log("✅ Contact Form Inserted ID:", result.id);
         res.status(200).json({
             message: "Contact form submitted successfully!",
             id: result.id,
+        });
+
+        recordAfterResponse({
+            type: "contact",
+            leadId: result.id,
+            identityEmail,
+            attribution,
+            properties: { has_phone: Boolean(phone) },
         });
     } catch (error) {
         console.error("❌ Prisma Error:", error);

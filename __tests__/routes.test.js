@@ -12,6 +12,14 @@ jest.mock("../src/emailService", () => ({
     emailAdmin: jest.fn().mockResolvedValue(true),
 }));
 
+// Never send real PostHog events or Outreach webhooks from these tests.
+jest.mock("../src/conversions", () => ({
+    recordConversion: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock("../src/logging", () => ({
+    logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
+}));
+
 // The newsletter limiter allows 10 requests per IP per hour and every test here
 // comes from one IP, so a pass-through keeps the suite independent of how many
 // newsletter requests it makes. The limiter has its own tests in
@@ -37,6 +45,7 @@ jest.mock("../src/attribution", () => {
 const { prisma } = require("../src/prismaClient");
 const { attributionFields } = require("../src/attribution");
 const { emailClient } = require("../src/emailService");
+const { recordConversion } = require("../src/conversions");
 const router = require("../src/router").default;
 
 // The tests use global fetch as their HTTP client, so Cloudflare's siteverify
@@ -68,6 +77,8 @@ describe("routes", () => {
         process.env.TURNSTILE_SECRET_KEY = "test-turnstile-secret";
         jest.spyOn(console, "error").mockImplementation(() => {});
         jest.spyOn(console, "warn").mockImplementation(() => {});
+        jest.spyOn(console, "log").mockImplementation(() => {});
+        recordConversion.mockResolvedValue(undefined);
         siteverify = jest.fn().mockResolvedValue({
             ok: true,
             json: async () => ({ success: true }),
@@ -99,6 +110,7 @@ describe("routes", () => {
             expect(prisma.contactSubmission.create).not.toHaveBeenCalled();
             expect(prisma.newsletterSubscriber.create).not.toHaveBeenCalled();
             expect(emailClient).not.toHaveBeenCalled();
+            expect(recordConversion).not.toHaveBeenCalled();
         };
 
         it("rejects a request with no token without calling Cloudflare", async () => {
@@ -239,7 +251,12 @@ describe("routes", () => {
             });
             expect(res.status).toBe(200);
             expect(prisma.newsletterSubscriber.create).toHaveBeenCalledWith({
-                data: { email: "driver@example.com", source: "website" },
+                data: {
+                    email: "driver@example.com",
+                    source: "website",
+                    outreach_ref: null,
+                    posthog_distinct_id: null,
+                },
             });
             await new Promise((r) => setImmediate(r));
             expect(emailClient).toHaveBeenCalledTimes(1);
@@ -278,6 +295,181 @@ describe("routes", () => {
             expect(await res.json()).toEqual({
                 error: "Internal Server Error",
             });
+        });
+    });
+
+    describe("POST /contact-forms", () => {
+        const post = (body) =>
+            fetch(`${base}/contact-forms`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    turnstileToken: "valid-token",
+                    ...body,
+                }),
+            });
+
+        it("saves a contact without attribution fields", async () => {
+            prisma.contactSubmission.create.mockResolvedValue({ id: 11 });
+            const res = await post({
+                email: "Carrier@Example.com",
+                message: "hello",
+            });
+            expect(res.status).toBe(200);
+            expect(prisma.contactSubmission.create).toHaveBeenCalledWith({
+                data: {
+                    email: "carrier@example.com",
+                    // The sanitizer turns a missing phone into "".
+                    phone: "",
+                    message: "hello",
+                    outreach_ref: null,
+                    posthog_distinct_id: null,
+                },
+            });
+            await new Promise((r) => setImmediate(r));
+            expect(recordConversion).toHaveBeenCalledTimes(1);
+            expect(recordConversion).toHaveBeenCalledWith({
+                type: "contact",
+                leadId: 11,
+                identityEmail: "carrier@example.com",
+                attribution: { outreachRef: null, posthogDistinctId: null },
+                properties: { has_phone: false },
+            });
+        });
+
+        it("stores the attribution fields on a contact", async () => {
+            prisma.contactSubmission.create.mockResolvedValue({ id: 12 });
+            const res = await post({
+                email: "carrier@example.com",
+                phone: "555-0100",
+                message: "hello",
+                outreachRef: "abcdefghijk2",
+                posthogDistinctId: "anon-1",
+            });
+            expect(res.status).toBe(200);
+            expect(prisma.contactSubmission.create).toHaveBeenCalledWith({
+                data: expect.objectContaining({
+                    outreach_ref: "abcdefghijk2",
+                    posthog_distinct_id: "anon-1",
+                }),
+            });
+            expect(recordConversion).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: "contact",
+                    attribution: {
+                        outreachRef: "abcdefghijk2",
+                        posthogDistinctId: "anon-1",
+                    },
+                    properties: { has_phone: true },
+                })
+            );
+        });
+
+        it("contact never saves unknown body keys", async () => {
+            prisma.contactSubmission.create.mockResolvedValue({ id: 13 });
+            const res = await post({
+                email: "carrier@example.com",
+                phone: "555-0100",
+                message: "hello",
+                id: 999,
+                status: "won",
+                created_at: "2001-01-01",
+            });
+            expect(res.status).toBe(200);
+            const { data } = prisma.contactSubmission.create.mock.calls[0][0];
+            expect(Object.keys(data).sort()).toEqual([
+                "email",
+                "message",
+                "outreach_ref",
+                "phone",
+                "posthog_distinct_id",
+            ]);
+        });
+
+        it("records nothing when the database fails", async () => {
+            prisma.contactSubmission.create.mockRejectedValue(new Error("db"));
+            const res = await post({
+                email: "carrier@example.com",
+                message: "hello",
+            });
+            expect(res.status).toBe(500);
+            await new Promise((r) => setImmediate(r));
+            expect(recordConversion).not.toHaveBeenCalled();
+        });
+
+        it("validation failure records nothing", async () => {
+            const res = await post({ email: "nope", message: "hello" });
+            expect(res.status).toBe(400);
+            expect(prisma.contactSubmission.create).not.toHaveBeenCalled();
+            expect(recordConversion).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("newsletter conversions", () => {
+        const post = (body) =>
+            fetch(`${base}/newsletter`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    turnstileToken: "valid-token",
+                    ...body,
+                }),
+            });
+
+        it("newsletter new subscriber records a conversion", async () => {
+            prisma.newsletterSubscriber.create.mockResolvedValue({ id: 21 });
+            const res = await post({
+                email: "Driver@Example.com",
+                outreachRef: "abcdefghijk2",
+                posthogDistinctId: "anon-2",
+            });
+            expect(res.status).toBe(200);
+            expect(prisma.newsletterSubscriber.create).toHaveBeenCalledWith({
+                data: {
+                    email: "driver@example.com",
+                    source: "website",
+                    outreach_ref: "abcdefghijk2",
+                    posthog_distinct_id: "anon-2",
+                },
+            });
+            await new Promise((r) => setImmediate(r));
+            expect(recordConversion).toHaveBeenCalledTimes(1);
+            expect(recordConversion).toHaveBeenCalledWith({
+                type: "newsletter",
+                leadId: 21,
+                identityEmail: "driver@example.com",
+                attribution: {
+                    outreachRef: "abcdefghijk2",
+                    posthogDistinctId: "anon-2",
+                },
+                properties: {},
+            });
+        });
+
+        it("newsletter repeat (P2002) records nothing and stays 200", async () => {
+            prisma.newsletterSubscriber.create.mockRejectedValue({
+                code: "P2002",
+            });
+            const res = await post({
+                email: "driver@example.com",
+                outreachRef: "abcdefghijk2",
+            });
+            expect(res.status).toBe(200);
+            expect(await res.json()).toEqual({
+                message: "Subscribed successfully!",
+            });
+            await new Promise((r) => setImmediate(r));
+            expect(recordConversion).not.toHaveBeenCalled();
+            // Only create() was attempted; the existing row is never updated.
+            expect(Object.keys(prisma.newsletterSubscriber)).toEqual([
+                "create",
+            ]);
+        });
+
+        it("validation failure records nothing", async () => {
+            const res = await post({ email: "not-an-email" });
+            expect(res.status).toBe(400);
+            expect(recordConversion).not.toHaveBeenCalled();
         });
     });
 });

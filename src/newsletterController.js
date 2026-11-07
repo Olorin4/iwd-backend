@@ -1,6 +1,7 @@
 import { body, validationResult } from "express-validator";
 import { prisma } from "./prismaClient.js";
 import { emailClient } from "./emailService.js";
+import { attributionOf, recordAfterResponse } from "./formConversions.js";
 
 const validateNewsletter = [
     body("email")
@@ -23,11 +24,18 @@ async function newsletterSignup(req, res) {
     }
 
     const { email } = req.body;
+    const { identityEmail, attribution } = attributionOf(res);
     let isNewSubscriber = true;
+    let subscriber = null;
 
     try {
-        await prisma.newsletterSubscriber.create({
-            data: { email, source: "website" },
+        subscriber = await prisma.newsletterSubscriber.create({
+            data: {
+                email,
+                source: "website",
+                outreach_ref: attribution.outreachRef,
+                posthog_distinct_id: attribution.posthogDistinctId,
+            },
         });
     } catch (error) {
         if (error?.code === "P2002") {
@@ -42,7 +50,17 @@ async function newsletterSignup(req, res) {
 
     res.status(200).json({ message: "Subscribed successfully!" });
 
+    // A repeat subscription is not a new conversion, and the existing row
+    // (with whatever attribution it first had) is left as it is.
     if (!isNewSubscriber) return;
+
+    recordAfterResponse({
+        type: "newsletter",
+        leadId: subscriber?.id ?? null,
+        identityEmail,
+        attribution,
+        properties: {},
+    });
 
     try {
         await emailClient(

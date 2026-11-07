@@ -3,6 +3,8 @@ import dotenvFlow from "dotenv-flow";
 import router from "./router.js";
 import { configureSecurity } from "./security.js";
 import { configureLogging, logger } from "./logging.js";
+import { shutdownPosthog } from "./posthogServer.js";
+import { registerShutdown } from "./shutdown.js";
 
 dotenvFlow.config();
 
@@ -42,5 +44,8 @@ app.use((err, req, res, next) => {
 app.listen(PORT, "0.0.0.0", () =>
     logger.info(`Iron Wing Server running at http://0.0.0.0:${PORT}`)
 );
+
+// Flush queued PostHog events before the container stops.
+registerShutdown(process, shutdownPosthog);
 
 export { app, PORT };

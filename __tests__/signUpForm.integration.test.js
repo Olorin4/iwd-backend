@@ -7,6 +7,13 @@ jest.mock('../src/emailService', () => ({
   emailClient: jest.fn(),
   emailAdmin: jest.fn(),
 }));
+// Never send real PostHog events or Outreach webhooks from these tests.
+jest.mock('../src/conversions', () => ({
+  recordConversion: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock('../src/logging', () => ({
+  logger: { error: jest.fn(), warn: jest.fn(), info: jest.fn() },
+}));
 
 describe('signUpForm - Integration', () => {
   let req, res;

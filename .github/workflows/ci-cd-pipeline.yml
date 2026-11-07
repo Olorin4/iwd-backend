@@ -99,6 +99,9 @@ jobs:
                   echo "EMAIL_PASS=${{ secrets.EMAIL_PASS }}" >> .env
                   echo "EMAIL_FROM=${{ secrets.EMAIL_FROM }}" >> .env
                   echo "EMAIL_PORT=${{ secrets.EMAIL_PORT }}" >> .env
+                  echo "POSTHOG_PROJECT_TOKEN=${{ secrets.POSTHOG_PROJECT_TOKEN }}" >> .env
+                  echo "OUTREACH_CONVERSION_WEBHOOK_URL=${{ secrets.OUTREACH_CONVERSION_WEBHOOK_URL }}" >> .env
+                  echo "OUTREACH_WEBHOOK_TOKEN=${{ secrets.OUTREACH_WEBHOOK_TOKEN }}" >> .env
                   echo "ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}" >> .env
                   echo "TURNSTILE_SECRET_KEY=${{ secrets.TURNSTILE_SECRET_KEY }}" >> .env
 
