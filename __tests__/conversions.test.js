@@ -99,7 +99,7 @@ describe("recordConversion", () => {
             attribution,
             properties: {
                 plan: "growth",
-                fleet_size: "2-5",
+                fleet_size: 3,
                 trailer_type: "dry_van",
                 has_phone: true,
             },
@@ -113,7 +113,7 @@ describe("recordConversion", () => {
         });
         expect(captureConversion.mock.calls[0][0].properties).toMatchObject({
             plan: "growth",
-            fleet_size: "2-5",
+            fleet_size: 3,
             trailer_type: "dry_van",
             has_phone: true,
         });
