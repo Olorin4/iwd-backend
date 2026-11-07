@@ -31,3 +31,11 @@ describe("assertTestDatabase", () => {
         expect(() => assertTestDatabase(value)).toThrow(/\(unset\)/);
     });
 });
+
+describe("unit project setup (setup-unit.js)", () => {
+    it("pins DB_URL to an unreachable host so unmocked Prisma cannot connect", () => {
+        expect(process.env.DB_URL).toBe(
+            "postgresql://unit-tests-must-mock-prisma.invalid:5432/unit_tests_must_mock_prisma_test"
+        );
+    });
+});

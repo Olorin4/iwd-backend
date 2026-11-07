@@ -28,6 +28,7 @@ export default {
             testEnvironment: "node",
             testMatch: ["<rootDir>/__tests__/**/*.test.js"], // Matches unit tests
             testPathIgnorePatterns: ["/node_modules/", "\\.integration\\.test\\.js$"],
+            setupFiles: ["<rootDir>/__tests__/setup-unit.js"],
         },
         {
             displayName: 'integration',
