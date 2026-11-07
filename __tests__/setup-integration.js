@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
-import { assertTestDatabase } from './testDatabaseGuard';
+import { assertTestDatabase } from '../scripts/testDatabaseGuard';
 
 // Must run before the client is created or any hook is registered.
 assertTestDatabase(process.env.DB_URL);

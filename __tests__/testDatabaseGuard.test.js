@@ -1,4 +1,4 @@
-import { assertTestDatabase } from "./testDatabaseGuard";
+import { assertTestDatabase } from "../scripts/testDatabaseGuard";
 
 describe("assertTestDatabase", () => {
     it("accepts a database whose name ends in _test", () => {
