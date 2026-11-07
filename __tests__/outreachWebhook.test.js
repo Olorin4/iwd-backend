@@ -70,6 +70,7 @@ describe("notifyOutreach", () => {
         expect(init.method).toBe("POST");
         expect(init.headers["Content-Type"]).toBe("application/json");
         expect(init.headers.Authorization).toBe("Bearer tok");
+        expect(init.redirect).toBe("error");
         const body = JSON.parse(init.body);
         expect(Object.keys(body).sort()).toEqual(
             [
@@ -151,6 +152,73 @@ describe("notifyOutreach", () => {
         expect(result).toBe("failed");
         expect(fetchImpl).toHaveBeenCalledTimes(3);
         expect(sleep.mock.calls).toEqual([[1000], [5000]]);
+    });
+
+    it("retries a refused redirect like a network error", async () => {
+        // With redirect: "error", fetch rejects on any 3xx.
+        const fetchImpl = jest
+            .fn()
+            .mockRejectedValueOnce(
+                new TypeError("fetch failed", {
+                    cause: new Error("unexpected redirect"),
+                })
+            )
+            .mockResolvedValueOnce(res(200));
+        const result = await notifyOutreach(lead, { fetchImpl, sleep, env });
+        expect(result).toBe("sent");
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(sleep).toHaveBeenCalledWith(1000);
+    });
+
+    it("cancels the body of non-2xx responses", async () => {
+        const rejected = { ...res(400), body: { cancel: jest.fn() } };
+        const retried = { ...res(503), body: { cancel: jest.fn() } };
+        const ok = { ...res(200), body: { cancel: jest.fn() } };
+        expect(
+            await notifyOutreach(lead, {
+                fetchImpl: jest.fn().mockResolvedValue(rejected),
+                sleep,
+                env,
+            })
+        ).toBe("rejected");
+        expect(
+            await notifyOutreach(lead, {
+                fetchImpl: jest
+                    .fn()
+                    .mockResolvedValueOnce(retried)
+                    .mockResolvedValueOnce(ok),
+                sleep,
+                env,
+            })
+        ).toBe("sent");
+        expect(rejected.body.cancel).toHaveBeenCalledTimes(1);
+        expect(retried.body.cancel).toHaveBeenCalledTimes(1);
+        expect(ok.body.cancel).not.toHaveBeenCalled();
+    });
+
+    it("ignores a body cancel that throws or rejects", async () => {
+        const throws = {
+            ...res(503),
+            body: {
+                cancel: () => {
+                    throw new Error("boom");
+                },
+            },
+        };
+        const rejects = {
+            ...res(400),
+            body: { cancel: () => Promise.reject(new Error("boom")) },
+        };
+        expect(
+            await notifyOutreach(lead, {
+                fetchImpl: jest
+                    .fn()
+                    .mockResolvedValueOnce(throws)
+                    .mockResolvedValueOnce(rejects),
+                sleep,
+                env,
+            })
+        ).toBe("rejected");
     });
 
     it("gives up after 3 attempts on 5xx", async () => {

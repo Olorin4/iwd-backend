@@ -8,6 +8,16 @@ const ATTEMPT_TIMEOUT_MS = 10000;
 
 const isNonEmpty = (v) => typeof v === "string" && v.length > 0;
 
+// Release the connection of a response whose body we will not read. Never
+// throws: a failing cancel must not change the outcome.
+function discardBody(response) {
+    try {
+        response?.body?.cancel?.()?.catch?.(() => {});
+    } catch {
+        // ignore
+    }
+}
+
 /**
  * Tell Outreach that a website form was submitted so it can stop or pause that
  * carrier's follow-up emails. Resolves to "sent", "skipped", "rejected" (final
@@ -50,9 +60,13 @@ async function notifyOutreach(
                 method: "POST",
                 headers,
                 body,
+                // A redirect is not followed: fetch rejects, and the attempt
+                // is retried like any other network error.
+                redirect: "error",
                 signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
             });
             if (response.status >= 200 && response.status < 300) return "sent";
+            discardBody(response);
             if (response.status >= 400 && response.status < 500) {
                 logger.warn("Outreach webhook rejected the event", {
                     ...logCtx,
