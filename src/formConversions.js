@@ -1,5 +1,6 @@
 // Shared by the website form controllers (sign-up, contact, newsletter).
 import { recordConversion } from "./conversions.js";
+import { logger } from "./logging.js";
 
 const NO_ATTRIBUTION = { outreachRef: null, posthogDistinctId: null };
 
@@ -20,10 +21,12 @@ function attributionOf(res) {
 function recordAfterResponse(conversion) {
     try {
         void recordConversion(conversion).catch((error) =>
-            console.error("❌ Conversion Error:", error?.message)
+            logger.error("Conversion recording failed", {
+                error: error?.message,
+            })
         );
     } catch (error) {
-        console.error("❌ Conversion Error:", error?.message);
+        logger.error("Conversion recording failed", { error: error?.message });
     }
 }
 

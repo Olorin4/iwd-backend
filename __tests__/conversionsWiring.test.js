@@ -25,6 +25,7 @@ jest.mock("../src/logging", () => ({
 
 const { prisma } = require("../src/prismaClient");
 const { recordConversion } = require("../src/conversions");
+const { logger } = require("../src/logging");
 const router = require("../src/router").default;
 
 const realFetch = global.fetch;
@@ -111,6 +112,10 @@ describe("conversion wiring", () => {
             expect(await res.json()).toEqual(expected);
             await new Promise((r) => setImmediate(r));
             expect(recordConversion).toHaveBeenCalledTimes(1);
+            expect(logger.error).toHaveBeenCalledWith(
+                "Conversion recording failed",
+                { error: "analytics down" }
+            );
         });
 
         it("a recordConversion that throws does not change the response", async () => {
@@ -121,6 +126,10 @@ describe("conversion wiring", () => {
             const res = await post(path, payload);
             expect(res.status).toBe(200);
             expect(await res.json()).toEqual(expected);
+            expect(logger.error).toHaveBeenCalledWith(
+                "Conversion recording failed",
+                { error: "analytics exploded" }
+            );
         });
 
         it("answers without waiting for the conversion", async () => {
