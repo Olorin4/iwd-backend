@@ -5,20 +5,21 @@
 Tasks 6–13 were implemented in separate local commits on
 `feat/interim-weekly-billing`. A fresh `gpt-6-astra` reviewer inspected the
 whole branch `59dc5bd..830ea9e` read-only. The implementer then performed one
-regression-driven fix pass. Nothing was pushed, merged, deployed, or applied
-to a production server. The untracked handoff directory was preserved.
+regression-driven fix pass. During that initial build nothing was pushed, merged,
+deployed or applied to a production server; the later approved reader
+installation is recorded below. The untracked handoff directory was preserved.
 
 ## Review findings
 
-| Finding                                                                       | Resolution and regression evidence                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Critical: interrupted build could approve 12000 cents while Stripe held 24000 | Persist membership/totals atomically, recompute on rebuild, compare complete Stripe amount/customer/currency/metadata and paginated per-line fees before payment. Changing-membership and amount-mismatch tests failed before the fix and pass afterwards. |
-| Important: resolving lines before approval waited another week                | POST `/runs` refreshes the current unapproved drafts; approval refuses pending unassigned ready lines. Approved runs remain frozen. Regression passed after first failing.                                                                                 |
-| Important: paid invoice could hide a verified late failure                    | A current failed intent with an error and matching stored intent id alerts without retry; a stale decline followed by current success does not alert. Regression failed then passed. Actual bank-return event shapes remain unverified.                    |
-| Important: undated cancellations were absent from reader output               | Explicit SQL reporting branch includes cancelled rows with null cancellation timestamp. Classifier still never charges them. SQL guard regression failed then passed. Production SQL remains unapplied.                                                    |
-| Important: summary/final-failure mail could be lost after a crash             | Durable `summary_pending` and `failed_notifying` states retry delivery through recovery/worker. Notification and scheduler regressions failed then passed. Delivery is at least once; uncertain delivery may duplicate email.                              |
-| Important: asset ownership dates were ignored                                 | Apply `effective_from` at each load occurrence; accept optional validated UTC `effectiveFrom` at onboarding, defaulting to configured billing start for backlog. Date regressions failed then passed.                                                      |
-| Reported minor: README relative links                                         | Declined as factually incorrect: `src/interimBilling/../../docs` resolves to the existing repository docs. Changing it to `../../../docs` would leave the repository.                                                                                      |
+| Finding                                                                       | Resolution and regression evidence                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical: interrupted build could approve 12000 cents while Stripe held 24000 | Persist membership/totals atomically, recompute on rebuild, compare complete Stripe amount/customer/currency/metadata and paginated per-line fees before payment. Changing-membership and amount-mismatch tests failed before the fix and pass afterwards.                 |
+| Important: resolving lines before approval waited another week                | POST `/runs` refreshes the current unapproved drafts; approval refuses pending unassigned ready lines. Approved runs remain frozen. Regression passed after first failing.                                                                                                 |
+| Important: paid invoice could hide a verified late failure                    | A current failed intent with an error and matching stored intent id alerts without retry; a stale decline followed by current success does not alert. Regression failed then passed. Actual bank-return event shapes remain unverified.                                    |
+| Important: undated cancellations were absent from reader output               | Explicit SQL reporting branch includes cancelled rows with null cancellation timestamp. Classifier still never charges them. SQL guard regression failed then passed. Production SQL was unapplied at that review; the subsequent approved installation is recorded below. |
+| Important: summary/final-failure mail could be lost after a crash             | Durable `summary_pending` and `failed_notifying` states retry delivery through recovery/worker. Notification and scheduler regressions failed then passed. Delivery is at least once; uncertain delivery may duplicate email.                                              |
+| Important: asset ownership dates were ignored                                 | Apply `effective_from` at each load occurrence; accept optional validated UTC `effectiveFrom` at onboarding, defaulting to configured billing start for backlog. Date regressions failed then passed.                                                                      |
+| Reported minor: README relative links                                         | Declined as factually incorrect: `src/interimBilling/../../docs` resolves to the existing repository docs. Changing it to `../../../docs` would leave the repository.                                                                                                      |
 
 The fix pass also repaired existing-draft dry-run summaries after a regression
 showed that held lines were omitted. No reviewer minor was deferred.
@@ -56,8 +57,8 @@ this branch is not ready for live activation.
 
 These were not started or refreshed as part of this implementation:
 
-- Approve exact production SSH/SQL/script text, real organization/database
-  placeholders and a dedicated key pair before applying the reader artifacts.
+- Closed on follow-up: approval and installation of production reader SQL/script,
+  real organization/database placeholders and dedicated key pair.
 - Add new CI secrets before a future approved deploy; the workflow regenerates
   the server environment file. Rotate the previously exposed deployment key.
 - E-signature pack needs its own design and sandbox validation; no signature
@@ -110,3 +111,35 @@ failed before the fix and passed after it. Primary and backup sessions were
 then created and refetched in the guarded sandbox, offering both methods with
 livemode false. This resolves session creation; it does not claim hosted
 completion, ACH settlement, or actual email delivery.
+
+## Follow-up: approved production reader
+
+After the initial review, the owner approved the production reader artifacts,
+real placeholders and dedicated key pair. The restricted role/function, OS
+user, forced command, sudoers and source-restricted public key are installed.
+A private key was generated on Hetzner and remained there; its trusted server
+host key is pinned. Real source-host reads and command/forwarding/host-pin
+rejection tests passed. Direct load-table read/write privileges are denied.
+See [INSTALLATION.md](ops/kelevo-prod/INSTALLATION.md). This was an additive
+reader installation, with no application deployment, live billing activation
+or Kelevo restart. Earlier unapplied-status entries are historical.
+
+Live Stripe catalog inspection remains pending a Stripe connection in this
+agent: only the sandbox key is available locally. The sandbox Dispatch product
+is active with no default price and no catalog prices; the module instead
+supplies per-load calculated fee amounts through inline price data. No live
+product/account settings were changed.
+
+A populated historical reader contract check validated 1 PAID load through the
+actual parser, while the configured current billing window returned 0 rows.
+No load rows were printed or persisted to workspace files. Checkout fix
+verification: `npm test` 302/302; module lint passed; commit `ed6bee2`.
+
+The absence of a fixed catalog price is intentional for this implementation:
+5%, 10%, or fleet basis points are applied to each load's entered linehaul by
+our money helpers, and the resulting cents are supplied on each invoice item.
+For example $2,400 at 5% becomes a $120 item. Stripe supports inline
+[`price_data`](https://docs.stripe.com/api/invoiceitems/create) for this purpose.
+A fixed default price would not encode this per-load calculation. Live product
+activation, metadata, descriptions and account-level payment settings still
+need a read-only live inspection after the Stripe connection is available.

@@ -1,9 +1,12 @@
 <!-- TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md. -->
 
-# Production artifacts for kelevo-prod (NOT APPLIED)
+# Restricted production reader templates
 
-**NOT APPLIED. Requires the owner's approval of the exact text before anything
-here is run on `kelevo-prod`.** These files are written and tested locally only.
+The owner approved installation on 2026-11-17. Rendered copies are now applied
+and verified; see [INSTALLATION.md](INSTALLATION.md) for the exact scope,
+placeholders, hashes, public fingerprints and access-control test results.
+These source files remain generic templates with preparation-time comments;
+do not reapply them blindly (the SQL intentionally creates a fresh role).
 
 What gets created, once, additively and without restarting anything:
 

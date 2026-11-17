@@ -4,7 +4,8 @@
 
 Run this only after KelevoTMS agency billing replaces this module. These are
 instructions for a future approved removal, not commands applied by this build.
-Production SSH artifacts have **not been applied**.
+Production SSH artifacts were approved and installed on 2026-11-17; the
+[installation record](ops/kelevo-prod/INSTALLATION.md) lists the access to remove.
 
 1. Disable `INTERIM_BILLING_AUTO_RUN`, then `INTERIM_BILLING_ENABLED`. Stop the
    worker. Reconcile pending ACH results, failed invoices, disputes and credits

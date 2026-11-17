@@ -28,8 +28,10 @@ already-approved work run while the module is enabled, independently of autorun.
 
 Set all new CI secrets before any future approved deploy: the existing workflow
 rebuilds `.env`. Production SSH artifacts under [ops](ops/kelevo-prod/README.md)
-are **NOT APPLIED** and need approval of their exact text and placeholders.
-No production access, push, merge, deployment or live charge is part of this build.
+were subsequently approved, installed and verified; see the
+[installation record](ops/kelevo-prod/INSTALLATION.md).
+The application branch is still local and disabled. No push, merge, application
+deployment or live charge was performed.
 
 ## API and operation
 
