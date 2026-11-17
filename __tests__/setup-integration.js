@@ -22,6 +22,11 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
+  // TEMPORARY (interim billing): its integration tests share this database and
+  // run in parallel with the sign-up suite, so they must not wipe the sign-up
+  // table under it. Delete these two lines with the feature. See
+  // src/interimBilling/DISPOSE.md.
+  if (expect.getState().testPath?.includes("interimBilling")) return;
   await prisma.$executeRaw`TRUNCATE TABLE "sign_up_form" RESTART IDENTITY CASCADE;`;
 });
 

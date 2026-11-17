@@ -262,3 +262,132 @@ model message_log {
 
   @@map("message_logs")
 }
+
+// ===========================================================================
+// TEMPORARY: interim billing models. Delete with the feature, in a migration
+// that drops the interim_billing_* tables. See src/interimBilling/DISPOSE.md.
+// ===========================================================================
+model InterimBillingCarrier {
+  id                 Int      @id @default(autoincrement())
+  legal_name         String
+  mc                 String?
+  usdot              String?
+  email              String
+  plan_label         String?
+  fee_bp             Int
+  stripe_customer_id String?  @unique
+  primary_pm_id      String?
+  primary_pm_brand   String?
+  primary_pm_last4   String?
+  backup_pm_id       String?
+  backup_pm_brand    String?
+  backup_pm_last4    String?
+  status             String   @default("active")
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  assets   InterimBillingCarrierAsset[]
+  lines    InterimBillingLine[]
+  invoices InterimBillingInvoice[]
+
+  @@map("interim_billing_carrier")
+}
+
+model InterimBillingCarrierAsset {
+  id             Int      @id @default(autoincrement())
+  carrier_id     Int
+  kind           String // "DRIVER" or "TRUCK"
+  kelevo_id      Int
+  effective_from DateTime @default(now())
+
+  carrier InterimBillingCarrier @relation(fields: [carrier_id], references: [id], onDelete: Cascade)
+
+  @@unique([kind, kelevo_id])
+  @@index([carrier_id])
+  @@map("interim_billing_carrier_asset")
+}
+
+model InterimBillingRun {
+  id                     Int       @id @default(autoincrement())
+  run_end                DateTime  @unique
+  status                 String    @default("building") // building, awaiting_approval, approved, charging, done
+  approved_by            String?
+  approved_at            DateTime?
+  approved_invoice_count Int?
+  approved_total_cents   Int?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
+
+  lines    InterimBillingLine[]
+  invoices InterimBillingInvoice[]
+
+  @@map("interim_billing_run")
+}
+
+model InterimBillingLine {
+  id                     Int      @id @default(autoincrement())
+  run_id                 Int
+  kelevo_load_id         Int
+  load_number            Int?
+  kind                   String // "DELIVERED" or "CARRIER_CANCELLED"
+  carrier_id             Int?
+  all_in_rate_cents      Int?
+  linehaul_cents         Int?
+  linehaul_note          String?
+  fee_bp                 Int?
+  fee_cents              Int?
+  hold_reason            String?
+  status                 String // held, ready, invoiced, paid, failed, skipped
+  occurred_at            DateTime
+  invoice_id             Int?
+  stripe_invoice_item_id String?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  run     InterimBillingRun      @relation(fields: [run_id], references: [id])
+  carrier InterimBillingCarrier? @relation(fields: [carrier_id], references: [id])
+  invoice InterimBillingInvoice? @relation(fields: [invoice_id], references: [id])
+
+  @@unique([kelevo_load_id, kind])
+  @@index([status])
+  @@index([run_id])
+  @@index([invoice_id])
+  @@map("interim_billing_line")
+}
+
+model InterimBillingInvoice {
+  id                      Int       @id @default(autoincrement())
+  run_id                  Int
+  carrier_id              Int
+  stripe_invoice_id       String?   @unique
+  total_cents             Int
+  status                  String    @default("draft") // draft, finalizing, processing, paid, retry_scheduled, failed
+  attempts                Int       @default(0)
+  round                   Int       @default(0)
+  tried_backup_this_round Boolean   @default(false)
+  first_failure_at        DateTime?
+  next_attempt_at         DateTime?
+  next_method             String? // "primary" or "backup"
+  current_pm_id           String?
+  payment_intent_id       String?
+  last_error_code         String?
+  hosted_invoice_url      String?
+  created_at              DateTime  @default(now())
+  updated_at              DateTime  @updatedAt
+
+  run     InterimBillingRun     @relation(fields: [run_id], references: [id])
+  carrier InterimBillingCarrier @relation(fields: [carrier_id], references: [id])
+  lines   InterimBillingLine[]
+
+  @@unique([run_id, carrier_id])
+  @@index([status, next_attempt_at])
+  @@map("interim_billing_invoice")
+}
+
+model InterimBillingStripeEvent {
+  id          String   @id // the Stripe event id
+  type        String
+  received_at DateTime @default(now())
+
+  @@map("interim_billing_stripe_event")
+}
