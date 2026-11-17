@@ -1,0 +1,8 @@
+# TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+#
+# NOT APPLIED. One line in the dedicated user's ~/.ssh/authorized_keys on
+# kelevo-prod. Replace the address with the Tailscale address of the Hetzner
+# server as sshd sees it (check at apply time), and the key with the public
+# half of the key pair created for this feature. The key can run only the
+# one command below.
+command="sudo -n /opt/iwd-interim-billing/export-loads.sh",restrict,from="100.64.0.0",no-pty ssh-ed25519 AAAAREPLACEWITHTHEPUBLICKEY iwd-interim-billing

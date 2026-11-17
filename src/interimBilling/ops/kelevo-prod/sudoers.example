@@ -1,0 +1,8 @@
+# TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+#
+# NOT APPLIED. File /etc/sudoers.d/iwd-interim-billing on kelevo-prod (edit
+# with visudo -f). The dedicated user is not in the docker group; it may run
+# exactly one root-owned script, and sudo keeps the one variable that script
+# reads.
+Defaults:iwdbilling env_keep += "SSH_ORIGINAL_COMMAND"
+iwdbilling ALL=(root) NOPASSWD: /opt/iwd-interim-billing/export-loads.sh
