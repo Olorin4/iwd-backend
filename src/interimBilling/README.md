@@ -12,6 +12,10 @@ The [sandbox verification results](SANDBOX-RESULTS.md) cover hosted setup,
 payments, ACH outcomes, retries, crash recovery and confirmed email delivery.
 Use the [sandbox walkthrough](SANDBOX-TEST.md) to repeat these checks.
 
+The [production rollout proposal](ops/release/PRODUCTION-ROLLOUT.md) records
+current readiness, exact configuration and webhook settings, and the separately
+approved deployment/activation steps.
+
 ## Configuration
 
 Enable explicitly with `INTERIM_BILLING_ENABLED=true`,
