@@ -2,6 +2,10 @@
 
 # Sandbox walkthrough
 
+Completed verification is recorded in [SANDBOX-RESULTS.md](SANDBOX-RESULTS.md).
+The initial failures below are historical; the later hosted and payment checks
+passed. Sandbox outcomes simulate bank settlement.
+
 Use the separate Stripe sandbox account, a test-prefixed key, synthetic
 carrier data and an email inbox you control. The Stripe plugin is connected
 to LIVE; do not use it for this procedure. No Kelevo production access is
@@ -184,13 +188,14 @@ Combined card/ACH Checkout and a minimal card-only Checkout both returned
 reporting active capabilities and available/on payment methods. No account
 configuration was changed. Inspect the sandbox Developers request logs for
 `POST /v1/checkout/sessions` before continuing hosted setup and ACH verification.
-Those flows, real email delivery and bank settlement are **not verified**.
+Those flows, real email delivery and bank settlement were **not verified at that stage**.
 
 Follow-up verification on 2026-11-17: the rejection was traced to the removed
 Checkout create parameter `payment_method_types` in pinned Endive. The adapter
 now sends `allowed_payment_method_types: ["card", "us_bank_account"]`. Real
 sandbox primary and backup sessions were created and refetched successfully;
 both offer card and US bank account, are setup mode, and have livemode false.
-Hosted completion, bank verification/settlement and actual email delivery still
-require the walkthrough above. No fixed catalog Price is used: each invoice
+At that stage hosted completion, bank verification/settlement and actual email
+delivery still required the walkthrough above. Those checks were subsequently
+completed in sandbox as recorded in [SANDBOX-RESULTS.md](SANDBOX-RESULTS.md). No fixed catalog Price is used: each invoice
 item supplies its calculated fee through inline `price_data.unit_amount`.

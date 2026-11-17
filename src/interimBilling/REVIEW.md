@@ -11,15 +11,15 @@ installation is recorded below. The untracked handoff directory was preserved.
 
 ## Review findings
 
-| Finding                                                                       | Resolution and regression evidence                                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Critical: interrupted build could approve 12000 cents while Stripe held 24000 | Persist membership/totals atomically, recompute on rebuild, compare complete Stripe amount/customer/currency/metadata and paginated per-line fees before payment. Changing-membership and amount-mismatch tests failed before the fix and pass afterwards.                 |
-| Important: resolving lines before approval waited another week                | POST `/runs` refreshes the current unapproved drafts; approval refuses pending unassigned ready lines. Approved runs remain frozen. Regression passed after first failing.                                                                                                 |
-| Important: paid invoice could hide a verified late failure                    | A current failed intent with an error and matching stored intent id alerts without retry; a stale decline followed by current success does not alert. Regression failed then passed. Actual bank-return event shapes remain unverified.                                    |
-| Important: undated cancellations were absent from reader output               | Explicit SQL reporting branch includes cancelled rows with null cancellation timestamp. Classifier still never charges them. SQL guard regression failed then passed. Production SQL was unapplied at that review; the subsequent approved installation is recorded below. |
-| Important: summary/final-failure mail could be lost after a crash             | Durable `summary_pending` and `failed_notifying` states retry delivery through recovery/worker. Notification and scheduler regressions failed then passed. Delivery is at least once; uncertain delivery may duplicate email.                                              |
-| Important: asset ownership dates were ignored                                 | Apply `effective_from` at each load occurrence; accept optional validated UTC `effectiveFrom` at onboarding, defaulting to configured billing start for backlog. Date regressions failed then passed.                                                                      |
-| Reported minor: README relative links                                         | Declined as factually incorrect: `src/interimBilling/../../docs` resolves to the existing repository docs. Changing it to `../../../docs` would leave the repository.                                                                                                      |
+| Finding                                                                       | Resolution and regression evidence                                                                                                                                                                                                                                                                                            |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Critical: interrupted build could approve 12000 cents while Stripe held 24000 | Persist membership/totals atomically, recompute on rebuild, compare complete Stripe amount/customer/currency/metadata and paginated per-line fees before payment. Changing-membership and amount-mismatch tests failed before the fix and pass afterwards.                                                                    |
+| Important: resolving lines before approval waited another week                | POST `/runs` refreshes the current unapproved drafts; approval refuses pending unassigned ready lines. Approved runs remain frozen. Regression passed after first failing.                                                                                                                                                    |
+| Important: paid invoice could hide a verified late failure                    | A current failed intent with an error and matching stored intent id alerts without retry; a stale decline followed by current success does not alert. Regression failed then passed. Actual failed-debit and dispute events were subsequently verified in sandbox; see SANDBOX-RESULTS.md for the separate late-return limit. |
+| Important: undated cancellations were absent from reader output               | Explicit SQL reporting branch includes cancelled rows with null cancellation timestamp. Classifier still never charges them. SQL guard regression failed then passed. Production SQL was unapplied at that review; the subsequent approved installation is recorded below.                                                    |
+| Important: summary/final-failure mail could be lost after a crash             | Durable `summary_pending` and `failed_notifying` states retry delivery through recovery/worker. Notification and scheduler regressions failed then passed. Delivery is at least once; uncertain delivery may duplicate email.                                                                                                 |
+| Important: asset ownership dates were ignored                                 | Apply `effective_from` at each load occurrence; accept optional validated UTC `effectiveFrom` at onboarding, defaulting to configured billing start for backlog. Date regressions failed then passed.                                                                                                                         |
+| Reported minor: README relative links                                         | Declined as factually incorrect: `src/interimBilling/../../docs` resolves to the existing repository docs. Changing it to `../../../docs` would leave the repository.                                                                                                                                                         |
 
 The fix pass also repaired existing-draft dry-run summaries after a regression
 showed that held lines were omitted. No reviewer minor was deferred.
@@ -48,10 +48,20 @@ and charges enabled. This does not establish the reason for the rejection.
 Inspect **Stripe sandbox → Developers/Workbench → Logs →
 POST /v1/checkout/sessions**, including request `req_knpVMFV1X3vAPF`.
 No raw Stripe message, key or personal information was printed in the tests.
-Hosted setup, ACH verification/settlement, actual late-return event shapes,
-and real email delivery remain unverified. Follow [SANDBOX-TEST.md](SANDBOX-TEST.md)
-to finish hosted completion and ACH verification. Keep the module off until then;
-this branch is not ready for live activation.
+At that stage hosted setup, ACH verification/settlement, actual late-return event
+shapes and real email delivery were unverified. The completed follow-up below
+and [SANDBOX-RESULTS.md](SANDBOX-RESULTS.md) supersede that initial gate. Live
+activation remains a separate approval and deployment step.
+
+## Completed sandbox follow-up
+
+Hosted card setup, bank microdeposit verification, approvals, real sandbox
+card/ACH outcomes, declines, backup, holiday retries and worker crash recovery
+are verified in [SANDBOX-RESULTS.md](SANDBOX-RESULTS.md). The owner confirmed
+setup, summary, statement/PDF-link and unsuccessful-payment emails in the inbox.
+A reporting defect found during verification was reproduced with failing tests
+and fixed: paid/processing outcomes now clear the error code. The updated full
+suite passes 302/302. The application remains disabled and undeployed.
 
 ## External follow-ups from the owner handoff
 

@@ -87,10 +87,14 @@ export function createStripeClient(config, StripeCtor = Stripe) {
                   ? "processing"
                   : "failed",
         paymentIntentId: invoice.paymentIntent?.id ?? null,
-        errorCode: safeCode(
-            invoice.paymentIntent?.last_payment_error?.decline_code ??
-                "payment_incomplete"
-        ),
+        errorCode:
+            invoice.status === "paid" ||
+            invoice.paymentIntent?.status === "processing"
+                ? null
+                : safeCode(
+                      invoice.paymentIntent?.last_payment_error?.decline_code ??
+                          "payment_incomplete"
+                  ),
     });
     const api = {
         ensureCustomer: async ({ carrierId, legalName, email }) => {

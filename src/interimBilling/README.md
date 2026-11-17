@@ -8,7 +8,9 @@ The module defaults off. This branch is sandbox-only and is not deployed.
 
 Binding [design](../../docs/superpowers/specs/2026-11-17-interim-weekly-billing-design.md)
 and [plan](../../docs/superpowers/plans/2026-11-17-interim-weekly-billing.md).
-Use the [sandbox walkthrough](SANDBOX-TEST.md) before considering live approval.
+The [sandbox verification results](SANDBOX-RESULTS.md) cover hosted setup,
+payments, ACH outcomes, retries, crash recovery and confirmed email delivery.
+Use the [sandbox walkthrough](SANDBOX-TEST.md) to repeat these checks.
 
 ## Configuration
 

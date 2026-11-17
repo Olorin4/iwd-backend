@@ -156,12 +156,14 @@ it("never retries processing payments and recognizes paid invoices", async () =>
     });
     expect(await api.payInvoice("in_1", "pm_1")).toMatchObject({
         outcome: "processing",
+        errorCode: null,
         paymentIntentId: "pi_1",
     });
     expect(sdk.invoices.pay).not.toHaveBeenCalled();
     sdk.invoices.retrieve.mockResolvedValue({ status: "paid" });
     expect(await api.payInvoice("in_1", "pm_1")).toMatchObject({
         outcome: "paid",
+        errorCode: null,
     });
 });
 it("maps declines and hides raw exceptions", async () => {

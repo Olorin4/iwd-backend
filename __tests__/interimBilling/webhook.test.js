@@ -157,6 +157,7 @@ it("ignores unsupported, unverified or foreign methods", async () => {
 it("marks paid invoice and lines, ignores stale failures and finalized events", async () => {
     await handleEvent(event("invoice.paid"), deps);
     expect(deps.store.invoices[0].status).toBe("paid");
+    expect(deps.store.invoices[0].last_error_code).toBeNull();
     expect(deps.store.lines[0].status).toBe("paid");
     await handleEvent(event("invoice.payment_failed", "evt_later"), deps);
     await handleEvent(event("invoice.finalized", "evt_final"), deps);

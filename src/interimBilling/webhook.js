@@ -100,8 +100,10 @@ export async function handleEvent(event, deps) {
                         outcome,
                         paymentIntentId: remote.paymentIntent?.id,
                         errorCode:
-                            remote.paymentIntent?.last_payment_error
-                                ?.decline_code ?? "payment_failed",
+                            outcome === "failed"
+                                ? (remote.paymentIntent?.last_payment_error
+                                      ?.decline_code ?? "payment_failed")
+                                : null,
                     },
                     new Date(),
                     { ...deps, deferImmediateRetry: true }
