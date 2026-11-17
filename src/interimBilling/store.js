@@ -270,3 +270,10 @@ export async function withBillingLock(fn) {
         await client.end();
     }
 }
+
+export function listPayingInvoices() {
+    return prisma.interimBillingInvoice.findMany({
+        where: { status: "paying" },
+        orderBy: { id: "asc" },
+    });
+}
