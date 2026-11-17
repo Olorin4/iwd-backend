@@ -28,13 +28,13 @@
         "date-fns": "^3.6.0",
         "dotenv": "^16.4.7",
         "dotenv-flow": "^4.1.0",
-        "express": "^4.21.2",
+        "express": "^4.22.3",
         "express-rate-limit": "^8.1.0",
         "express-validator": "^7.2.1",
         "helmet": "^8.1.0",
         "jsonwebtoken": "^9.0.2",
         "morgan": "^1.10.0",
-        "nodemailer": "^8.0.11",
+        "nodemailer": "^10.6.0",
         "posthog-node": "^5.63.1",
         "winston": "^3.13.0"
     },
@@ -58,5 +58,10 @@
         "prettier": "^3.3.3",
         "prisma": "^6.17.1",
         "webpack": "^5.97.1"
+    },
+    "overrides": {
+        "@prisma/config": {
+            "deepmerge-ts": "^8.0.2"
+        }
     }
 }
