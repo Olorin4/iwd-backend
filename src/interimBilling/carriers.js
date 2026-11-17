@@ -25,7 +25,19 @@ export async function createCarrier(input, deps) {
         feeBp,
         driverIds = [],
         truckIds = [],
+        effectiveFrom: effectiveDate,
     } = input;
+    const effectiveFrom =
+        effectiveDate === undefined
+            ? (deps.config?.startDate ?? new Date())
+            : new Date(`${effectiveDate}T00:00:00Z`);
+    if (
+        effectiveDate !== undefined &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate) ||
+            Number.isNaN(+effectiveFrom) ||
+            effectiveFrom.toISOString().slice(0, 10) !== effectiveDate)
+    )
+        throw new BillingInputError("invalid_carrier");
     if (
         !validText(legalName, 200) ||
         !validText(email, 254) ||
@@ -54,6 +66,7 @@ export async function createCarrier(input, deps) {
             fee_bp: feeBp,
             driverIds,
             truckIds,
+            effectiveFrom,
         });
         return { id: row.id };
     } catch (error) {

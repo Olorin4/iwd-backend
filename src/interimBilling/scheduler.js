@@ -5,11 +5,12 @@ import { chargeApprovedRun, runDueRetries } from "./charger.js";
 export async function reconcileOnStart(deps) {
     const runs = await deps.store.listRunsByStatus([
         "building",
+        "summary_pending",
         "approved",
         "charging",
     ]);
     for (const run of runs) {
-        if (run.status === "building")
+        if (["building", "summary_pending"].includes(run.status))
             await (deps.startRun ?? startRun)({ now: run.run_end }, deps);
         else await (deps.chargeApprovedRun ?? chargeApprovedRun)(run.id, deps);
     }

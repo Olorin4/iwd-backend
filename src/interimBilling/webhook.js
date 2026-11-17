@@ -69,15 +69,24 @@ export async function handleEvent(event, deps) {
                 const run = await store.getRun(invoice.run_id);
                 if (!run?.approved_at) return;
                 if (event.type === "invoice.finalized") return;
-                // The refetched state wins over delayed and out-of-order payloads.
-                const outcome =
-                    remote.status === "paid"
-                        ? "paid"
-                        : remote.paymentIntent?.status === "processing"
-                          ? "processing"
-                          : event.type === "invoice.payment_failed"
-                            ? "failed"
-                            : null;
+                // A current verified failure after payment is an alert, never a retry.
+                const lateFailure =
+                    event.type === "invoice.payment_failed" &&
+                    invoice.status === "paid" &&
+                    invoice.payment_intent_id === remote.paymentIntent?.id &&
+                    ["requires_payment_method", "canceled"].includes(
+                        remote.paymentIntent?.status
+                    ) &&
+                    !!remote.paymentIntent?.last_payment_error;
+                const outcome = lateFailure
+                    ? "failed"
+                    : remote.status === "paid"
+                      ? "paid"
+                      : remote.paymentIntent?.status === "processing"
+                        ? "processing"
+                        : event.type === "invoice.payment_failed"
+                          ? "failed"
+                          : null;
                 if (!outcome) return;
                 if (
                     outcome === "failed" &&

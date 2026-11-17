@@ -38,6 +38,28 @@ beforeEach(() => {
         fetchLoads: jest.fn(async () => loads),
         sendEmail: jest.fn(),
         stripe: {
+            retrieveInvoice: jest.fn(async () => {
+                const invoice = deps.store.invoices[0];
+                const rows = deps.store.lines.filter((l) =>
+                    remote[0]?.itemLineIds.includes(l.id)
+                );
+                const total = rows.reduce((s, l) => s + l.fee_cents, 0);
+                return {
+                    total,
+                    amount_due: total,
+                    currency: "usd",
+                    customer: "cus_1",
+                    metadata: {
+                        run_id: String(invoice.run_id),
+                        carrier_id: "1",
+                    },
+                    billingItems: rows.map((l) => ({
+                        lineId: l.id,
+                        amountCents: l.fee_cents,
+                        currency: "usd",
+                    })),
+                };
+            }),
             listInvoicesForRun: jest.fn(async () => remote),
             createDraftInvoice: jest.fn(async () => {
                 remote.push({ id: "in_1", status: "draft", itemLineIds: [] });
@@ -183,4 +205,86 @@ it("refuses stale or repeated approval and freezes the approved totals", async (
             deps
         )
     ).rejects.toBeInstanceOf(StaleApprovalError);
+});
+
+it("recomputes approved totals when interrupted membership grows", async () => {
+    const original = deps.store.transitionInvoice;
+    deps.store.transitionInvoice = async (...args) => {
+        if (args[3]?.stripe_invoice_id) {
+            deps.store.transitionInvoice = original;
+            throw new Error("crash");
+        }
+        return original(...args);
+    };
+    await expect(startRun({ now }, deps)).rejects.toThrow("crash");
+    loads.push(load(9));
+    const summary = await startRun({ now }, deps);
+    expect(summary.totalCents).toBe(24000);
+    await expect(
+        approveRun(
+            summary.runId,
+            { invoiceCount: 1, totalCents: 12000 },
+            "admin token",
+            deps
+        )
+    ).rejects.toBeInstanceOf(StaleApprovalError);
+});
+it("refreshes pre-approval resolutions and rejects approving unresolved membership", async () => {
+    const first = await startRun({ now }, deps);
+    await setLinehaul(2, "1600.00", "confirmed", deps);
+    await expect(
+        approveRun(
+            first.runId,
+            { invoiceCount: 1, totalCents: 12000 },
+            "admin token",
+            deps
+        )
+    ).rejects.toBeInstanceOf(StaleApprovalError);
+    const refreshed = await startRun({ now }, deps);
+    expect(refreshed.totalCents).toBe(20000);
+    await approveRun(
+        first.runId,
+        { invoiceCount: 1, totalCents: 20000 },
+        "admin token",
+        deps
+    );
+    expect(deps.store.runs[0].status).toBe("approved");
+});
+it("recovers the admin summary after a rejected send", async () => {
+    deps.sendEmail.mockRejectedValueOnce(new Error("mail_unavailable"));
+    await expect(startRun({ now }, deps)).rejects.toThrow("mail_unavailable");
+    await startRun({ now }, deps);
+    expect(deps.sendEmail).toHaveBeenCalledTimes(2);
+    expect(deps.store.runs[0].status).toBe("awaiting_approval");
+});
+it("does not assign loads from before asset ownership became effective", async () => {
+    deps.store.listAssets = async () => [
+        {
+            kind: "DRIVER",
+            kelevo_id: 7,
+            carrier_id: 1,
+            effective_from: new Date("2026-11-13Z"),
+        },
+    ];
+    expect((await startRun({ now }, deps)).invoices).toHaveLength(0);
+    expect(deps.store.lines[0]).toMatchObject({
+        status: "held",
+        hold_reason: "no_carrier",
+    });
+});
+it("refuses unrecognized or duplicate remote invoice items", async () => {
+    await startRun({ now }, deps);
+    deps.store.runs[0].status = "building";
+    remote[0].itemLineIds = [1, 1];
+    await expect(startRun({ now }, deps)).rejects.toThrow(
+        "remote_items_mismatch"
+    );
+});
+
+it("previews an existing draft with all held lines without mutating carry-forward rows", async () => {
+    const first = await startRun({ now }, deps);
+    const preview = await startRun({ now, dryRun: true }, deps);
+    expect(preview.invoices).toEqual(first.invoices);
+    expect(preview.held).toEqual(first.held);
+    expect(preview.runId).toBeNull();
 });

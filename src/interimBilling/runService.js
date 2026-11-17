@@ -3,7 +3,7 @@ import { classifyLoad } from "./classify.js";
 import { toCents, feeCents, describeLine, MIN_CHARGE_CENTS } from "./money.js";
 import { runEndUtc } from "./schedule.js";
 import { BillingInputError } from "./carriers.js";
-import { SUPPORT_EMAIL } from "./stripeClient.js";
+import { SUPPORT_EMAIL, assertInvoiceMatches } from "./stripeClient.js";
 export class StaleApprovalError extends BillingInputError {
     constructor() {
         super("stale_approval", 409);
@@ -69,12 +69,33 @@ async function summaryStored(run, store, canceledWithoutDate = 0) {
         canceledWithoutDate
     );
 }
+async function sendSummary(run, summary, deps) {
+    await deps.sendEmail({
+        from: SUPPORT_EMAIL,
+        to: deps.config.adminEmail,
+        subject: `Dispatch billing run ${run.id} awaiting approval`,
+        text: JSON.stringify(summary, null, 2),
+    });
+    await deps.store.transitionRun(
+        run.id,
+        ["summary_pending"],
+        "awaiting_approval"
+    );
+}
 export async function startRun({ now, dryRun = false }, deps) {
     const execute = async () => {
         const { store, config, stripe } = deps;
         const end = runEndUtc(now, config.timezone);
         const existing = await store.getRunByEnd(end);
-        if (existing && existing.status !== "building")
+        if (existing?.status === "summary_pending") {
+            const summary = await summaryStored(existing, store);
+            if (!dryRun) await sendSummary(existing, summary, deps);
+            return summary;
+        }
+        if (
+            existing &&
+            !["building", "awaiting_approval"].includes(existing.status)
+        )
             return summaryStored(existing, store);
         const [loads, assets, carriers, known] = await Promise.all([
             deps.fetchLoads({ from: config.startDate, to: end }, config),
@@ -101,7 +122,22 @@ export async function startRun({ now, dryRun = false }, deps) {
         const seen = new Set(known.map(keyOf)),
             newLines = [];
         for (const load of loads) {
-            const decision = classifyLoad(load, ctx);
+            const occurred =
+                load.status === "CANCELED"
+                    ? load.canceledAt
+                    : (load.deliveredAt ?? load.deliveryEnd);
+            const current = {
+                ...ctx,
+                carrierByDriver: new Map(ctx.carrierByDriver),
+                carrierByTruck: new Map(ctx.carrierByTruck),
+            };
+            for (const asset of assets)
+                if (occurred && asset.effective_from > occurred)
+                    (asset.kind === "DRIVER"
+                        ? current.carrierByDriver
+                        : current.carrierByTruck
+                    ).delete(asset.kelevo_id);
+            const decision = classifyLoad(load, current);
             if (decision) {
                 const row = rowOf(decision, null);
                 if (!seen.has(keyOf(row))) {
@@ -113,14 +149,19 @@ export async function startRun({ now, dryRun = false }, deps) {
         const canceledWithoutDate = loads.filter(
             (l) => l.status === "CANCELED" && !l.canceledAt
         ).length;
+        const assigned = known.filter(
+            (l) => l.invoice_id && l.run_id === existing?.id
+        );
         const candidates = [
             ...(await store.listReadyLinesWithoutInvoice()),
             ...(await store.listMinimumLines()),
             ...newLines.filter((l) => l.status === "ready"),
+            ...assigned,
         ];
         if (dryRun) {
             const invoices = [];
-            for (const [carrierId, lines] of groupLines(candidates)) {
+            const previewCandidates = candidates.map((l) => ({ ...l }));
+            for (const [carrierId, lines] of groupLines(previewCandidates)) {
                 const totalCents = lines.reduce((s, l) => s + l.fee_cents, 0);
                 if (totalCents >= MIN_CHARGE_CENTS)
                     invoices.push({
@@ -132,55 +173,86 @@ export async function startRun({ now, dryRun = false }, deps) {
                     for (const l of lines) {
                         l.status = "held";
                         l.hold_reason = "below_minimum";
+                        const original = newLines.find(
+                            (n) => keyOf(n) === keyOf(l)
+                        );
+                        if (original) {
+                            original.status = "held";
+                            original.hold_reason = "below_minimum";
+                        }
                     }
             }
             return summaryOf(
                 null,
                 end,
                 [
-                    ...newLines,
-                    ...candidates.filter(
-                        (l) => l.status === "held" && !newLines.includes(l)
-                    ),
+                    ...new Map(
+                        [
+                            ...known.filter(
+                                (l) =>
+                                    l.run_id === existing?.id &&
+                                    l.status === "held" &&
+                                    l.hold_reason !== "below_minimum"
+                            ),
+                            ...newLines,
+                            ...previewCandidates.filter(
+                                (l) => l.status === "held"
+                            ),
+                        ].map((l) => [keyOf(l), l])
+                    ).values(),
                 ],
                 invoices,
                 canceledWithoutDate
             );
         }
         const { run } = await store.claimRun(end);
-        if (!(await store.transitionRun(run.id, ["building"], "building")))
+        if (
+            !(await store.transitionRun(
+                run.id,
+                ["building", "awaiting_approval"],
+                "building"
+            ))
+        )
             throw new BillingInputError("billing_busy", 409);
         await store.insertLinesIfAbsent(
             newLines.map((l) => ({ ...l, run_id: run.id }))
         );
-        const ready = [
-            ...(await store.listReadyLinesWithoutInvoice()),
-            ...(await store.listMinimumLines()),
-        ];
-        for (const [carrierId, lines] of groupLines(ready)) {
-            const total = lines.reduce((s, l) => s + l.fee_cents, 0);
-            if (total < MIN_CHARGE_CENTS) {
+        await store.withTransaction(async () => {
+            const ready = [
+                ...(await store.listReadyLinesWithoutInvoice()),
+                ...(await store.listMinimumLines()),
+                ...(await store.listLinesForRun(run.id)).filter(
+                    (l) => l.invoice_id
+                ),
+            ];
+            for (const [carrierId, lines] of groupLines(ready)) {
+                const total = lines.reduce((s, l) => s + l.fee_cents, 0);
+                if (total < MIN_CHARGE_CENTS) {
+                    for (const l of lines)
+                        await store.updateLineIf(l.id, ["ready", "held"], {
+                            status: "held",
+                            hold_reason: "below_minimum",
+                            run_id: run.id,
+                        });
+                    continue;
+                }
+                const invoice = await store.createInvoiceRow({
+                    run_id: run.id,
+                    carrier_id: carrierId,
+                    total_cents: total,
+                });
                 for (const l of lines)
                     await store.updateLineIf(l.id, ["ready", "held"], {
-                        status: "held",
-                        hold_reason: "below_minimum",
+                        status: "invoiced",
+                        hold_reason: null,
                         run_id: run.id,
+                        invoice_id: invoice.id,
                     });
-                continue;
-            }
-            const invoice = await store.createInvoiceRow({
-                run_id: run.id,
-                carrier_id: carrierId,
-                total_cents: total,
-            });
-            for (const l of lines)
-                await store.updateLineIf(l.id, ["ready", "held"], {
-                    status: "invoiced",
-                    hold_reason: null,
-                    run_id: run.id,
-                    invoice_id: invoice.id,
+                await store.transitionInvoice(invoice.id, ["draft"], "draft", {
+                    total_cents: total,
                 });
-        }
+            }
+        });
         // Intents and line membership are durable before any Stripe write.
         for (const invoice of await store.listInvoicesForRun(run.id)) {
             const carrier = await store.getCarrier(invoice.carrier_id);
@@ -211,7 +283,10 @@ export async function startRun({ now, dryRun = false }, deps) {
             const lines = (await store.listLinesForRun(run.id)).filter(
                 (l) => l.invoice_id === invoice.id
             );
-            if (draft.itemLineIds.some((id) => !lines.some((l) => l.id === id)))
+            if (
+                new Set(draft.itemLineIds).size !== draft.itemLineIds.length ||
+                draft.itemLineIds.some((id) => !lines.some((l) => l.id === id))
+            )
                 throw new BillingInputError("remote_items_mismatch", 409);
             for (const l of lines) {
                 if (draft.itemLineIds.includes(l.id)) continue;
@@ -240,15 +315,17 @@ export async function startRun({ now, dryRun = false }, deps) {
                     stripe_invoice_item_id: itemId,
                 });
             }
+            assertInvoiceMatches(await stripe.retrieveInvoice(draft.id), {
+                totalCents: invoice.total_cents,
+                customerId: carrier.stripe_customer_id,
+                runId: run.id,
+                carrierId: carrier.id,
+                lineFees: lines,
+            });
         }
-        await store.transitionRun(run.id, ["building"], "awaiting_approval");
+        await store.transitionRun(run.id, ["building"], "summary_pending");
         const summary = await summaryStored(run, store, canceledWithoutDate);
-        await deps.sendEmail({
-            from: SUPPORT_EMAIL,
-            to: config.adminEmail,
-            subject: `Dispatch billing run ${run.id} awaiting approval`,
-            text: JSON.stringify(summary, null, 2),
-        });
+        await sendSummary(run, summary, deps);
         return summary;
     };
     return dryRun ? execute() : deps.store.withBillingLock(execute);
@@ -315,6 +392,17 @@ export async function approveRun(id, expected, approver, deps) {
         const run = await deps.store.getRun(id),
             invoices = await deps.store.listInvoicesForRun(id);
         const total = invoices.reduce((s, i) => s + i.total_cents, 0);
+        const lines = await deps.store.listLinesForRun(id);
+        if (
+            lines.some((l) => l.status === "ready" && !l.invoice_id) ||
+            invoices.some(
+                (i) =>
+                    lines
+                        .filter((l) => l.invoice_id === i.id)
+                        .reduce((s, l) => s + l.fee_cents, 0) !== i.total_cents
+            )
+        )
+            throw new StaleApprovalError();
         if (
             !run ||
             run.status !== "awaiting_approval" ||

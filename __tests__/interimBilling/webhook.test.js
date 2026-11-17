@@ -57,30 +57,24 @@ beforeEach(() => {
         stripe: {
             constructEvent: async (...args) =>
                 stripe.webhooks.constructEvent(...args),
-            retrieveSetupIntent: jest
-                .fn()
-                .mockResolvedValue({
-                    status: "succeeded",
-                    customer: "cus_1",
-                    payment_method: "pm_1",
-                    metadata: { carrier_id: "1", role: "backup" },
-                }),
-            retrievePaymentMethod: jest
-                .fn()
-                .mockResolvedValue({
-                    id: "pm_1",
-                    customer: "cus_1",
-                    type: "card",
-                    card: { brand: "visa", last4: "4242" },
-                }),
-            retrieveInvoice: jest
-                .fn()
-                .mockResolvedValue({
-                    id: "in_1",
-                    customer: "cus_1",
-                    status: "paid",
-                    paymentIntent: { id: "pi_1", status: "succeeded" },
-                }),
+            retrieveSetupIntent: jest.fn().mockResolvedValue({
+                status: "succeeded",
+                customer: "cus_1",
+                payment_method: "pm_1",
+                metadata: { carrier_id: "1", role: "backup" },
+            }),
+            retrievePaymentMethod: jest.fn().mockResolvedValue({
+                id: "pm_1",
+                customer: "cus_1",
+                type: "card",
+                card: { brand: "visa", last4: "4242" },
+            }),
+            retrieveInvoice: jest.fn().mockResolvedValue({
+                id: "in_1",
+                customer: "cus_1",
+                status: "paid",
+                paymentIntent: { id: "pi_1", status: "succeeded" },
+            }),
             retrieveDispute: jest
                 .fn()
                 .mockResolvedValue({ id: "dp_1", charge: "ch_1" }),
@@ -193,4 +187,32 @@ it("refetches disputes and alerts only for a known customer", async () => {
     await handleEvent(event("charge.dispute.created"), deps);
     expect(deps.sendEmail).toHaveBeenCalled();
     expect(deps.store.invoices[0].status).toBe("processing");
+});
+
+it("alerts on a verified late return without retrying or confusing an old decline", async () => {
+    Object.assign(deps.store.invoices[0], {
+        status: "paid",
+        payment_intent_id: "pi_1",
+    });
+    deps.stripe.retrieveInvoice.mockResolvedValue({
+        id: "in_1",
+        customer: "cus_1",
+        status: "paid",
+        paymentIntent: {
+            id: "pi_1",
+            status: "requires_payment_method",
+            last_payment_error: { code: "bank_account_closed" },
+        },
+    });
+    await handleEvent(event("invoice.payment_failed"), deps);
+    expect(deps.sendEmail).toHaveBeenCalledTimes(1);
+    expect(deps.store.invoices[0].status).toBe("paid");
+    deps.stripe.retrieveInvoice.mockResolvedValue({
+        id: "in_1",
+        customer: "cus_1",
+        status: "paid",
+        paymentIntent: { id: "pi_1", status: "succeeded" },
+    });
+    await handleEvent(event("invoice.payment_failed", "evt_old_decline"), deps);
+    expect(deps.sendEmail).toHaveBeenCalledTimes(1);
 });

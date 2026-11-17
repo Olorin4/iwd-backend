@@ -18,6 +18,31 @@ const safeCode = (code) =>
         : "stripe_call_failed";
 const idOf = (value) => (typeof value === "string" ? value : value?.id);
 
+export function assertInvoiceMatches(invoice, expected) {
+    const items = invoice.billingItems ?? [];
+    if (
+        invoice.total !== expected.totalCents ||
+        invoice.amount_due !== expected.totalCents ||
+        invoice.currency !== "usd" ||
+        idOf(invoice.customer) !== expected.customerId ||
+        invoice.metadata?.run_id !== String(expected.runId) ||
+        invoice.metadata?.carrier_id !== String(expected.carrierId) ||
+        (expected.lineFees &&
+            (items.length !== expected.lineFees.length ||
+                new Set(items.map((i) => i.lineId)).size !== items.length ||
+                items.some(
+                    (item) =>
+                        !expected.lineFees.some(
+                            (l) =>
+                                l.id === item.lineId &&
+                                l.fee_cents === item.amountCents &&
+                                item.currency === "usd"
+                        )
+                )))
+    )
+        throw new StripeCallError("invoice_mismatch");
+}
+
 export function createStripeClient(config, StripeCtor = Stripe) {
     const sdk = new StripeCtor(config.secretKey, {
         apiVersion: config.apiVersion,
@@ -43,6 +68,15 @@ export function createStripeClient(config, StripeCtor = Stripe) {
             typeof intent === "string"
                 ? await sdk.paymentIntents.retrieve(intent)
                 : (intent ?? null);
+        invoice.billingItems = [];
+        for await (const line of sdk.invoices.listLineItems(id, { limit: 100 }))
+            invoice.billingItems.push({
+                lineId: /^\d+$/.test(line.metadata?.line_id)
+                    ? Number(line.metadata.line_id)
+                    : null,
+                amountCents: line.amount,
+                currency: line.currency,
+            });
         return invoice;
     };
     const outcome = (invoice) => ({
@@ -169,8 +203,11 @@ export function createStripeClient(config, StripeCtor = Stripe) {
                     invoice.id,
                     { limit: 100 }
                 ))
-                    if (/^\d+$/.test(line.metadata?.line_id))
-                        itemLineIds.push(Number(line.metadata.line_id));
+                    itemLineIds.push(
+                        /^\d+$/.test(line.metadata?.line_id)
+                            ? Number(line.metadata.line_id)
+                            : null
+                    );
                 result.push({
                     id: invoice.id,
                     status: invoice.status,
@@ -194,8 +231,9 @@ export function createStripeClient(config, StripeCtor = Stripe) {
                 invoicePdf: invoice.invoice_pdf,
             };
         },
-        payInvoice: async (id, pmId, attemptKey = "initial") => {
+        payInvoice: async (id, pmId, attemptKey = "initial", expected) => {
             const before = await retrieveInvoice(id);
+            if (expected) assertInvoiceMatches(before, expected);
             if (
                 before.status === "paid" ||
                 before.paymentIntent?.status === "processing"

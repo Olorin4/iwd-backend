@@ -21,6 +21,9 @@ export function fakeStore() {
         return true;
     };
     return {
+        withTransaction: async (fn) => fn(),
+        listUnnotifiedFailures: async () =>
+            invoices.filter((i) => i.status === "failed_notifying"),
         runs,
         lines,
         invoices,

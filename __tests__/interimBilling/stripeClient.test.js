@@ -18,12 +18,10 @@ beforeEach(() => {
         },
         checkout: {
             sessions: {
-                create: jest
-                    .fn()
-                    .mockResolvedValue({
-                        id: "cs_1",
-                        url: "https://checkout.stripe.com/test",
-                    }),
+                create: jest.fn().mockResolvedValue({
+                    id: "cs_1",
+                    url: "https://checkout.stripe.com/test",
+                }),
             },
         },
         setupIntents: { retrieve: jest.fn() },
@@ -33,12 +31,10 @@ beforeEach(() => {
             create: jest.fn().mockResolvedValue({ id: "in_1" }),
             list: jest.fn(() => list([])),
             listLineItems: jest.fn(() => list([])),
-            finalizeInvoice: jest
-                .fn()
-                .mockResolvedValue({
-                    hosted_invoice_url: "hosted",
-                    invoice_pdf: "pdf",
-                }),
+            finalizeInvoice: jest.fn().mockResolvedValue({
+                hosted_invoice_url: "hosted",
+                invoice_pdf: "pdf",
+            }),
             pay: jest.fn(),
             retrieve: jest.fn(),
         },
@@ -184,4 +180,29 @@ it("maps declines and hides raw exceptions", async () => {
         StripeCallError
     );
     await expect(api.addInvoiceItem({})).rejects.not.toThrow("private");
+});
+
+it("rejects a changed total or untagged invoice item before paying", async () => {
+    sdk.invoices.retrieve.mockResolvedValue({
+        id: "in_1",
+        status: "open",
+        total: 12000,
+        amount_due: 12000,
+        currency: "usd",
+        customer: "cus_1",
+        metadata: { run_id: "3", carrier_id: "2" },
+    });
+    sdk.invoices.listLineItems.mockReturnValue(
+        list([{ amount: 12000, currency: "usd", metadata: { line_id: "4" } }])
+    );
+    await expect(
+        api.payInvoice("in_1", "pm_1", "attempt-1", {
+            totalCents: 24000,
+            customerId: "cus_1",
+            runId: 3,
+            carrierId: 2,
+            lineFees: [{ id: 4, fee_cents: 24000 }],
+        })
+    ).rejects.toThrow("invoice_mismatch");
+    expect(sdk.invoices.pay).not.toHaveBeenCalled();
 });

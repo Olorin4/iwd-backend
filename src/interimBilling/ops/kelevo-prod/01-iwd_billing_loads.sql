@@ -47,6 +47,7 @@ BEGIN
                     (coalesce(l.delivered_at, l.delivery_end) >= from_ts
                      AND coalesce(l.delivered_at, l.delivery_end) < to_ts)
                  OR (l.canceled_at >= from_ts AND l.canceled_at < to_ts)
+                 OR (l.status::text = 'CANCELED' AND l.canceled_at IS NULL)
               )
         ) r
     );

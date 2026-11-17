@@ -63,3 +63,17 @@ it("disabled entry point does nothing", async () => {
         await startInterimBilling({ getConfig: () => ({ enabled: false }) })
     ).toBeUndefined();
 });
+
+it("reconciles a summary notification that was interrupted after building", async () => {
+    deps.store.runs.push({
+        id: 8,
+        status: "summary_pending",
+        run_end: new Date("2026-11-16T06:00:00Z"),
+    });
+    await reconcileOnStart(deps);
+    expect(deps.startRun).toHaveBeenCalledWith(
+        { now: new Date("2026-11-16T06:00:00Z") },
+        deps
+    );
+    expect(deps.chargeApprovedRun).not.toHaveBeenCalled();
+});

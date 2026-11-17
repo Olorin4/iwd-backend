@@ -101,7 +101,8 @@ bearer token stored privately. Never put a real token into the examples.
         "email": "YOUR_CONTROLLED_TEST_INBOX",
         "feeBp": 500,
         "driverIds": [7],
-        "truckIds": [8]
+        "truckIds": [8],
+        "effectiveFrom": "2026-11-01"
     }
     ```
 
@@ -129,15 +130,17 @@ bearer token stored privately. Never put a real token into the examples.
    Expect `ready`, fee 8000 cents. POST `/lines/<load-103-line-id>/decide`
    with `{"charge":true}`. Expect ready, fee 4000 cents. For a broker or
    shipper cancellation use false instead and expect `skipped`.
-   **The existing draft is frozen**; these decisions join the next weekly run.
-7. POST `/runs/:id/approve` with `{"invoiceCount":1,"totalCents":12000}`.
+   POST `/runs` again before approval: expect the refreshed current draft to
+   include both resolved loads, total 24000 cents. A stale 12000-cent approval
+   is refused.
+7. POST `/runs/:id/approve` with `{"invoiceCount":1,"totalCents":24000}`.
    Expect approved charging, statement email with hosted invoice and PDF,
    paid invoice and paid lines. A stale total gets 409 and no charge.
-8. Repeat POST `/runs` and the approval. Expect the existing run and 409 on
+8. Repeat POST `/runs` and the approval. Expect the existing approved run and 409 on
    reapproval, with no additional item or payment. Replay the same webhook:
    expect 200 and no repeated state effect.
-9. At the next Monday cutoff, create the next run. Expect the resolved lines
-   picked up once, total 12000 cents, without repeating load 101. For an
+9. At the next Monday cutoff, create the next run. Expect no invoice for these already-billed loads. Lines resolved only
+   after approval are picked up once by this next run. For an
    accelerated test, invoke `startRun({now: new Date("2026-11-27T15:00:00Z")},
 deps)` in a **test-only harness** with the same sandbox dependencies.
    No API clock override is exposed.
@@ -172,3 +175,13 @@ DST, retries, processing protection and crash recovery using fakes plus the
 local test database. A sandbox API smoke test is separate from hosted Checkout,
 ACH verification and real email delivery. Record those results separately;
 HTTP 200 and a created session do not prove the whole flow.
+
+Recorded 2026-11-17: a guarded sandbox API probe completed invoice creation,
+attached item, metadata reconciliation, finalization and a successful test-token
+card payment (`in_1UclH5Lbp6WU1kVScbXVBnGg`). It did not send module email.
+Combined card/ACH Checkout and a minimal card-only Checkout both returned
+`StripeInvalidRequestError` for `payment_method_types`, despite the sandbox
+reporting active capabilities and available/on payment methods. No account
+configuration was changed. Inspect the sandbox Developers request logs for
+`POST /v1/checkout/sessions` before continuing hosted setup and ACH verification.
+Those flows, real email delivery and bank settlement are **not verified**.

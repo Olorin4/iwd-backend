@@ -18,21 +18,17 @@ beforeEach(() => {
         emailClient: jest.fn(),
         sendEmail: jest.fn(),
         stripe: {
-            finalizeInvoice: jest
-                .fn()
-                .mockResolvedValue({
-                    hostedInvoiceUrl: "https://invoice.stripe.com/test",
-                    invoicePdf: "https://pdf.stripe.com/test",
-                }),
+            finalizeInvoice: jest.fn().mockResolvedValue({
+                hostedInvoiceUrl: "https://invoice.stripe.com/test",
+                invoicePdf: "https://pdf.stripe.com/test",
+            }),
             retrieveInvoice: jest
                 .fn()
                 .mockResolvedValue({ status: "open", paymentIntent: null }),
-            payInvoice: jest
-                .fn()
-                .mockResolvedValue({
-                    outcome: "paid",
-                    paymentIntentId: "pi_1",
-                }),
+            payInvoice: jest.fn().mockResolvedValue({
+                outcome: "paid",
+                paymentIntentId: "pi_1",
+            }),
         },
     };
     deps.store.runs.push({
@@ -52,7 +48,22 @@ beforeEach(() => {
         round: 0,
         tried_backup_this_round: false,
     });
-    deps.store.lines.push({ id: 1, invoice_id: 1, status: "invoiced" });
+    deps.store.lines.push({
+        id: 1,
+        run_id: 1,
+        invoice_id: 1,
+        status: "invoiced",
+        fee_cents: 12000,
+    });
+    deps.stripe.retrieveInvoice.mockResolvedValue({
+        status: "open",
+        total: 12000,
+        amount_due: 12000,
+        currency: "usd",
+        customer: "cus_1",
+        metadata: { run_id: "1", carrier_id: "1" },
+        billingItems: [{ lineId: 1, amountCents: 12000, currency: "usd" }],
+    });
 });
 it("claims, finalizes, emails the statement, then pays primary and marks lines paid", async () => {
     await chargeApprovedRun(1, deps);
@@ -64,7 +75,8 @@ it("claims, finalizes, emails the statement, then pays primary and marks lines p
     expect(deps.stripe.payInvoice).toHaveBeenCalledWith(
         "in_1",
         "pm_primary",
-        expect.any(String)
+        expect.any(String),
+        expect.objectContaining({ totalCents: 12000 })
     );
     expect(deps.store.invoices[0].status).toBe("paid");
     expect(deps.store.lines[0].status).toBe("paid");
@@ -141,6 +153,12 @@ it("resumes a finalizing or paying invoice after a crash and skips processing on
     deps.stripe.retrieveInvoice.mockResolvedValue({
         status: "open",
         paymentIntent: { id: "pi_1", status: "processing" },
+        total: 12000,
+        amount_due: 12000,
+        currency: "usd",
+        customer: "cus_1",
+        metadata: { run_id: "1", carrier_id: "1" },
+        billingItems: [{ lineId: 1, amountCents: 12000, currency: "usd" }],
     });
     await chargeApprovedRun(1, deps);
     expect(deps.stripe.payInvoice).toHaveBeenCalledTimes(1);
@@ -161,4 +179,36 @@ it("cannot charge without approval or if approved totals differ", async () => {
     await expect(chargeApprovedRun(1, deps)).rejects.toThrow(
         "approval_mismatch"
     );
+});
+
+it("recovers terminal failure email delivery without retrying payment", async () => {
+    Object.assign(deps.store.invoices[0], {
+        status: "paying",
+        round: 2,
+        tried_backup_this_round: true,
+        first_failure_at: now,
+    });
+    deps.sendEmail.mockRejectedValueOnce(new Error("mail_unavailable"));
+    await expect(
+        applyPayOutcome(1, { outcome: "failed" }, now, deps)
+    ).rejects.toThrow("mail_unavailable");
+    await runDueRetries(now, deps);
+    expect(deps.sendEmail).toHaveBeenCalledTimes(2);
+    expect(deps.emailClient).toHaveBeenCalled();
+    expect(deps.stripe.payInvoice).not.toHaveBeenCalled();
+    expect(deps.store.invoices[0].status).toBe("failed");
+});
+it("refuses a Stripe amount different from the approved amount before charging", async () => {
+    deps.stripe.retrieveInvoice.mockResolvedValue({
+        status: "draft",
+        total: 24000,
+        amount_due: 24000,
+        currency: "usd",
+        customer: "cus_1",
+        metadata: { run_id: "1", carrier_id: "1" },
+    });
+    await expect(chargeApprovedRun(1, deps)).rejects.toThrow(
+        "invoice_mismatch"
+    );
+    expect(deps.stripe.payInvoice).not.toHaveBeenCalled();
 });

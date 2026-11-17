@@ -1,7 +1,7 @@
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
 import { nextStep } from "./retryPolicy.js";
 import { BillingInputError } from "./carriers.js";
-import { SUPPORT_EMAIL } from "./stripeClient.js";
+import { SUPPORT_EMAIL, assertInvoiceMatches } from "./stripeClient.js";
 const clock = (deps) => deps.now?.() ?? new Date();
 async function alertFailure(invoice, carrier, deps, code) {
     await deps.sendEmail({
@@ -16,6 +16,32 @@ async function alertFailure(invoice, carrier, deps, code) {
             "Dispatch payment unsuccessful",
             `Payment for your dispatch statement remains unpaid. Please contact ${SUPPORT_EMAIL}. Statement: ${invoice.hosted_invoice_url ?? "contact dispatch"}`
         );
+}
+async function notifyFailure(invoice, carrier, deps) {
+    await alertFailure(invoice, carrier, deps, "payment_failed");
+    await deps.store.transitionInvoice(
+        invoice.id,
+        ["failed_notifying"],
+        "failed"
+    );
+}
+async function verifyBeforePay(invoice, deps) {
+    const carrier = await deps.store.getCarrier(invoice.carrier_id);
+    const lineFees = (await deps.store.listLinesForRun(invoice.run_id)).filter(
+        (l) => l.invoice_id === invoice.id
+    );
+    const expected = {
+        totalCents: invoice.total_cents,
+        customerId: carrier.stripe_customer_id,
+        runId: invoice.run_id,
+        carrierId: carrier.id,
+        lineFees,
+    };
+    assertInvoiceMatches(
+        await deps.stripe.retrieveInvoice(invoice.stripe_invoice_id),
+        expected
+    );
+    return expected;
 }
 // Internal entry point; caller holds the module's database session lock.
 export async function applyPayOutcomeLocked(id, outcome, now, deps) {
@@ -33,7 +59,7 @@ export async function applyPayOutcomeLocked(id, outcome, now, deps) {
             );
         return;
     }
-    if (invoice.status === "failed") return;
+    if (["failed", "failed_notifying"].includes(invoice.status)) return;
     const common = {
         payment_intent_id:
             outcome.paymentIntentId ?? invoice.payment_intent_id ?? null,
@@ -68,12 +94,17 @@ export async function applyPayOutcomeLocked(id, outcome, now, deps) {
         deps.config.timezone
     );
     if (next.action === "give_up") {
-        await store.transitionInvoice(id, [invoice.status], "failed", {
-            ...common,
-            first_failure_at: firstFailureAt,
-        });
+        await store.transitionInvoice(
+            id,
+            [invoice.status],
+            "failed_notifying",
+            {
+                ...common,
+                first_failure_at: firstFailureAt,
+            }
+        );
         await store.updateInvoiceLines(id, "failed");
-        await alertFailure(invoice, carrier, deps, "payment_failed");
+        await notifyFailure(invoice, carrier, deps);
         return;
     }
     await store.transitionInvoice(id, [invoice.status], "retry_scheduled", {
@@ -100,6 +131,7 @@ async function attempt(id, method, now, deps) {
         await alertFailure(invoice, carrier, deps, "primary_method_missing");
         return;
     }
+    const expected = await verifyBeforePay(invoice, deps);
     const pm =
         method === "backup" ? carrier.backup_pm_id : carrier.primary_pm_id;
     // Persist attempt identity BEFORE payment. Recovery reuses it on uncertainty.
@@ -121,11 +153,13 @@ async function attempt(id, method, now, deps) {
     const result = await stripe.payInvoice(
         invoice.stripe_invoice_id,
         pm,
-        `attempt-${invoice.attempts}`
+        `attempt-${invoice.attempts}`,
+        expected
     );
     await applyPayOutcomeLocked(id, result, now, deps);
 }
 async function recoverPaying(invoice, now, deps) {
+    const expected = await verifyBeforePay(invoice, deps);
     const remote = await deps.stripe.retrieveInvoice(invoice.stripe_invoice_id);
     if (
         remote.status === "paid" ||
@@ -145,7 +179,8 @@ async function recoverPaying(invoice, now, deps) {
     const result = await deps.stripe.payInvoice(
         invoice.stripe_invoice_id,
         invoice.current_pm_id,
-        `attempt-${invoice.attempts}`
+        `attempt-${invoice.attempts}`,
+        expected
     );
     await applyPayOutcomeLocked(invoice.id, result, now, deps);
 }
@@ -182,6 +217,8 @@ export async function chargeApprovedRun(id, deps) {
                 );
                 continue;
             }
+            if (["draft", "finalizing"].includes(invoice.status))
+                await verifyBeforePay(invoice, deps);
             if (invoice.status === "draft") {
                 if (
                     !(await store.transitionInvoice(
@@ -229,6 +266,12 @@ export async function runDueRetries(now, deps) {
             await attempt(invoice.id, invoice.next_method, now, deps);
             count++;
         }
+        for (const invoice of await deps.store.listUnnotifiedFailures())
+            await notifyFailure(
+                invoice,
+                await deps.store.getCarrier(invoice.carrier_id),
+                deps
+            );
         // A crash during a retry leaves a paying invoice on a run already done.
         if (deps.store.listPayingInvoices)
             for (const invoice of await deps.store.listPayingInvoices())

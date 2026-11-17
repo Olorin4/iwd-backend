@@ -37,30 +37,37 @@ All routes start `/interim-billing`. Use the dedicated bearer token for every
 route except `POST /webhook` (Stripe signature). Card and bank details go only
 to Stripe Checkout. Store only Stripe ids, brand and last four.
 
-| Method and path                 | Body or behavior                                                   |
-| ------------------------------- | ------------------------------------------------------------------ |
-| POST `/carriers`                | `legalName, mc, usdot, email, feeBp, driverIds, truckIds`          |
-| POST `/carriers/:id/setup-link` | `role: primary` or `backup`; emails hosted setup URL               |
-| POST `/runs?dryRun=true`        | Read-only preview; no ledger, Stripe or mail writes                |
-| POST `/runs`                    | Build draft invoices for unledgered loads before latest Monday     |
-| GET `/runs/:id`                 | Inspect stored run, lines and invoices                             |
-| POST `/lines/:id/linehaul`      | `amount` decimal string and required `note`                        |
-| POST `/lines/:id/decide`        | Boolean `charge`; carrier-cancelled loads only                     |
-| POST `/runs/:id/approve`        | `invoiceCount, totalCents`; exact expected totals; starts charging |
+| Method and path                 | Body or behavior                                                          |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| POST `/carriers`                | `legalName, mc, usdot, email, feeBp, driverIds, truckIds, effectiveFrom?` |
+| POST `/carriers/:id/setup-link` | `role: primary` or `backup`; emails hosted setup URL                      |
+| POST `/runs?dryRun=true`        | Read-only preview; no ledger, Stripe or mail writes                       |
+| POST `/runs`                    | Build draft invoices for unledgered loads before latest Monday            |
+| GET `/runs/:id`                 | Inspect stored run, lines and invoices                                    |
+| POST `/lines/:id/linehaul`      | `amount` decimal string and required `note`                               |
+| POST `/lines/:id/decide`        | Boolean `charge`; carrier-cancelled loads only                            |
+| POST `/runs/:id/approve`        | `invoiceCount, totalCents`; exact expected totals; starts charging        |
 
 Linehaul is the only fee basis. Entered settlement linehaul is a prefill;
 otherwise the load is held. Cancelled loads always need a human decision.
 Non-USD, missing carrier and conflicting mappings stay held. Do not work around
 such holds by changing fees; resolve source/mapping issues with operator review.
 The initial API maps assets once; historical ledger ownership never changes.
+Optional `effectiveFrom` (YYYY-MM-DD, UTC) applies to those assets; it defaults
+to the configured billing start date for initial backlog onboarding. Loads
+before ownership began are held instead of assigned to that carrier.
 
-Runs are immutable once awaiting approval. Resolve held lines, then start the
-next weekly run; those ready lines are included then. Subminimum carrier totals
+Before approval, resolve held lines and POST `/runs` again to refresh the
+current drafts and summary. Approval refuses pending ready lines until that
+refresh. Runs are immutable after approval; lines resolved afterwards enter
+the next weekly run. Subminimum carrier totals
 carry forward until at least 50 cents is due. Held lines are never paid.
 
 One PostgreSQL session advisory lock serializes mutation across instances.
 `billing_busy` (409) means retry later. Stripe intent and attempt ids are durable;
-startup and worker ticks reconcile interrupted builds, approvals and charges.
+startup and worker ticks reconcile interrupted builds, summaries, approvals and charges.
+Summary/final failure emails have durable pending states and retry after a
+send failure or crash; duplicate notifications are possible after uncertain delivery.
 ACH `processing` remains pending without retries. Declines try backup, then
 primary/backup at +1 and +3 US business days; pausing bookings stays manual.
 Late returns and disputes alert the admin without further automatic collection.

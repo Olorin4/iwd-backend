@@ -97,3 +97,15 @@ it("rejects unknown roles before calls", async () => {
     );
     expect(deps.stripe.ensureCustomer).not.toHaveBeenCalled();
 });
+
+it("records an explicit initial backlog ownership date", async () => {
+    await createCarrier({ ...input, effectiveFrom: "2026-11-01" }, deps);
+    expect(deps.store.createCarrier).toHaveBeenCalledWith(
+        expect.objectContaining({
+            effectiveFrom: new Date("2026-11-01T00:00:00Z"),
+        })
+    );
+    await expect(
+        createCarrier({ ...input, effectiveFrom: "2026-02-30" }, deps)
+    ).rejects.toThrow("invalid_carrier");
+});

@@ -154,7 +154,12 @@ export function listDueRetries(now) {
 // ------------------------------------------------------------- carriers
 
 /** Creates a carrier with its driver and truck assets in one transaction. */
-export function createCarrier({ driverIds = [], truckIds = [], ...data }) {
+export function createCarrier({
+    driverIds = [],
+    truckIds = [],
+    effectiveFrom = new Date(),
+    ...data
+}) {
     return database().interimBillingCarrier.create({
         data: {
             ...data,
@@ -163,10 +168,12 @@ export function createCarrier({ driverIds = [], truckIds = [], ...data }) {
                     ...driverIds.map((kelevo_id) => ({
                         kind: "DRIVER",
                         kelevo_id,
+                        effective_from: effectiveFrom,
                     })),
                     ...truckIds.map((kelevo_id) => ({
                         kind: "TRUCK",
                         kelevo_id,
+                        effective_from: effectiveFrom,
                     })),
                 ],
             },
@@ -284,6 +291,13 @@ export async function withBillingLock(fn) {
 export function listPayingInvoices() {
     return database().interimBillingInvoice.findMany({
         where: { status: "paying" },
+        orderBy: { id: "asc" },
+    });
+}
+
+export function listUnnotifiedFailures() {
+    return database().interimBillingInvoice.findMany({
+        where: { status: "failed_notifying" },
         orderBy: { id: "asc" },
     });
 }
