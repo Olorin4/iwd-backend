@@ -185,3 +185,12 @@ reporting active capabilities and available/on payment methods. No account
 configuration was changed. Inspect the sandbox Developers request logs for
 `POST /v1/checkout/sessions` before continuing hosted setup and ACH verification.
 Those flows, real email delivery and bank settlement are **not verified**.
+
+Follow-up verification on 2026-11-17: the rejection was traced to the removed
+Checkout create parameter `payment_method_types` in pinned Endive. The adapter
+now sends `allowed_payment_method_types: ["card", "us_bank_account"]`. Real
+sandbox primary and backup sessions were created and refetched successfully;
+both offer card and US bank account, are setup mode, and have livemode false.
+Hosted completion, bank verification/settlement and actual email delivery still
+require the walkthrough above. No fixed catalog Price is used: each invoice
+item supplies its calculated fee through inline `price_data.unit_amount`.

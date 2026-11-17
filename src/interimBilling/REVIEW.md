@@ -36,9 +36,9 @@ showed that held lines were omitted. No reviewer minor was deferred.
 - Sandbox account-id and test-key-prefix checks ran before these API calls.
   Only synthetic carrier data was submitted; no module emails were sent.
 
-## Remaining sandbox gate
+## Initial sandbox gate (resolved for session creation)
 
-Checkout setup is **not working in the tested sandbox**. Combined card/ACH
+At the initial review, Checkout session creation was not working in the tested sandbox. Combined card/ACH
 setup and an independent minimal card-only request were rejected on
 `payment_method_types`. No account settings were changed. Capability/config
 reads reported active card and ACH capabilities, available/on payment methods,
@@ -49,7 +49,7 @@ POST /v1/checkout/sessions**, including request `req_knpVMFV1X3vAPF`.
 No raw Stripe message, key or personal information was printed in the tests.
 Hosted setup, ACH verification/settlement, actual late-return event shapes,
 and real email delivery remain unverified. Follow [SANDBOX-TEST.md](SANDBOX-TEST.md)
-after resolving the Checkout rejection. Keep the module off until then;
+to finish hosted completion and ACH verification. Keep the module off until then;
 this branch is not ready for live activation.
 
 ## External follow-ups from the owner handoff
@@ -100,3 +100,13 @@ These were not started or refreshed as part of this implementation:
 - Final: Ruling: optional carrier effectiveFrom is a validated UTC calendar date and defaults to configured billing start for initial backlog onboarding; asset ownership applies only at/after that instant — the original interface had no way to onboard previous-week loads with the schema's now default — if wrong, choose an explicit date before creating the carrier; existing ledger ownership is preserved.
 
 - Final: Ruling: summary_pending run state and failed_notifying invoice state plus listUnnotifiedFailures provide durable at-least-once mail recovery with existing tables; a crash after delivery may duplicate an email — no mail provider idempotency is available — if wrong, review duplicate notifications, never duplicate a payment.
+
+## Follow-up: Checkout root cause and fix
+
+The pinned Endive API removed Checkout create `payment_method_types`. The
+adapter now uses `allowed_payment_method_types` as defined by the installed
+Stripe SDK, retaining the card/US-bank allowlist. A removed-parameter regression
+failed before the fix and passed after it. Primary and backup sessions were
+then created and refetched in the guarded sandbox, offering both methods with
+livemode false. This resolves session creation; it does not claim hosted
+completion, ACH settlement, or actual email delivery.

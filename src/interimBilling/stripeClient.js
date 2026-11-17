@@ -120,7 +120,7 @@ export function createStripeClient(config, StripeCtor = Stripe) {
                     customer: customerId,
                     mode: "setup",
                     currency: "usd",
-                    payment_method_types: ["card", "us_bank_account"],
+                    allowed_payment_method_types: ["card", "us_bank_account"],
                     locale: "en",
                     custom_text: { submit: { message: AUTHORIZATION_TEXT } },
                     payment_method_options: {

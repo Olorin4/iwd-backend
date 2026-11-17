@@ -74,7 +74,7 @@ it("creates hosted setup with both methods and authorization", async () => {
     const [data, opts] = sdk.checkout.sessions.create.mock.calls[0];
     expect(data).toMatchObject({
         mode: "setup",
-        payment_method_types: ["card", "us_bank_account"],
+        allowed_payment_method_types: ["card", "us_bank_account"],
         locale: "en",
         custom_text: { submit: { message: AUTHORIZATION_TEXT } },
         setup_intent_data: { metadata: { carrier_id: "2", role: "backup" } },
@@ -205,4 +205,30 @@ it("rejects a changed total or untagged invoice item before paying", async () =>
         })
     ).rejects.toThrow("invoice_mismatch");
     expect(sdk.invoices.pay).not.toHaveBeenCalled();
+});
+
+it("uses Endive's allowed method filter instead of the removed Checkout parameter", async () => {
+    sdk.checkout.sessions.create.mockImplementation(async (params) => {
+        if (Object.hasOwn(params, "payment_method_types")) {
+            throw Object.assign(new Error("removed_parameter"), {
+                code: "parameter_unknown",
+            });
+        }
+        return { id: "cs_endive", url: "https://checkout.stripe.com/test" };
+    });
+    await expect(
+        api.createSetupSession({
+            customerId: "cus_1",
+            carrierId: 2,
+            role: "primary",
+            successUrl: "https://example.com/success",
+            cancelUrl: "https://example.com/cancel",
+        })
+    ).resolves.toHaveProperty("id", "cs_endive");
+    const params = sdk.checkout.sessions.create.mock.calls[0][0];
+    expect(params.allowed_payment_method_types).toEqual([
+        "card",
+        "us_bank_account",
+    ]);
+    expect(params).not.toHaveProperty("payment_method_types");
 });
