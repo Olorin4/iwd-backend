@@ -215,3 +215,58 @@ export async function recordStripeEvent(eventId, type, tx = prisma) {
         throw error;
     }
 }
+
+// Small read helpers used by run construction and startup recovery.
+export function listAssets() {
+    return prisma.interimBillingCarrierAsset.findMany();
+}
+export function listAllLines() {
+    return prisma.interimBillingLine.findMany({ orderBy: { id: "asc" } });
+}
+export function listMinimumLines() {
+    return prisma.interimBillingLine.findMany({
+        where: {
+            status: "held",
+            hold_reason: "below_minimum",
+            invoice_id: null,
+        },
+    });
+}
+export function listRunsByStatus(statuses) {
+    return prisma.interimBillingRun.findMany({
+        where: { status: { in: statuses } },
+        orderBy: { id: "asc" },
+    });
+}
+export function updateInvoiceLines(invoiceId, status) {
+    return prisma.interimBillingLine.updateMany({
+        where: { invoice_id: invoiceId },
+        data: { status },
+    });
+}
+
+// A session lock serializes this tiny module across processes, without keeping
+// ledger writes in a transaction across Stripe calls. A crashed connection
+// releases the lock; committed intent remains available for reconciliation.
+export async function withBillingLock(fn) {
+    const { Client } = await import("pg");
+    const client = new Client({ connectionString: process.env.DB_URL });
+    await client.connect();
+    try {
+        const result = await client.query(
+            "SELECT pg_try_advisory_lock(174923, 1) AS acquired"
+        );
+        if (!result.rows[0].acquired) {
+            const error = new Error("billing_busy");
+            error.code = "billing_busy";
+            error.status = 409;
+            throw error;
+        }
+        return await fn();
+    } finally {
+        await client
+            .query("SELECT pg_advisory_unlock(174923, 1)")
+            .catch(() => {});
+        await client.end();
+    }
+}

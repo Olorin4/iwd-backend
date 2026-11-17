@@ -249,3 +249,17 @@ describe("invoices and events", () => {
         );
     });
 });
+
+it("serializes billing work across database sessions and releases after failure", async () => {
+    await expect(
+        store.withBillingLock(async () => {
+            await expect(
+                store.withBillingLock(async () => {})
+            ).rejects.toMatchObject({ code: "billing_busy" });
+            throw new Error("simulated_crash");
+        })
+    ).rejects.toThrow("simulated_crash");
+    await expect(store.withBillingLock(async () => "released")).resolves.toBe(
+        "released"
+    );
+});
