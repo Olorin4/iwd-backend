@@ -267,7 +267,7 @@ export async function setLinehaul(id, amount, note, deps) {
             typeof note !== "string" ||
             !note.trim() ||
             note.length > 500 ||
-            /[\x00-\x1f]/.test(note)
+            [...note].some((c) => c.charCodeAt(0) < 32)
         )
             throw new BillingInputError("invalid_linehaul");
         const line = await deps.store.getLine(id);

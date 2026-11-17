@@ -19,7 +19,12 @@ import { newsletterLimiter } from "./rateLimiter.js";
 import { requireTurnstile } from "./turnstile.js";
 import { attributionFields } from "./attribution.js";
 
+// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+import { interimBillingRouter } from "./interimBilling/index.js";
+
 const router = express.Router();
+// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+router.use("/interim-billing", interimBillingRouter);
 
 // Every public POST below must carry a valid Cloudflare Turnstile token
 // (`turnstileToken` in the JSON body). requireTurnstile runs first so nothing

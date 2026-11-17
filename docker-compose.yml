@@ -20,6 +20,9 @@ services:
         # .env readable (and CI-regenerated from secrets) while resolving here.
         extra_hosts:
             - "nk-homeserver.tail4feae2.ts.net:100.111.141.61"
+        # TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+        volumes:
+            - /home/nick-kalas/apps/interim-billing-secrets:/run/interim-billing:ro
         networks:
             - edge
 

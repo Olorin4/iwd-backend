@@ -6,13 +6,20 @@ import { configureLogging, logger } from "./logging.js";
 import { shutdownPosthog } from "./posthogServer.js";
 import { registerShutdown } from "./shutdown.js";
 
+// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+import {
+    interimBillingRawBody,
+    startInterimBilling,
+} from "./interimBilling/index.js";
+
 dotenvFlow.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Global Middleware
-app.use(express.json());
+// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+app.use(express.json({ verify: interimBillingRawBody }));
 // The API sits behind exactly one proxy hop: the containerized nginx edge,
 // which sets the real client IP (from Cloudflare's CF-Connecting-IP) as the
 // last X-Forwarded-For entry. Trusting one hop makes req.ip the real client, so
@@ -44,6 +51,9 @@ app.use((err, req, res, next) => {
 app.listen(PORT, "0.0.0.0", () =>
     logger.info(`Iron Wing Server running at http://0.0.0.0:${PORT}`)
 );
+
+// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+void startInterimBilling();
 
 // Flush queued PostHog events before the container stops.
 registerShutdown(process, shutdownPosthog);

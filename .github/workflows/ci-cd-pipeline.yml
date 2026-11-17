@@ -8,23 +8,23 @@ jobs:
     test:
         runs-on: ubuntu-latest
         env:
-          DB_URL: postgresql://olorin4:password@localhost:5432/iwd_test
-          PGPASSWORD: password
+            DB_URL: postgresql://olorin4:password@localhost:5432/iwd_test
+            PGPASSWORD: password
 
         services:
-          postgres:
-            image: postgres:13
-            env:
-              POSTGRES_USER: olorin4
-              POSTGRES_PASSWORD: password
-              POSTGRES_DB: iwd_test
-            ports:
-              - 5432:5432
-            options: >-
-              --health-cmd pg_isready
-              --health-interval 10s
-              --health-timeout 5s
-              --health-retries 5
+            postgres:
+                image: postgres:13
+                env:
+                    POSTGRES_USER: olorin4
+                    POSTGRES_PASSWORD: password
+                    POSTGRES_DB: iwd_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
 
         steps:
             # Step 1: Check out the code
@@ -46,16 +46,16 @@ jobs:
             # Step 4: Wait for PostgreSQL to be ready
             - name: Wait for PostgreSQL
               run: |
-                until pg_isready -h localhost -p 5432 -U olorin4; do
-                  echo "Waiting for PostgreSQL..."
-                  sleep 2
-                done
+                  until pg_isready -h localhost -p 5432 -U olorin4; do
+                    echo "Waiting for PostgreSQL..."
+                    sleep 2
+                  done
 
             # Step 5: Create and set up the test database
             - name: Create and set up test database
               run: |
-                npm run db:test:create
-                npm run db:test:setup
+                  npm run db:test:create
+                  npm run db:test:setup
 
             # Step 6: Run tests
             - name: Run tests
@@ -104,6 +104,26 @@ jobs:
                   echo "OUTREACH_WEBHOOK_TOKEN=${{ secrets.OUTREACH_WEBHOOK_TOKEN }}" >> .env
                   echo "ADMIN_API_TOKEN=${{ secrets.ADMIN_API_TOKEN }}" >> .env
                   echo "TURNSTILE_SECRET_KEY=${{ secrets.TURNSTILE_SECRET_KEY }}" >> .env
+
+                  # TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+                  echo "INTERIM_BILLING_ENABLED=${{ secrets.INTERIM_BILLING_ENABLED }}" >> .env
+                  echo "INTERIM_BILLING_MODE=${{ secrets.INTERIM_BILLING_MODE }}" >> .env
+                  echo "INTERIM_BILLING_LIVE_CONFIRM=${{ secrets.INTERIM_BILLING_LIVE_CONFIRM }}" >> .env
+                  echo "INTERIM_BILLING_TIMEZONE=${{ secrets.INTERIM_BILLING_TIMEZONE }}" >> .env
+                  echo "INTERIM_BILLING_RUN_HOUR=${{ secrets.INTERIM_BILLING_RUN_HOUR }}" >> .env
+                  echo "INTERIM_BILLING_START_DATE=${{ secrets.INTERIM_BILLING_START_DATE }}" >> .env
+                  echo "INTERIM_BILLING_AUTO_RUN=${{ secrets.INTERIM_BILLING_AUTO_RUN }}" >> .env
+                  echo "INTERIM_BILLING_KELEVO_SSH_HOST=${{ secrets.INTERIM_BILLING_KELEVO_SSH_HOST }}" >> .env
+                  echo "INTERIM_BILLING_KELEVO_SSH_USER=${{ secrets.INTERIM_BILLING_KELEVO_SSH_USER }}" >> .env
+                  echo "INTERIM_BILLING_KELEVO_SSH_KEY_FILE=${{ secrets.INTERIM_BILLING_KELEVO_SSH_KEY_FILE }}" >> .env
+                  echo "INTERIM_BILLING_KELEVO_SSH_KNOWN_HOSTS_FILE=${{ secrets.INTERIM_BILLING_KELEVO_SSH_KNOWN_HOSTS_FILE }}" >> .env
+                  echo "INTERIM_BILLING_LOADS_FILE=${{ secrets.INTERIM_BILLING_LOADS_FILE }}" >> .env
+                  echo "INTERIM_BILLING_STRIPE_WEBHOOK_SECRET=${{ secrets.INTERIM_BILLING_STRIPE_WEBHOOK_SECRET }}" >> .env
+                  echo "INTERIM_BILLING_PRODUCT_ID=${{ secrets.INTERIM_BILLING_PRODUCT_ID }}" >> .env
+                  echo "INTERIM_BILLING_ADMIN_EMAIL=${{ secrets.INTERIM_BILLING_ADMIN_EMAIL }}" >> .env
+                  echo "INTERIM_BILLING_ADMIN_TOKEN=${{ secrets.INTERIM_BILLING_ADMIN_TOKEN }}" >> .env
+                  echo "STRIPE_SANDBOX_SECRET_KEY=${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}" >> .env
+                  echo "STRIPE_LIVE_SECRET_KEY=${{ secrets.STRIPE_LIVE_SECRET_KEY }}" >> .env
 
             # Step 5: Deploy to Server (Docker)
             #

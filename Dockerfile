@@ -3,8 +3,9 @@
 FROM node:22-slim
 
 # Prisma needs OpenSSL at build (engine generation) and runtime.
+# TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && apt-get install -y --no-install-recommends openssl ca-certificates openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

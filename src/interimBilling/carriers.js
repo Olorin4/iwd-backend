@@ -10,7 +10,7 @@ const validText = (value, max) =>
     typeof value === "string" &&
     value.trim().length > 0 &&
     value.length <= max &&
-    !/[\x00-\x1f\x7f]/.test(value);
+    ![...value].some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127);
 const validIds = (ids) =>
     Array.isArray(ids) &&
     ids.length <= 50 &&
