@@ -18,6 +18,9 @@ The [production rollout proposal](ops/release/PRODUCTION-ROLLOUT.md) records
 current readiness, exact configuration and webhook settings, and the separately
 approved deployment/activation steps.
 
+The [Stripe readiness review](ops/release/STRIPE-READINESS.md) distinguishes
+verified API access from Dashboard permission and retry confirmations.
+
 ## Configuration
 
 Enable explicitly with `INTERIM_BILLING_ENABLED=true`,

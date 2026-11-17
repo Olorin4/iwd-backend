@@ -98,16 +98,17 @@ key as the current local Hetzner admin connection**, fingerprint:
 SHA256:STVGaXb7dYMyTMlj4yMHUiEw3P0UIbF8qrbbOUeKs+Y
 ```
 
-That old public authorization remains in place pending the owner's answer about
-replacing local admin access too. Do not report full revocation as complete.
+The owner subsequently instructed us to leave admin-key replacement aside and
+proceed with Stripe readiness. That old public authorization remains in place;
+full revocation is deferred and is not a prerequisite for the Stripe checks.
 An unrelated pre-existing deployment public key was preserved. Removal must
 match the exposed fingerprint, never delete the whole authorized-keys file or
 revoke the other deployment key.
 
 ## Next approval boundary
 
-Billing remains disabled. Before enabling manual live operation, resolve the
-admin-key replacement, review restricted-key permissions and Dashboard settings,
+Billing remains disabled. Before enabling manual live operation, review
+restricted-key permissions and Dashboard settings,
 and use a separately approved deployment to set `ENABLED=true` while keeping
 `AUTO_RUN=false`. Real carrier setup emails require authorization to contact that
 carrier; each run's exact invoice count and total must be approved before any
