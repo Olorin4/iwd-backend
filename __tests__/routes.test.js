@@ -44,7 +44,7 @@ jest.mock("../src/attribution", () => {
 
 const { prisma } = require("../src/prismaClient");
 const { attributionFields } = require("../src/attribution");
-const { emailClient } = require("../src/emailService");
+const { emailClient, emailAdmin } = require("../src/emailService");
 const { recordConversion } = require("../src/conversions");
 const router = require("../src/router").default;
 
@@ -470,6 +470,97 @@ describe("routes", () => {
             const res = await post({ email: "not-an-email" });
             expect(res.status).toBe(400);
             expect(recordConversion).not.toHaveBeenCalled();
+        });
+    });
+    describe("form emails and logging", () => {
+        const post = (path, body) =>
+            fetch(base + path, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    turnstileToken: "valid-token",
+                    ...body,
+                }),
+            });
+        const signUp = {
+            firstName: "Seán",
+            lastName: "O'Brien",
+            email: "carrier@example.com",
+            phone: "+1 817 555 0100",
+            fleetSize: "2",
+            trailerType: "Dry van & reefer",
+            plan: "Essential",
+        };
+
+        it("stores sign-up values as typed, not HTML-escaped", async () => {
+            prisma.signUpForm.create.mockResolvedValue({ id: 7 });
+            const res = await post("/sign-up-forms", signUp);
+            expect(res.status).toBe(200);
+            const { data } = prisma.signUpForm.create.mock.calls[0][0];
+            expect(data.last_name).toBe("O'Brien");
+            expect(data.trailer_type).toBe("Dry van & reefer");
+        });
+
+        it("lets the owner reply to the carrier from the sign-up alert", async () => {
+            prisma.signUpForm.create.mockResolvedValue({ id: 7 });
+            await post("/sign-up-forms", signUp);
+            await new Promise((r) => setImmediate(r));
+            expect(emailAdmin).toHaveBeenCalledTimes(1);
+            const [, text, options] = emailAdmin.mock.calls[0];
+            expect(options).toEqual({ replyTo: "carrier@example.com" });
+            expect(text).toContain("O'Brien");
+            expect(text).not.toContain("<pre>");
+        });
+
+        it("stores contact messages as typed and lets the owner reply", async () => {
+            prisma.contactSubmission.create.mockResolvedValue({ id: 3 });
+            await post("/contact-forms", {
+                email: "carrier@example.com",
+                message: "Rates for 2 trucks? I'm in TX & OK",
+            });
+            await new Promise((r) => setImmediate(r));
+            const { data } = prisma.contactSubmission.create.mock.calls[0][0];
+            expect(data.message).toBe("Rates for 2 trucks? I'm in TX & OK");
+            const [, , options] = emailAdmin.mock.calls[0];
+            expect(options).toEqual({ replyTo: "carrier@example.com" });
+        });
+
+        it("ends carrier emails without a second sign-off before the signature", async () => {
+            prisma.signUpForm.create.mockResolvedValue({ id: 7 });
+            prisma.contactSubmission.create.mockResolvedValue({ id: 3 });
+            prisma.newsletterSubscriber.create.mockResolvedValue({ id: 1 });
+            await post("/sign-up-forms", signUp);
+            await post("/contact-forms", {
+                email: "carrier@example.com",
+                message: "hi",
+            });
+            await post("/newsletter", { email: "carrier@example.com" });
+            await new Promise((r) => setImmediate(r));
+            expect(emailClient).toHaveBeenCalledTimes(3);
+            for (const [, , text] of emailClient.mock.calls) {
+                expect(text).not.toMatch(
+                    /All the best|Iron Wing Dispatching Team/
+                );
+            }
+        });
+
+        it("never logs the form contents", async () => {
+            prisma.signUpForm.create.mockResolvedValue({ id: 7 });
+            prisma.contactSubmission.create.mockResolvedValue({ id: 3 });
+            await post("/sign-up-forms", signUp);
+            await post("/contact-forms", {
+                email: "carrier@example.com",
+                message: "private message",
+            });
+            await new Promise((r) => setImmediate(r));
+            const logged = JSON.stringify([
+                console.log.mock.calls,
+                console.warn.mock.calls,
+                console.error.mock.calls,
+            ]);
+            expect(logged).not.toContain("carrier@example.com");
+            expect(logged).not.toContain("O'Brien");
+            expect(logged).not.toContain("private message");
         });
     });
 });

@@ -2,6 +2,7 @@ import { body, validationResult } from "express-validator";
 import { prisma } from "./prismaClient.js";
 import { emailClient } from "./emailService.js";
 import { attributionOf, recordAfterResponse } from "./formConversions.js";
+import { logger } from "./logging.js";
 
 const validateNewsletter = [
     body("email")
@@ -43,7 +44,10 @@ async function newsletterSignup(req, res) {
             // endpoint cannot be used to discover who is on the list.
             isNewSubscriber = false;
         } else {
-            console.error("Database Error (newsletterSignup):", error);
+            logger.error("Newsletter signup could not be saved", {
+                name: error?.name,
+                code: error?.code,
+            });
             return res.status(500).json({ error: "Internal Server Error" });
         }
     }
@@ -66,10 +70,13 @@ async function newsletterSignup(req, res) {
         await emailClient(
             email,
             "Welcome to Iron Wing Dispatching Trucking Tips",
-            `Hello,\n\nThank you for subscribing to trucking tips and updates from Iron Wing Dispatching. To unsubscribe at any time, reply to this email with the word "unsubscribe".\n\nAll the best,\nIron Wing Dispatching Team`
+            `Hello,\n\nThank you for subscribing to trucking tips and updates from Iron Wing Dispatching. To unsubscribe at any time, reply to this email with the word "unsubscribe".`
         );
     } catch (emailError) {
-        console.error("Email Error (newsletterSignup):", emailError);
+        logger.error("Newsletter welcome email failed", {
+            name: emailError?.name,
+            code: emailError?.code,
+        });
     }
 }
 

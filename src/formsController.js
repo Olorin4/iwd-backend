@@ -3,13 +3,14 @@ import { prisma } from "./prismaClient.js";
 import { emailClient, emailAdmin } from "./emailService.js";
 import { body, validationResult } from "express-validator";
 import { attributionOf, recordAfterResponse } from "./formConversions.js";
+import { logger } from "./logging.js";
 
 dotenv.config();
 
-const logRequestBody = (req, res, next) => {
-    console.log("Request body before validation:", req.body);
-    next();
-};
+// Form contents are personal data, so logs carry record ids, field names and
+// error codes only.
+const fieldsOf = (errors) => errors.array().map((e) => e.path ?? e.param);
+const errorInfo = (error) => ({ name: error?.name, code: error?.code });
 
 const validateSignUpForm = [
     body("firstName").trim().notEmpty().withMessage("First name is required."),
@@ -29,30 +30,32 @@ const validateContactForm = [
     body("message").trim().notEmpty().withMessage("Message is required."),
 ];
 
+// Values are stored as typed. Prisma parameterises every query, and anything
+// shown as HTML (the emails) is escaped when it is built.
 const sanitizeSignUpForm = [
-    body("firstName").trim().escape(),
-    body("lastName").trim().escape(),
+    body("firstName").trim(),
+    body("lastName").trim(),
     body("email").normalizeEmail(),
-    body("phone").trim().escape(),
-    body("fleetSize").trim().escape(),
-    body("trailerType").trim().escape(),
-    body("plan").trim().escape(),
+    body("phone").trim(),
+    body("fleetSize").trim(),
+    body("trailerType").trim(),
+    body("plan").trim(),
 ];
 
 const sanitizeContactForm = [
     body("email").normalizeEmail(),
-    body("phone").trim().escape(),
-    body("message").trim().escape(),
+    body("phone").trim(),
+    body("message").trim(),
 ];
 
 async function signUpForm(req, res) {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-        console.error("Validation errors:", errors.array());
+        logger.warn("Sign-up form failed validation", {
+            fields: fieldsOf(errors),
+        });
         return res.status(400).json({ errors: errors.array() });
     }
-
-    console.log("📩 Received Form Data:", req.body);
 
     const { firstName, lastName, email, phone, fleetSize, trailerType, plan } =
         req.body;
@@ -65,7 +68,7 @@ async function signUpForm(req, res) {
         !trailerType ||
         !plan
     ) {
-        console.warn("⚠️ Missing required fields:", req.body);
+        logger.warn("Sign-up form is missing required fields");
         return res.status(400).json({ error: "All fields are required." });
     }
 
@@ -86,7 +89,7 @@ async function signUpForm(req, res) {
                 posthog_distinct_id: attribution.posthogDistinctId,
             },
         });
-        console.log("✅ Inserted Sign-Up Form ID:", result.id);
+        logger.info("Sign-up form saved", { id: result.id });
 
         res.status(200).json({
             message: "Form submitted successfully!",
@@ -106,34 +109,35 @@ async function signUpForm(req, res) {
             },
         });
     } catch (error) {
-        console.error("❌ Prisma Error:", error);
-        return res.status(500).json({ error: error.message });
+        logger.error("Sign-up form could not be saved", errorInfo(error));
+        return res.status(500).json({ error: "Internal Server Error" });
     }
 
     try {
         await emailClient(
             email,
             "Thank You for Signing Up!",
-            `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.\n\nAll the best,\nIron Wing Dispatching Team`
+            `Hello ${firstName},\n\nThank you for signing up with Iron Wing Dispatching. We will contact you shortly.`
         );
 
         await emailAdmin(
             "🚛 New Sign-Up Form Received",
-            `<pre>
-        📩 A new sign-up form has been received!
-
-        👤 Name: ${firstName} ${lastName}
-        📧 Email: ${email}
-        📞 Phone: ${phone}
-        🚛 Fleet Size: ${fleetSize}
-        🛻 Trailer Type: ${trailerType}
-        📌 Plan Selected: ${plan}
-
-        🕒 Submitted At: ${new Date().toLocaleString()}
-        </pre>`
+            [
+                "A new sign-up form has been received. Reply to this email to answer the carrier.",
+                "",
+                `Name: ${firstName} ${lastName}`,
+                `Email: ${email}`,
+                `Phone: ${phone || "(none)"}`,
+                `Fleet size: ${fleetSize}`,
+                `Trailer type: ${trailerType}`,
+                `Plan: ${plan}`,
+                "",
+                `Submitted at: ${new Date().toISOString()}`,
+            ].join("\n"),
+            { replyTo: email }
         );
     } catch (emailError) {
-        console.error("❌ Email Error:", emailError);
+        logger.error("Sign-up emails failed", errorInfo(emailError));
     }
 }
 
@@ -144,8 +148,6 @@ async function contactForm(req, res) {
     }
 
     const { email, phone, message } = req.body;
-
-    console.log("📩 Contact Form Submission:", req.body);
 
     const { identityEmail, attribution } = attributionOf(res);
 
@@ -160,7 +162,7 @@ async function contactForm(req, res) {
                 posthog_distinct_id: attribution.posthogDistinctId,
             },
         });
-        console.log("✅ Contact Form Inserted ID:", result.id);
+        logger.info("Contact form saved", { id: result.id });
         res.status(200).json({
             message: "Contact form submitted successfully!",
             id: result.id,
@@ -174,31 +176,33 @@ async function contactForm(req, res) {
             properties: { has_phone: Boolean(phone) },
         });
     } catch (error) {
-        console.error("❌ Prisma Error:", error);
-        res.status(500).json({ error: error.message });
+        logger.error("Contact form could not be saved", errorInfo(error));
+        res.status(500).json({ error: "Internal Server Error" });
     }
 
     try {
         await emailClient(
             email,
             "Thank You for contacting us!",
-            `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.\n\nAll the best,\nIron Wing Dispatching Team`
+            `Hello,\n\nThank you for contacting Iron Wing Dispatching. We will reach out soon.`
         );
 
         await emailAdmin(
             "🚛 New Contact Form submission",
-            `<pre>
-        📩 A visitor submitted a question!
-
-        📧 Email: ${email}
-        📞 Phone: ${phone}
-        📝 Message: ${message}
-
-        🕒 Submitted At: ${new Date().toLocaleString()} 
-        </pre>`
+            [
+                "A visitor submitted a question. Reply to this email to answer them.",
+                "",
+                `Email: ${email}`,
+                `Phone: ${phone || "(none)"}`,
+                "Message:",
+                message,
+                "",
+                `Submitted at: ${new Date().toISOString()}`,
+            ].join("\n"),
+            { replyTo: email }
         );
     } catch (emailError) {
-        console.error("❌ Email Error:", emailError);
+        logger.error("Contact form emails failed", errorInfo(emailError));
     }
 }
 
@@ -208,10 +212,10 @@ async function getAllSignUpForms(req, res) {
             take: 50,
             skip: 0,
         });
-        console.log(`SignUpForms Retrieved: ${result.length} records`);
+        logger.info("Sign-up forms listed", { count: result.length });
         res.status(200).json(result);
     } catch (error) {
-        console.error("Database Error (getAllSignUpForms):", error);
+        logger.error("Sign-up forms could not be listed", errorInfo(error));
         res.status(500).json({ error: "Internal Server Error" });
     }
 }
@@ -222,16 +226,15 @@ async function getAllContactForms(req, res) {
             take: 50,
             skip: 0,
         });
-        console.log(`ContactForms Retrieved: ${result.length} records`);
+        logger.info("Contact forms listed", { count: result.length });
         res.status(200).json(result);
     } catch (error) {
-        console.error("Database Error (getAllContactForms):", error);
+        logger.error("Contact forms could not be listed", errorInfo(error));
         res.status(500).json({ error: "Internal Server Error" });
     }
 }
 
 export {
-    logRequestBody,
     validateSignUpForm,
     validateContactForm,
     sanitizeSignUpForm,

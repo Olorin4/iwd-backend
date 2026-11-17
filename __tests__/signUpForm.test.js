@@ -192,7 +192,9 @@ describe("signUpForm", () => {
         expect(validationResult).toHaveBeenCalledWith(req);
         expect(prisma.signUpForm.create).toHaveBeenCalled();
         expect(res.status).toHaveBeenCalledWith(500);
-        expect(res.json).toHaveBeenCalledWith({ error: "Database error" });
+        expect(res.json).toHaveBeenCalledWith({
+            error: "Internal Server Error",
+        });
         expect(recordConversion).not.toHaveBeenCalled();
     });
 });

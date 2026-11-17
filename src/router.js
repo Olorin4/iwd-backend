@@ -8,7 +8,6 @@ import {
     sanitizeSignUpForm,
     validateContactForm,
     sanitizeContactForm,
-    logRequestBody,
 } from "./formsController.js";
 import {
     validateNewsletter,
@@ -34,7 +33,6 @@ router
     .post(
         requireTurnstile,
         attributionFields,
-        logRequestBody,
         validateSignUpForm,
         sanitizeSignUpForm,
         signUpForm
