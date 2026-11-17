@@ -81,7 +81,15 @@ it("builds drafts, lists held reasons, reports undated cancellations and awaits 
         held: [{ reason: "needs_linehaul", allInRateCents: 280000 }],
     });
     expect(deps.store.runs[0].status).toBe("awaiting_approval");
-    expect(deps.sendEmail.mock.calls[0][0].text).toContain("needs_linehaul");
+    const email = deps.sendEmail.mock.calls[0][0];
+    expect(email.subject).toContain("Action required:");
+    expect(email.text).toContain("Week ending: Sunday, November 15, 2026");
+    expect(email.text).toContain("Total to approve: $120.00 USD");
+    expect(email.text).toContain("Missing linehaul");
+    expect(email.text).toContain("All-in rate (reference only): $2,800.00");
+    expect(email.text).toContain("Undated cancellations excluded: 1");
+    expect(email.text).toContain("invoice count 1 and total 12000 cents");
+    expect(email.text).not.toContain('"totalCents"');
     expect(deps.stripe.addInvoiceItem.mock.calls[0][0].description).toBe(
         "Load 101, delivered Thu Nov 12: linehaul $2,400.00 x 5% = $120.00"
     );

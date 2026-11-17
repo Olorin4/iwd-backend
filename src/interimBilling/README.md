@@ -81,6 +81,14 @@ module has not yet been disposed of.
 Stripe receipts can accompany module statement emails. Correct statements,
 refunds and credits in Stripe Dashboard; questions are due within 14 days.
 
+## Email messages
+
+[Email previews](EMAIL-PREVIEWS.md) show the current admin and carrier messages.
+Approval summaries show carrier totals, held-load actions and exact approval
+amounts in readable text. Admin alerts are labeled separately from carrier
+statements. Draft refreshes send updated summaries; existing notification
+recovery remains at least once.
+
 ## Verification
 
 Use Node 22.20.0, `npm ci`, `npx prisma generate`, `npm test`,

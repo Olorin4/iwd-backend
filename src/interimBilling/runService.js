@@ -1,4 +1,5 @@
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+import { approvalEmail } from "./emails.js";
 import { classifyLoad } from "./classify.js";
 import { toCents, feeCents, describeLine, MIN_CHARGE_CENTS } from "./money.js";
 import { runEndUtc } from "./schedule.js";
@@ -73,8 +74,11 @@ async function sendSummary(run, summary, deps) {
     await deps.sendEmail({
         from: SUPPORT_EMAIL,
         to: deps.config.adminEmail,
-        subject: `Dispatch billing run ${run.id} awaiting approval`,
-        text: JSON.stringify(summary, null, 2),
+        ...approvalEmail(
+            summary,
+            await deps.store.listCarriers(),
+            deps.config.timezone
+        ),
     });
     await deps.store.transitionRun(
         run.id,

@@ -155,3 +155,21 @@ A fixed default price would not encode this per-load calculation. The subsequent
 [LIVE-AUDIT.md](LIVE-AUDIT.md) confirms the correct live account, active Dispatch
 product, linehaul description, empty fixed-price catalog, active card/ACH
 capabilities and matching public support contacts. No live settings were changed.
+
+## Readable email follow-up
+
+Replaced the JSON approval email with the billing week/cutoff, named carrier
+amounts, plain-language held-load actions, undated cancellation count and exact
+approval count/total. All-in rates remain clearly labeled as reference only.
+Admin failure/return/dispute alerts are distinct from carrier setup, statement
+and unsuccessful-payment messages. Statement emails show the total and explain
+that bank processing is not a payment confirmation.
+
+[EMAIL-PREVIEWS.md](EMAIL-PREVIEWS.md) contains eight synthetic examples generated
+locally from the production formatters, with placeholder links and no email sends.
+The existing approval-summary regression first failed against the JSON version,
+then passed against the readable version. Full suite: 302/302 in 30 suites;
+focused follow-up checks for rate context and disposal banners passed, as did
+module ESLint and whitespace checks. The existing Jest worker teardown warning
+was still reported; the test command exited successfully. No billing triggers,
+retry policy, notification frequency, push or deployment changed.

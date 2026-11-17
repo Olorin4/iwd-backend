@@ -1,4 +1,5 @@
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+import { setupEmail } from "./emails.js";
 export class BillingInputError extends Error {
     constructor(code, status = 400) {
         super(code);
@@ -96,10 +97,7 @@ export async function sendSetupLink(carrierId, role, deps) {
         successUrl: "https://iron-wing-dispatching.com/?billing=setup-complete",
         cancelUrl: "https://iron-wing-dispatching.com/?billing=setup-cancelled",
     });
-    await deps.emailClient(
-        carrier.email,
-        "Set up dispatch fee payments",
-        `Save your ${role} payment method securely with Stripe: ${url}\nNothing is charged during setup.`
-    );
+    const message = setupEmail(role, url);
+    await deps.emailClient(carrier.email, message.subject, message.text);
     return { url };
 }

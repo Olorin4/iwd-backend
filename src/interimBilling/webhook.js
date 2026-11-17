@@ -1,4 +1,5 @@
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+import { disputeEmail } from "./emails.js";
 import { applyPayOutcomeLocked } from "./charger.js";
 import { SUPPORT_EMAIL } from "./stripeClient.js";
 const idOf = (value) => (typeof value === "string" ? value : value?.id);
@@ -121,8 +122,7 @@ export async function handleEvent(event, deps) {
                 await deps.sendEmail({
                     from: SUPPORT_EMAIL,
                     to: deps.config.adminEmail,
-                    subject: "Dispatch payment dispute",
-                    text: `Dispute ${dispute.id}; review in Stripe. No automatic retry.`,
+                    ...disputeEmail(dispute.id),
                 });
             }
         })

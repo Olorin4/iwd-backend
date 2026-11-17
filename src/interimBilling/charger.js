@@ -1,4 +1,5 @@
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+import { failureEmail, unsuccessfulEmail, statementEmail } from "./emails.js";
 import { nextStep } from "./retryPolicy.js";
 import { BillingInputError } from "./carriers.js";
 import { SUPPORT_EMAIL, assertInvoiceMatches } from "./stripeClient.js";
@@ -7,15 +8,12 @@ async function alertFailure(invoice, carrier, deps, code) {
     await deps.sendEmail({
         from: SUPPORT_EMAIL,
         to: deps.config.adminEmail,
-        subject: `Dispatch invoice ${invoice.id}: ${code}`,
-        text: `Invoice ${invoice.id}: ${code}. Review before pausing new bookings.`,
+        ...failureEmail(invoice, code),
     });
-    if (code === "payment_failed")
-        await deps.emailClient(
-            carrier.email,
-            "Dispatch payment unsuccessful",
-            `Payment for your dispatch statement remains unpaid. Please contact ${SUPPORT_EMAIL}. Statement: ${invoice.hosted_invoice_url ?? "contact dispatch"}`
-        );
+    if (code === "payment_failed") {
+        const message = unsuccessfulEmail(invoice);
+        await deps.emailClient(carrier.email, message.subject, message.text);
+    }
 }
 async function notifyFailure(invoice, carrier, deps) {
     await alertFailure(invoice, carrier, deps, "payment_failed");
@@ -240,10 +238,11 @@ export async function chargeApprovedRun(id, deps) {
                     "finalizing",
                     { hosted_invoice_url: statement.hostedInvoiceUrl }
                 );
+                const message = statementEmail(invoice, statement);
                 await deps.emailClient(
                     carrier.email,
-                    "Your weekly dispatch statement",
-                    `Your itemised statement: ${statement.hostedInvoiceUrl}\nPDF: ${statement.invoicePdf}\nQuestions within 14 days: ${SUPPORT_EMAIL}. We will charge your primary payment method.`
+                    message.subject,
+                    message.text
                 );
                 await attempt(invoice.id, "primary", now, deps);
             } else if (invoice.status === "paying")
