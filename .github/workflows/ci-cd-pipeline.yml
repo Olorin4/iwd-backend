@@ -57,9 +57,12 @@ jobs:
                   npm run db:test:create
                   npm run db:test:setup
 
-            # Step 6: Run tests
+            # Step 6: Generate the client explicitly before importing it in tests.
+            # Prisma 7 migrate deploy does not generate the client.
             - name: Run tests
-              run: npm test
+              run: |
+                  npx prisma generate
+                  npm test
 
     build:
         if: github.actor == 'Olorin4'
