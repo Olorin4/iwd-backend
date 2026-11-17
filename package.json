@@ -39,6 +39,7 @@
         "pg": "^8.23.1",
         "posthog-node": "^5.63.1",
         "prisma": "^7.10.1",
+        "stripe": "^23.1.0",
         "winston": "^3.13.0"
     },
     "devDependencies": {
