@@ -124,8 +124,9 @@ See [INSTALLATION.md](ops/kelevo-prod/INSTALLATION.md). This was an additive
 reader installation, with no application deployment, live billing activation
 or Kelevo restart. Earlier unapplied-status entries are historical.
 
-Live Stripe catalog inspection remains pending a Stripe connection in this
-agent: only the sandbox key is available locally. The sandbox Dispatch product
+At the production-reader follow-up, live catalog inspection was pending a live
+credential. That read-only inspection is now complete; see
+[LIVE-AUDIT.md](LIVE-AUDIT.md). The sandbox Dispatch product
 is active with no default price and no catalog prices; the module instead
 supplies per-load calculated fee amounts through inline price data. No live
 product/account settings were changed.
@@ -140,6 +141,7 @@ The absence of a fixed catalog price is intentional for this implementation:
 our money helpers, and the resulting cents are supplied on each invoice item.
 For example $2,400 at 5% becomes a $120 item. Stripe supports inline
 [`price_data`](https://docs.stripe.com/api/invoiceitems/create) for this purpose.
-A fixed default price would not encode this per-load calculation. Live product
-activation, metadata, descriptions and account-level payment settings still
-need a read-only live inspection after the Stripe connection is available.
+A fixed default price would not encode this per-load calculation. The subsequent
+[LIVE-AUDIT.md](LIVE-AUDIT.md) confirms the correct live account, active Dispatch
+product, linehaul description, empty fixed-price catalog, active card/ACH
+capabilities and matching public support contacts. No live settings were changed.
