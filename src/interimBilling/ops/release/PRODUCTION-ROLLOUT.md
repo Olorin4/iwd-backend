@@ -2,8 +2,9 @@
 
 # Production rollout proposal — 2026-11-17
 
-Status: prepared for owner review; **not applied**. This document authorizes
-nothing by itself. The owner selected **2026-11-23** as the initial billing start
+Status: the owner approved the disabled release, which is now deployed. See the
+[execution record](DEPLOYMENT-2026-11-17.md) for applied changes and remaining
+admin-key cleanup. Activation and collection remain unapproved. The owner selected **2026-11-23** as the initial billing start
 date. Initial operation uses manually created runs, with automatic Friday run
 creation off and explicit approval of every invoice count and total.
 

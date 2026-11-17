@@ -4,7 +4,9 @@
 
 Temporary billing for Iron Wing's first carriers. Delete this module when
 KelevoTMS dispatching-agency billing replaces it: [DISPOSE.md](DISPOSE.md).
-The module defaults off. This branch is sandbox-only and is not deployed.
+The code is deployed with billing disabled and automatic run creation off.
+Live activation and collection require separate approval; see the
+[deployment record](ops/release/DEPLOYMENT-2026-11-17.md).
 
 Binding [design](../../docs/superpowers/specs/2026-11-17-interim-weekly-billing-design.md)
 and [plan](../../docs/superpowers/plans/2026-11-17-interim-weekly-billing.md).
@@ -36,8 +38,10 @@ Set all new CI secrets before any future approved deploy: the existing workflow
 rebuilds `.env`. Production SSH artifacts under [ops](ops/kelevo-prod/README.md)
 were subsequently approved, installed and verified; see the
 [installation record](ops/kelevo-prod/INSTALLATION.md).
-The application branch is still local and disabled. No push, merge, application
-deployment or live charge was performed.
+The branch was subsequently merged, pushed and deployed with billing disabled.
+The live webhook and CI configuration are installed; no live carrier or charge
+was created. The deployment record lists verification and remaining activation
+checks.
 
 ## API and operation
 
