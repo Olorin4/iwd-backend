@@ -118,16 +118,20 @@ jobs:
                   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_AWS_SERVER_KEY }}
                   SERVER_IP: ${{ secrets.SERVER_IP }}
               run: |
-                  echo "$SSH_PRIVATE_KEY" > private_key.pem
-                  chmod 600 private_key.pem
+                  # The key lives outside the checkout so it is never copied
+                  # to the server or into the Docker image with the code.
+                  KEY="$RUNNER_TEMP/deploy_key"
+                  trap 'rm -f "$KEY"' EXIT
+                  install -m 600 /dev/null "$KEY"
+                  echo "$SSH_PRIVATE_KEY" > "$KEY"
 
                   echo "🚀 Transferring build context to the server using rsync..."
-                  rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' \
-                    -e "ssh -i private_key.pem -o StrictHostKeyChecking=no" ./ \
+                  rsync -avz --exclude='node_modules' --exclude='.git' --exclude='.github' --exclude='logs' --exclude='*.pem' \
+                    -e "ssh -i $KEY -o StrictHostKeyChecking=no" ./ \
                     nick-kalas@$SERVER_IP:/home/nick-kalas/apps/iwd-backend
 
                   echo "🚀 Rebuilding and restarting the Docker container..."
-                  ssh -i private_key.pem -o StrictHostKeyChecking=no nick-kalas@$SERVER_IP << 'EOF'
+                  ssh -i "$KEY" -o StrictHostKeyChecking=no nick-kalas@$SERVER_IP << 'EOF'
                     set -e
                     cd /home/nick-kalas/apps/iwd-backend
 

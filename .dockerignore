@@ -8,3 +8,6 @@ logs
 .github
 __tests__
 *.code-workspace
+# Keys and certificates never go into the image.
+*.pem
+*.key
