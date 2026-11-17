@@ -12,7 +12,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Generate the Prisma client for this platform.
+# Generate the Prisma client for this platform (Prisma 7 reads prisma.config.js).
+COPY prisma.config.js ./
 COPY prisma ./prisma
 RUN npx prisma generate
 
