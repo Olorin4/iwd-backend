@@ -8,3 +8,7 @@ logs
 .github
 __tests__
 *.code-workspace
+**/*.pem
+**/*.key
+**/.env
+**/.env.*
