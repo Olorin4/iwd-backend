@@ -263,3 +263,19 @@ it("serializes billing work across database sessions and releases after failure"
         "released"
     );
 });
+
+it("rolls event recording and its effect back together", async () => {
+    const eventId = `evt_transaction_${Date.now()}`;
+    await expect(
+        store.withTransaction(async () => {
+            await store.recordStripeEvent(eventId, "test");
+            throw new Error("rollback");
+        })
+    ).rejects.toThrow("rollback");
+    await store.withTransaction(async () => {
+        expect(await store.recordStripeEvent(eventId, "test")).toBe(true);
+    });
+    await store.withTransaction(async () => {
+        expect(await store.recordStripeEvent(eventId, "test")).toBe(false);
+    });
+});

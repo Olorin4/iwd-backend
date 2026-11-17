@@ -84,7 +84,8 @@ export async function applyPayOutcomeLocked(id, outcome, now, deps) {
         next_attempt_at: next.at,
         tried_backup_this_round: false,
     });
-    if (next.at <= now) await attempt(id, next.method, now, deps);
+    if (next.at <= now && !deps.deferImmediateRetry)
+        await attempt(id, next.method, now, deps);
 }
 export async function applyPayOutcome(id, outcome, now, deps) {
     return deps.store.withBillingLock(() =>

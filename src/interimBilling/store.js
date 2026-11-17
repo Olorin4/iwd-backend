@@ -5,6 +5,14 @@
 // insert, never read-then-write.
 
 import { prisma } from "../prismaClient.js";
+import { AsyncLocalStorage } from "node:async_hooks";
+const transactionContext = new AsyncLocalStorage();
+const database = () => transactionContext.getStore() ?? prisma;
+export function withTransaction(fn) {
+    return prisma.$transaction((tx) => transactionContext.run(tx, fn), {
+        timeout: 30000,
+    });
+}
 
 const UNIQUE_VIOLATION = "P2002";
 
@@ -14,18 +22,18 @@ const isUnique = (error) => error?.code === UNIQUE_VIOLATION;
 
 /** Creates the run for `runEnd` once; later and concurrent calls get the same row. */
 export async function claimRun(runEnd) {
-    const existing = await prisma.interimBillingRun.findUnique({
+    const existing = await database().interimBillingRun.findUnique({
         where: { run_end: runEnd },
     });
     if (existing) return { run: existing, created: false };
     try {
-        const run = await prisma.interimBillingRun.create({
+        const run = await database().interimBillingRun.create({
             data: { run_end: runEnd },
         });
         return { run, created: true };
     } catch (error) {
         if (!isUnique(error)) throw error;
-        const run = await prisma.interimBillingRun.findUnique({
+        const run = await database().interimBillingRun.findUnique({
             where: { run_end: runEnd },
         });
         return { run, created: false };
@@ -33,16 +41,18 @@ export async function claimRun(runEnd) {
 }
 
 export function getRun(id) {
-    return prisma.interimBillingRun.findUnique({ where: { id } });
+    return database().interimBillingRun.findUnique({ where: { id } });
 }
 
 export function getRunByEnd(runEnd) {
-    return prisma.interimBillingRun.findUnique({ where: { run_end: runEnd } });
+    return database().interimBillingRun.findUnique({
+        where: { run_end: runEnd },
+    });
 }
 
 /** Moves a run between statuses only if it is still in one of `fromStatuses`. */
 export async function transitionRun(runId, fromStatuses, toStatus, data = {}) {
-    const result = await prisma.interimBillingRun.updateMany({
+    const result = await database().interimBillingRun.updateMany({
         where: { id: runId, status: { in: fromStatuses } },
         data: { ...data, status: toStatus },
     });
@@ -54,7 +64,7 @@ export async function transitionRun(runId, fromStatuses, toStatus, data = {}) {
 /** Inserts lines whose (kelevo_load_id, kind) is new; returns how many were inserted. */
 export async function insertLinesIfAbsent(lines) {
     if (lines.length === 0) return 0;
-    const result = await prisma.interimBillingLine.createMany({
+    const result = await database().interimBillingLine.createMany({
         data: lines,
         skipDuplicates: true,
     });
@@ -62,12 +72,12 @@ export async function insertLinesIfAbsent(lines) {
 }
 
 export function getLine(id) {
-    return prisma.interimBillingLine.findUnique({ where: { id } });
+    return database().interimBillingLine.findUnique({ where: { id } });
 }
 
 /** Updates a line only if it is still in one of `fromStatuses`. */
 export async function updateLineIf(id, fromStatuses, patch) {
-    const result = await prisma.interimBillingLine.updateMany({
+    const result = await database().interimBillingLine.updateMany({
         where: { id, status: { in: fromStatuses } },
         data: patch,
     });
@@ -75,14 +85,14 @@ export async function updateLineIf(id, fromStatuses, patch) {
 }
 
 export function listLinesForRun(runId) {
-    return prisma.interimBillingLine.findMany({
+    return database().interimBillingLine.findMany({
         where: { run_id: runId },
         orderBy: { id: "asc" },
     });
 }
 
 export function listReadyLinesWithoutInvoice() {
-    return prisma.interimBillingLine.findMany({
+    return database().interimBillingLine.findMany({
         where: { status: "ready", invoice_id: null },
         orderBy: { id: "asc" },
     });
@@ -95,28 +105,30 @@ export async function createInvoiceRow(data) {
     const where = {
         run_id_carrier_id: { run_id: data.run_id, carrier_id: data.carrier_id },
     };
-    const existing = await prisma.interimBillingInvoice.findUnique({ where });
+    const existing = await database().interimBillingInvoice.findUnique({
+        where,
+    });
     if (existing) return existing;
     try {
-        return await prisma.interimBillingInvoice.create({ data });
+        return await database().interimBillingInvoice.create({ data });
     } catch (error) {
         if (!isUnique(error)) throw error;
-        return prisma.interimBillingInvoice.findUnique({ where });
+        return database().interimBillingInvoice.findUnique({ where });
     }
 }
 
 export function getInvoice(id) {
-    return prisma.interimBillingInvoice.findUnique({ where: { id } });
+    return database().interimBillingInvoice.findUnique({ where: { id } });
 }
 
 export function getInvoiceByStripeId(stripeInvoiceId) {
-    return prisma.interimBillingInvoice.findUnique({
+    return database().interimBillingInvoice.findUnique({
         where: { stripe_invoice_id: stripeInvoiceId },
     });
 }
 
 export function listInvoicesForRun(runId) {
-    return prisma.interimBillingInvoice.findMany({
+    return database().interimBillingInvoice.findMany({
         where: { run_id: runId },
         orderBy: { id: "asc" },
     });
@@ -124,7 +136,7 @@ export function listInvoicesForRun(runId) {
 
 /** Moves an invoice between statuses only if it is still in one of `fromStatuses`. */
 export async function transitionInvoice(id, fromStatuses, toStatus, data = {}) {
-    const result = await prisma.interimBillingInvoice.updateMany({
+    const result = await database().interimBillingInvoice.updateMany({
         where: { id, status: { in: fromStatuses } },
         data: { ...data, status: toStatus },
     });
@@ -133,7 +145,7 @@ export async function transitionInvoice(id, fromStatuses, toStatus, data = {}) {
 
 /** Invoices waiting for a scheduled retry whose time has come. */
 export function listDueRetries(now) {
-    return prisma.interimBillingInvoice.findMany({
+    return database().interimBillingInvoice.findMany({
         where: { status: "retry_scheduled", next_attempt_at: { lte: now } },
         orderBy: { next_attempt_at: "asc" },
     });
@@ -143,7 +155,7 @@ export function listDueRetries(now) {
 
 /** Creates a carrier with its driver and truck assets in one transaction. */
 export function createCarrier({ driverIds = [], truckIds = [], ...data }) {
-    return prisma.interimBillingCarrier.create({
+    return database().interimBillingCarrier.create({
         data: {
             ...data,
             assets: {
@@ -163,15 +175,17 @@ export function createCarrier({ driverIds = [], truckIds = [], ...data }) {
 }
 
 export function getCarrier(id) {
-    return prisma.interimBillingCarrier.findUnique({ where: { id } });
+    return database().interimBillingCarrier.findUnique({ where: { id } });
 }
 
 export function listCarriers() {
-    return prisma.interimBillingCarrier.findMany({ orderBy: { id: "asc" } });
+    return database().interimBillingCarrier.findMany({
+        orderBy: { id: "asc" },
+    });
 }
 
 export async function findCarrierByAsset(kind, kelevoId) {
-    const asset = await prisma.interimBillingCarrierAsset.findUnique({
+    const asset = await database().interimBillingCarrierAsset.findUnique({
         where: { kind_kelevo_id: { kind, kelevo_id: kelevoId } },
         include: { carrier: true },
     });
@@ -179,7 +193,7 @@ export async function findCarrierByAsset(kind, kelevoId) {
 }
 
 export function setStripeCustomerId(carrierId, customerId) {
-    return prisma.interimBillingCarrier.update({
+    return database().interimBillingCarrier.update({
         where: { id: carrierId },
         data: { stripe_customer_id: customerId },
     });
@@ -188,7 +202,7 @@ export function setStripeCustomerId(carrierId, customerId) {
 /** Stores a saved payment method for the carrier's "primary" or "backup" slot. */
 export function setPaymentMethod(carrierId, role, { pmId, brand, last4 }) {
     const slot = role === "primary" ? "primary" : "backup";
-    return prisma.interimBillingCarrier.update({
+    return database().interimBillingCarrier.update({
         where: { id: carrierId },
         data: {
             [`${slot}_pm_id`]: pmId,
@@ -204,27 +218,23 @@ export function setPaymentMethod(carrierId, role, { pmId, brand, last4 }) {
  * Remembers a Stripe event id. Returns false if it was already recorded.
  * Pass the transaction client as `tx` to record it with the event's effect.
  */
-export async function recordStripeEvent(eventId, type, tx = prisma) {
-    try {
-        await tx.interimBillingStripeEvent.create({
-            data: { id: eventId, type },
-        });
-        return true;
-    } catch (error) {
-        if (isUnique(error)) return false;
-        throw error;
-    }
+export async function recordStripeEvent(eventId, type, tx = database()) {
+    const result = await tx.interimBillingStripeEvent.createMany({
+        data: [{ id: eventId, type }],
+        skipDuplicates: true,
+    });
+    return result.count === 1;
 }
 
 // Small read helpers used by run construction and startup recovery.
 export function listAssets() {
-    return prisma.interimBillingCarrierAsset.findMany();
+    return database().interimBillingCarrierAsset.findMany();
 }
 export function listAllLines() {
-    return prisma.interimBillingLine.findMany({ orderBy: { id: "asc" } });
+    return database().interimBillingLine.findMany({ orderBy: { id: "asc" } });
 }
 export function listMinimumLines() {
-    return prisma.interimBillingLine.findMany({
+    return database().interimBillingLine.findMany({
         where: {
             status: "held",
             hold_reason: "below_minimum",
@@ -233,13 +243,13 @@ export function listMinimumLines() {
     });
 }
 export function listRunsByStatus(statuses) {
-    return prisma.interimBillingRun.findMany({
+    return database().interimBillingRun.findMany({
         where: { status: { in: statuses } },
         orderBy: { id: "asc" },
     });
 }
 export function updateInvoiceLines(invoiceId, status) {
-    return prisma.interimBillingLine.updateMany({
+    return database().interimBillingLine.updateMany({
         where: { invoice_id: invoiceId },
         data: { status },
     });
@@ -272,7 +282,7 @@ export async function withBillingLock(fn) {
 }
 
 export function listPayingInvoices() {
-    return prisma.interimBillingInvoice.findMany({
+    return database().interimBillingInvoice.findMany({
         where: { status: "paying" },
         orderBy: { id: "asc" },
     });
