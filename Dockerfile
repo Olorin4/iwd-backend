@@ -9,10 +9,13 @@ RUN apt-get update \
 
 WORKDIR /app
 
+# Production dependencies only (no jest/babel/eslint/webpack). The Prisma CLI
+# is a regular dependency because the CMD runs `prisma migrate deploy`.
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --omit=dev && npm cache clean --force
 
-# Generate the Prisma client for this platform.
+# Generate the Prisma client for this platform (Prisma 7 reads prisma.config.js).
+COPY prisma.config.js ./
 COPY prisma ./prisma
 RUN npx prisma generate
 

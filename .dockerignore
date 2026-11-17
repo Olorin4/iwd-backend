@@ -8,6 +8,8 @@ logs
 .github
 __tests__
 *.code-workspace
-# Keys and certificates never go into the image.
-*.pem
-*.key
+# Keys, certificates and env files never go into the image, at any depth.
+**/*.pem
+**/*.key
+**/.env
+**/.env.*
