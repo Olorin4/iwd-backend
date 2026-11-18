@@ -266,12 +266,10 @@ test("a large photo reaches the reader as a bounded JPEG; the stored original is
         .toBuffer();
     expect(original.length).toBeGreaterThan(5 * 1024 * 1024);
     const copy = Buffer.from(original);
-    const parse = jest
-        .fn()
-        .mockResolvedValue({
-            stop_reason: "end_turn",
-            parsed_output: { document_type_matches: true },
-        });
+    const parse = jest.fn().mockResolvedValue({
+        stop_reason: "end_turn",
+        parsed_output: { document_type_matches: true },
+    });
     await extractDocument(
         { client: { messages: { parse } }, model: "fake" },
         "INSURANCE_COI",
@@ -293,12 +291,10 @@ test("a large photo reaches the reader as a bounded JPEG; the stored original is
 }, 30000);
 
 test("a PDF is sent to the reader unchanged", async () => {
-    const parse = jest
-        .fn()
-        .mockResolvedValue({
-            stop_reason: "end_turn",
-            parsed_output: { document_type_matches: true },
-        });
+    const parse = jest.fn().mockResolvedValue({
+        stop_reason: "end_turn",
+        parsed_output: { document_type_matches: true },
+    });
     const bytes = Buffer.from("%PDF-1.7 synthetic");
     await extractDocument(
         { client: { messages: { parse } }, model: "fake" },
@@ -388,5 +384,48 @@ test("both original and portal status fixtures validate", () => {
     expect(
         onboardingStatusV1.parse(fixture("onboarding.status.v1.portal")).portal
             .flow
+    ).toBe(true);
+});
+
+test("portal paths are recognised and redacted in any case", async () => {
+    const { isPortalPath } = await import(
+        "../../src/onboarding/portal/hostGuard.js"
+    );
+    const { redactedPortalPath } = await import(
+        "../../src/onboarding/portal/routes.js"
+    );
+    for (const path of ["/p/abc", "/P/abc/documents/W9", "/p?x=1", "/p"])
+        expect(isPortalPath(path)).toBe(true);
+    for (const path of ["/pa", "/portal-static/portal.css", "/onboarding/p/x"])
+        expect(isPortalPath(path)).toBe(false);
+    expect(redactedPortalPath("/p/SECRET/documents/W9?uploaded=W9")).toBe(
+        "/p/[token]/documents/W9"
+    );
+    expect(redactedPortalPath("/P/SECRET")).toBe("/p/[token]");
+    expect(redactedPortalPath("/p/SECRET/%2e%2e/odd path")).toBe("/p/[token]");
+    for (const url of ["/P/SECRET/x", "/p/SECRET#frag", "/p/SECRET/a/../b"])
+        expect(redactedPortalPath(url)).not.toContain("SECRET");
+});
+
+test("SignWell gets send_email false for a recipient that must get no email", async () => {
+    const { signwellRecipient } = await import(
+        "../../src/onboarding/signature/signwell.js"
+    );
+    expect(
+        signwellRecipient({
+            id: "1",
+            name: "Sam",
+            email: "sam@example.test",
+            sendEmail: false,
+        })
+    ).toEqual({
+        id: "1",
+        name: "Sam",
+        email: "sam@example.test",
+        send_email: false,
+    });
+    expect(
+        signwellRecipient({ id: "2", name: "Iw", email: "iw@example.test" })
+            .send_email
     ).toBe(true);
 });

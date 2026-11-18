@@ -106,6 +106,15 @@ const denied = (res) =>
             )
         );
 
+// Logs never carry the private token: everything up to the next "/" after
+// /p/ (any case; Express routes /P/ here too) becomes [token]; anything that
+// does not parse that way is logged as the bare route label.
+export function redactedPortalPath(url) {
+    const path = String(url ?? "").split(/[?#]/)[0];
+    const match = /^\/p\/[^/]*((?:\/[A-Za-z0-9_.-]*)*)$/i.exec(path);
+    return "/p/[token]" + (match ? match[1] : "");
+}
+
 // A POST must come from the portal itself. Under Referrer-Policy no-referrer
 // a plain form (no JavaScript) sends Origin: null, so the browser's own
 // Sec-Fetch-Site: same-origin is accepted instead. The CSRF field is checked
@@ -474,9 +483,7 @@ export function createPortalRouter(
         logger?.error?.({
             code: "portal_request_failed",
             method: req.method,
-            path: req.originalUrl
-                .split("?")[0]
-                .replace(/^\/p\/[^/]+/, "/p/[token]"),
+            path: redactedPortalPath(req.originalUrl),
             error: code,
         });
         return unavailable(res);
