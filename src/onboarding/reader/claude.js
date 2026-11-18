@@ -1,5 +1,6 @@
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { DOCUMENT_SCHEMAS } from "./schemas.js";
+import { readerInput } from "./derivative.js";
 
 const documents = {
     W9: "IRS Form W-9. For the TIN, extract only the last four digits in tin_last4. Never output a full TIN in any field.",
@@ -11,8 +12,9 @@ const documents = {
 export async function extractDocument(
     { client, model },
     itemKey,
-    { bytes, mediaType }
+    file
 ) {
+    const { bytes, mediaType } = await readerInput(file);
     const schema = DOCUMENT_SCHEMAS[itemKey];
     const prompt =
         "Expected document: " +

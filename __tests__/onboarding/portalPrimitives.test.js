@@ -14,6 +14,7 @@ import {
 } from "../../src/onboarding/reader/schemas.js";
 import { computeFlags } from "../../src/onboarding/reader/flags.js";
 import { extractDocument } from "../../src/onboarding/reader/claude.js";
+import sharp from "sharp";
 import {
     initialOperations,
     missingCarrierSlots,
@@ -229,6 +230,35 @@ test("Anthropic structured-output helper accepts every schema and the W-9 prompt
     expect(call.output_config.format.type).toBe("json_schema");
     expect(call.messages[0].content[0]).toMatchObject({ type: "document" });
     expect(call.messages[0].content[1].text).toMatch(/Never output a full TIN/);
+});
+
+test("a large photo reaches the reader as a bounded JPEG; the stored original is untouched", async () => {
+    const original = await sharp({
+        create: { width: 6000, height: 4000, channels: 3, noise: { type: "gaussian", mean: 128, sigma: 40 } },
+    })
+        .png()
+        .toBuffer();
+    expect(original.length).toBeGreaterThan(5 * 1024 * 1024);
+    const copy = Buffer.from(original);
+    const parse = jest.fn().mockResolvedValue({ stop_reason: "end_turn", parsed_output: { document_type_matches: true } });
+    await extractDocument({ client: { messages: { parse } }, model: "fake" }, "INSURANCE_COI", {
+        bytes: original,
+        mediaType: "image/png",
+    });
+    const block = parse.mock.calls[0][0].messages[0].content[0];
+    expect(block).toMatchObject({ type: "image", source: { type: "base64", media_type: "image/jpeg" } });
+    const sent = Buffer.from(block.source.data, "base64");
+    expect(sent.length).toBeLessThan(3.5 * 1024 * 1024);
+    const meta = await sharp(sent).metadata();
+    expect(Math.max(meta.width, meta.height)).toBeLessThanOrEqual(2000);
+    expect(original.equals(copy)).toBe(true);
+}, 30000);
+
+test("a PDF is sent to the reader unchanged", async () => {
+    const parse = jest.fn().mockResolvedValue({ stop_reason: "end_turn", parsed_output: { document_type_matches: true } });
+    const bytes = Buffer.from("%PDF-1.7 synthetic");
+    await extractDocument({ client: { messages: { parse } }, model: "fake" }, "W9", { bytes, mediaType: "application/pdf" });
+    expect(parse.mock.calls[0][0].messages[0].content[0].source.data).toBe(bytes.toString("base64"));
 });
 
 test("portal email copy uses one portal link, exact subjects and an escaped action button", () => {
