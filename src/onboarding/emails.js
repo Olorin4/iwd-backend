@@ -51,7 +51,7 @@ function documentLine(slot, terms) {
         FACTORING:
             "Your factoring company's notice of assignment, or reply \"no factoring\" if you don't use one",
         CARRIER_PROFILE:
-            "Your carrier profile: equipment, preferred lanes, minimum rates and any freight you won't haul (a short list in the email is fine)",
+            "Your carrier profile: equipment, preferred lanes, minimum rates, any freight you won't haul and any other preferences you have (a short list in the email is fine)",
     }[slot];
 }
 

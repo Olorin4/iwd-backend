@@ -31,7 +31,7 @@ describe("R15 completion email", () => {
                 "2. Your certificate of insurance\n" +
                 "3. A copy of your operating authority (MC 123456)\n" +
                 "4. Your factoring company's notice of assignment, or reply \"no factoring\" if you don't use one\n" +
-                "5. Your carrier profile: equipment, preferred lanes, minimum rates and any freight you won't haul (a short list in the email is fine)"
+                "5. Your carrier profile: equipment, preferred lanes, minimum rates, any freight you won't haul and any other preferences you have (a short list in the email is fine)"
         );
         expect(`${subject}${text}`).not.toMatch(/[{}]/);
     });
@@ -110,6 +110,22 @@ describe("R15 reminder email", () => {
             "Hello Sam Example,\n\n" +
                 "We're still missing the following for Example Freight LLC:\n" +
                 "1. A copy of your operating authority (MC 123456)" +
+                ending
+        );
+    });
+
+    it("renumbers the carrier profile item and keeps its text verbatim", () => {
+        const { text } = reminderEmail({
+            terms,
+            requestId: ID,
+            missingSlots: ["W9", "CARRIER_PROFILE"],
+            paymentUrl: null,
+        });
+        expect(text).toBe(
+            "Hello Sam Example,\n\n" +
+                "We're still missing the following for Example Freight LLC:\n" +
+                "1. A signed W-9 form\n" +
+                "2. Your carrier profile: equipment, preferred lanes, minimum rates, any freight you won't haul and any other preferences you have (a short list in the email is fine)" +
                 ending
         );
     });

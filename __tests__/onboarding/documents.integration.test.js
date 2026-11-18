@@ -310,7 +310,7 @@ describe("documents reminders (reconcile worker pass)", () => {
                 "We're still missing the following for Example Freight LLC:\n" +
                 "1. Your certificate of insurance\n" +
                 "2. A copy of your operating authority (MC 123456)\n" +
-                "3. Your carrier profile: equipment, preferred lanes, minimum rates and any freight you won't haul (a short list in the email is fine)\n\n" +
+                "3. Your carrier profile: equipment, preferred lanes, minimum rates, any freight you won't haul and any other preferences you have (a short list in the email is fine)\n\n" +
                 "Please reply to this email. If you have questions or need more time, just let us know."
         );
     });

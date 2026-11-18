@@ -102,7 +102,7 @@ const EXPECTED_TEXT = (url) =>
         "2. Your certificate of insurance",
         "3. A copy of your operating authority (MC 123456)",
         "4. Your factoring company's notice of assignment, or reply \"no factoring\" if you don't use one",
-        "5. Your carrier profile: equipment, preferred lanes, minimum rates and any freight you won't haul (a short list in the email is fine)",
+        "5. Your carrier profile: equipment, preferred lanes, minimum rates, any freight you won't haul and any other preferences you have (a short list in the email is fine)",
     ].join("\n");
 
 it("sends one combined email with the signed copy, the payment link and the documents list", async () => {
