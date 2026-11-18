@@ -6,8 +6,7 @@
 
 This Limited Power of Attorney is made effective as of ___________________,
 by **_________________________________**, MC ____________ (CARRIER), in
-favour of **Iron Wing Logistics L.L.C., doing business as Iron Wing
-Dispatching** (DISPATCH).
+favour of **Iron Wing Logistics L.L.C.** (DISPATCH).
 
 CARRIER appoints DISPATCH as its attorney-in-fact (AGENT) **only** for the
 following purposes, in connection with loads DISPATCH arranges for CARRIER
@@ -45,7 +44,7 @@ date below.
 
 | CARRIER | Accepted by DISPATCH |
 | --- | --- |
-| Company: | Company: Iron Wing Dispatching |
+| Company: | Company: Iron Wing Logistics L.L.C. |
 | Name and title: | Name and title: |
 | Signature: | Signature: |
 | Date: | Date: |

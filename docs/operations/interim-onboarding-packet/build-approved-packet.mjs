@@ -27,9 +27,13 @@ const released = input
     .replace(watermark, "")
     .replace(
         "<title>Iron Wing onboarding — review copy</title>",
-        "<title>Iron Wing Dispatching — Onboarding Packet</title>"
+        "<title>Iron Wing Logistics L.L.C. — Onboarding Packet</title>"
     );
-const stem = "Iron-Wing-Onboarding-Packet-v1";
+if (!/^Iron-Wing-Onboarding-Packet-v[0-9]+$/.test(approval.stem ?? ""))
+    throw new Error(
+        "approved-release.json needs a stem like Iron-Wing-Onboarding-Packet-v2."
+    );
+const stem = approval.stem;
 const htmlPath = join(directory, `${stem}.html`);
 await writeFile(htmlPath, released);
 const { chromium } = await import(pathToFileURL(resolve(modulePath)).href);
@@ -53,7 +57,7 @@ try {
         displayHeaderFooter: true,
         headerTemplate: "<span></span>",
         footerTemplate:
-            '<div style="width:100%;padding:0 47px;font:8px Arial;color:#66727c;display:flex;justify-content:space-between"><span>Iron Wing Dispatching</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>',
+            '<div style="width:100%;padding:0 47px;font:8px Arial;color:#66727c;display:flex;justify-content:space-between"><span>Iron Wing Logistics L.L.C.</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>',
     });
     await context.close();
     console.log(

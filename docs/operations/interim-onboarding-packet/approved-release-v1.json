@@ -1,0 +1,15 @@
+{
+    "temporary": "Manual bridge until permanent onboarding; retain executed client records privately.",
+    "version": "2026-11-18-v1",
+    "approval": "Owner approved the combined packet and updated Stripe-only card and/or ACH wording in this conversation on 2026-11-18. Approval covers local release preparation; no external send is recorded.",
+    "sources": {
+        "dispatch-service-agreement.md": "2603f3793fc8f2b9b77f18e84638e349d19a3303785bc028b33f14442f7b8c09",
+        "limited-power-of-attorney.md": "df57efdd199756d174b3bc2586543524c620302aacd87be307d4143ab8eb13ec",
+        "payment-authorization-form.md": "785dad41a998a18599931f2fb95b5f4b7bcf08f9d3685a9fa8780f7747bfe9f2",
+        "combined-packet.html": "a19c9e0a48214513a9f0bf1e358aa83f2bd486f61f1283ff4aaddc202e056d10"
+    },
+    "artifacts": {
+        "Iron-Wing-Onboarding-Packet-v1.html": "d766df9e568d742e7b2d355a290d21d3c6d4b6f23eace65f8988f4b21debc77e",
+        "Iron-Wing-Onboarding-Packet-v1.pdf": "98922710004d0aae49d62d26ca6e6ad3a9ede239ac520cab20395bea618743aa"
+    }
+}

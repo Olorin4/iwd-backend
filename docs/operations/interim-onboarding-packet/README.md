@@ -6,18 +6,18 @@ Prepared November 18, 2026. **Combined packet approved for local release prepara
 
 ## Contents and release status
 
-- `Iron-Wing-Onboarding-Packet-v1.pdf`: approved six-page combined packet, without review watermark or review footer, for configuring one reusable signature template. It still requires carrier-specific prefill and signature fields before sending.
+- `Iron-Wing-Onboarding-Packet-v2.pdf`: **current** approved six-page combined packet (dispatcher named by its legal name only), recorded in `approved-release.json`. `Iron-Wing-Onboarding-Packet-v1.pdf` (recorded in `approved-release-v1.json`) is superseded and was never sent; keep it only as history. The current packet is the without review watermark or review footer, for configuring one reusable signature template. It still requires carrier-specific prefill and signature fields before sending.
 - `combined-packet.pdf`: retained watermarked review copy. Separate review PDFs and HTML previews are also provided.
 - Agreement and limited power of attorney: substantive source wording preserved. Editorial DRAFT/provenance blockquotes omitted from customer copies, based on the owner's report that lawyer review was completed November 17. The source folder's README and draft labels have not been updated.
 - Payment authorization: **Stripe-only collection adaptation approved by the owner November 18, 2026.** It removes full card/account/routing fields, replaces them with a Stripe-only instruction, and removes the old editorial handling note. The authorization explicitly covers card and/or ACH details provided through Stripe, with a separate bank-debit correction provision. The commercial terms and revocation text are preserved. See `payment-form-changes.md`.
-- The approved v1 PDF is unwatermarked; earlier review PDFs retain **REVIEW COPY — NOT FOR SIGNING**. These are ordinary PDFs for signature-provider field overlays, not interactive AcroForms or configured SignWell templates. Provider field placement still needs configuration and a controlled signing test.
+- The approved PDFs are unwatermarked; earlier review PDFs retain **REVIEW COPY — NOT FOR SIGNING**. These are ordinary PDFs for signature-provider field overlays, not interactive AcroForms or configured SignWell templates. Provider field placement still needs configuration and a controlled signing test.
 - `dispatcher-checklist.md`, `email-copy.md`, `signwell-setup.md` and `register-template.csv`: operating assets.
 - `source-manifest.json`: hashes of original Markdown files; the originals remain untouched.
 
 ## Fast manual path
 
 1. Confirm the closing details using the checklist. A Jack summary alone is insufficient.
-2. Use `Iron-Wing-Onboarding-Packet-v1.pdf`, whose approved source hashes and output hashes are recorded in `approved-release.json`. Retain the version/hash; do not overwrite a sent version.
+2. Use `Iron-Wing-Onboarding-Packet-v2.pdf`, whose approved source hashes and output hashes are recorded in `approved-release.json`. Retain the version/hash; do not overwrite a sent version.
 3. Upload the combined packet to a private SignWell template, configure Carrier and Dispatch fields, and test with an explicitly approved internal recipient. No account setup, provider upload or test send has been performed here.
 4. For each client, prefill and verify company/authority, fee, effective date and signer details. Send exactly one request after reviewing the actual PDF and recipient.
 5. Retrieve the fully executed PDF and audit evidence. Store them privately in the carrier folder; record the provider document ID and packet version.
@@ -46,6 +46,6 @@ Validation: source hashes matched; agreement and power-of-attorney bodies matche
 
 ## Approved release
 
-Owner approval was received November 18, 2026 for the combined packet with the confirmed card and/or ACH wording. `build-approved-packet.mjs` verifies the approved source hashes before generating `Iron-Wing-Onboarding-Packet-v1.html` and `.pdf`; it removes only the visible review watermark and review title/footer. Run it with the same local Playwright path as the review builder. A source change requires review and a new release version rather than silently replacing an approved packet.
+Owner approval was received November 18, 2026 for the combined packet with the confirmed card and/or ACH wording (v1). The same day the owner confirmed that Iron Wing Logistics L.L.C. has no registered DBA and approved naming the dispatcher only by its legal name (v2): five passages changed (agreement opening and signature table, power-of-attorney opening and signature table, payment-authorization opening), the footer reads "Iron Wing Logistics L.L.C.", and the customer email templates sign with the legal name. **Lawyer confirmation of this v2 change is still to be obtained before the first real send.** `build-approved-packet.mjs` verifies the approved source hashes in `approved-release.json` and generates `<stem>.html` and `.pdf` for the stem recorded there; it removes only the visible review watermark and review title/footer. Run it with the same local Playwright path as the review builder. A source change requires review and a new release version rather than silently replacing an approved packet.
 
 This is approval of the packet content and combined format, not evidence of a configured provider template, completed signature test, customer-specific terms or sent request.
