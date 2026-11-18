@@ -45,3 +45,18 @@ in test mode. Bundles support several files, so the three PDFs register as one v
 - Note: the app-to-app HMAC covers only `t.body`, not method/path (contract §5). The replay store rejects any reuse of a signature on any path, which bounds cross-endpoint replay; binding the path would be a contract change.
 - I6 ca92d2b provisioning, actions, signed documents, outbox, workers, `startOnboarding()` in app.js
 - I7 (next commit) sandbox script (refuses without confirm/single recipient/test keys/test mode/budget file/_test|_sandbox DB; persisted ≤10 email budget, 4 per packet send + 1 per email; `--pdf` + `--sha256` must match) — NOT run; ops doc and PRD-0020 proposal
+- I7 bc4c277 sandbox script + docs
+
+## Final verification (2026-11-18)
+
+- `DB_URL=…/iwd_onboarding_test npm test`: 44 suites, 396 tests passed (unit 338 incl. 55 new; integration 58 incl. 39 new). No `.env.test` exists in this worktree, so the explicit DB_URL was used.
+- Integration project alone: 7 suites, 58 passed.
+- `npm run lint`: only the 3 pre-existing problems (2 prettier errors in `src/logging.js`, 1 warning in `src/app.js`); none in new code.
+- Test DB container removed.
+
+## Not done / open
+
+- Sandbox acceptance not run (by design). SignWell field coordinates are UNCALIBRATED; the v1 layout stays DRAFT.
+- Orphan SignWell drafts (create timeout) are not auto-deleted after the replay fix; manual cleanup.
+- Cancel withdraws the packet with SignWell DELETE (best effort); behaviour for a partially signed document is unverified against the real API.
+- SignWell field type for names: no dedicated type used; the reviewed layout has none.
