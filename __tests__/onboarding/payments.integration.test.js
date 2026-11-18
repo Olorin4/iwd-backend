@@ -338,3 +338,39 @@ it("a Stripe failure while creating the session blocks with resend_payment_link"
     expect((await request()).payment_state).toBe("LINK_SENT");
     expect(sendEmail).toHaveBeenCalledTimes(1);
 });
+
+it("a concurrent webhook and reconcile record READY once (one status event)", async () => {
+    await signed();
+    const [setup] = await setups();
+    stripe.complete(setup.checkout_session_id);
+    let clock = Date.now();
+    deps.now = () => new Date((clock += 5));
+    // Both paths reach the locked write having seen the setup as not done.
+    const retrieve = stripe.retrievePaymentMethod.bind(stripe);
+    let arrived = 0;
+    let release;
+    const barrier = new Promise((resolve) => (release = resolve));
+    stripe.retrievePaymentMethod = async (id) => {
+        arrived += 1;
+        if (arrived === 2) release();
+        await barrier;
+        return retrieve(id);
+    };
+    const event = stripeEvent(config.stripe.webhookSecret, {
+        type: "checkout.session.completed",
+        object: { id: setup.checkout_session_id },
+    });
+    const ready = queue.tasks.length;
+    await Promise.all([
+        postStripe(event),
+        reconcilePayment(deps, setup.request_id),
+    ]);
+    expect((await request()).payment_state).toBe("READY");
+    const readyEvents = (
+        await prisma.onboardingEvent.findMany({
+            where: { type: "onboarding.status.v1" },
+        })
+    ).filter((e) => e.payload.payment.state === "READY");
+    expect(readyEvents).toHaveLength(1);
+    expect(queue.tasks.length - ready).toBe(1);
+});

@@ -604,3 +604,18 @@ it("a throttled SignWell event keeps its receipt: its redelivery is processed", 
     ).toBe(200);
     expect(signature.calls.get).toBe(before + 1);
 });
+
+it("a successful send never downgrades an envelope a concurrent reconcile saw VIEWED", async () => {
+    const send = signature.send.bind(signature);
+    signature.send = async (id) => {
+        const result = await send(id);
+        await prisma.signatureEnvelope.updateMany({
+            where: { provider_document_id: id },
+            data: { state: "VIEWED" },
+        });
+        return result;
+    };
+    await put();
+    const [envelope] = await envelopes();
+    expect(envelope.state).toBe("VIEWED");
+});

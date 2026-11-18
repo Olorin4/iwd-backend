@@ -222,6 +222,13 @@ async function applySetupIntent(deps, setup, intent) {
         };
         const result = await db.$transaction(async (tx) => {
             const locked = await lockRequest(tx, row.id);
+            // Re-check under the lock: a concurrent webhook and reconcile
+            // must emit one status event and start provisioning once.
+            const current = await tx.paymentSetup.findUnique({
+                where: { id: setup.id },
+            });
+            if (current?.state === "SUCCEEDED")
+                return { row: locked, changed: false, status: null };
             await tx.paymentSetup.update({
                 where: { id: setup.id },
                 data: {

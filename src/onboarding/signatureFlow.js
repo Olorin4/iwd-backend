@@ -269,10 +269,17 @@ async function sendExisting(deps, envelope) {
     }
     // Someone else's send already went through: follow the verified remote state.
     if (result?.alreadySent) return reconcileEnvelope(deps, envelope.id);
+    // Compare-and-set: a concurrent reconcile may already have seen VIEWED or
+    // COMPLETED; the success write never downgrades it.
     return setEnvelopeState(
         deps,
         envelope.id,
-        { state: "SENT", sent_at: deps.now(), last_error_code: null },
+        {
+            state: "SENT",
+            sent_at: deps.now(),
+            last_error_code: null,
+            onlyFrom: PRE_SEND,
+        },
         {
             signature_state: "SENT",
             signature_code: null,
