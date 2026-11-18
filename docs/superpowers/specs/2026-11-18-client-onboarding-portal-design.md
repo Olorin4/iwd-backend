@@ -1,6 +1,6 @@
 # Client onboarding portal — design
 
-Date: 2026-11-18. Status: **draft for owner approval** (owner answered the builder-check questions 2026-11-18).
+Date: 2026-11-18. Status: **approved by the owner 2026-11-18**.
 Builds on: permanent client onboarding (`docs/operations/client-onboarding.md`), Outreach
 modernization design and ledger (`outreach/docs/superpowers/specs/2026-11-18-workflow-modernization-design.md`,
 `…/plans/2026-11-18-workflow-modernization-ledger.md`, rulings R12–R18).
