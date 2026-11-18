@@ -83,6 +83,9 @@ export function deriveReadiness(f) {
         return block(f.signatureCode || "signature_error", "reissue_packet");
     if (f.signature === "NOT_SENT" && f.signatureCode)
         return block(f.signatureCode, "reconcile");
+    // An open packet with a code (e.g. audit_page_missing) waits on reconcile.
+    if (["SENT", "VIEWED"].includes(f.signature) && f.signatureCode)
+        return block(f.signatureCode, "reconcile");
     if (f.payment === "FAILED")
         return block(f.paymentCode || "payment_failed", "resend_payment_link");
     if (f.provisioning === "FAILED")

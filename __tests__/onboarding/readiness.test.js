@@ -60,7 +60,8 @@ describe("deriveReadiness over every facet combination", () => {
             if (readiness === "CLOSED" || readiness === "READY") continue;
             const blocked =
                 ["UNKNOWN", "ERROR"].includes(f.signature) ||
-                (f.signature === "NOT_SENT" && !!f.signatureCode) ||
+                (["NOT_SENT", "SENT", "VIEWED"].includes(f.signature) &&
+                    !!f.signatureCode) ||
                 f.payment === "FAILED" ||
                 ["FAILED", "MANUAL_REQUIRED"].includes(f.provisioning);
             expect(readiness).toBe(blocked ? "BLOCKED" : "IN_PROGRESS");
@@ -92,6 +93,11 @@ describe("blocking priority and recovery actions", () => {
     };
     it.each([
         [{ signature: "UNKNOWN" }, "signature_unknown", "reconcile"],
+        [
+            { signature: "SENT", signatureCode: "audit_page_missing" },
+            "audit_page_missing",
+            "reconcile",
+        ],
         [
             { signature: "ERROR", signatureCode: "bundle_unavailable" },
             "bundle_unavailable",

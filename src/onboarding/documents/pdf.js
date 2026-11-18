@@ -34,6 +34,21 @@ export async function inspectPdf(bytes) {
     return { pages: doc.getPages().map((p) => p.getSize()) };
 }
 
+/** Page count of a PDF (throws PdfError when unreadable). */
+export async function pageCount(bytes) {
+    if (!Buffer.from(bytes).subarray(0, 5).equals(Buffer.from("%PDF-")))
+        throw new PdfError("not_a_pdf");
+    try {
+        const doc = await PDFDocument.load(bytes, {
+            updateMetadata: false,
+            ignoreEncryption: true,
+        });
+        return doc.getPageCount();
+    } catch {
+        throw new PdfError("pdf_unreadable");
+    }
+}
+
 const PLAN_LABELS = { ESSENTIAL: "Essential", FULL_SERVICE: "Full-Service" };
 
 const formatDate = (ymd) =>

@@ -6,7 +6,7 @@ import {
     recordReceipt,
 } from "./store.js";
 import { latestApprovedBundle, loadBundleFiles } from "./documents/bundles.js";
-import { fillPacket } from "./documents/pdf.js";
+import { fillPacket, pageCount } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
 import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
@@ -222,6 +222,42 @@ async function storeFilled(deps, filledFiles) {
         filled_sha256: sha256Hex(manifestBytes),
         filled_storage_key: stored.storage_key,
     };
+}
+
+/** Total page count of the filled packet files stored for an envelope. */
+async function filledPageCount(deps, envelope) {
+    const manifest = JSON.parse(
+        (
+            await deps.documentStore.get(envelope.filled_storage_key, {
+                expectedSha256: envelope.filled_sha256,
+            })
+        ).toString("utf8")
+    );
+    let total = 0;
+    for (const file of manifest.files)
+        total += await pageCount(
+            await deps.documentStore.get(file.storage_key, {
+                expectedSha256: file.sha256,
+            })
+        );
+    return total;
+}
+
+/**
+ * Outside test mode the completed PDF must carry the provider's audit page,
+ * i.e. have more pages than the filled packet. (SignWell omits the audit page
+ * in test mode, observed in the sandbox, so the check is skipped there.)
+ */
+async function hasAuditPage(deps, envelope, pdf) {
+    if (deps.config.signature?.testMode) return true;
+    try {
+        return (await pageCount(pdf)) > (await filledPageCount(deps, envelope));
+    } catch (error) {
+        log(deps, "onboarding_audit_page_check_failed", {
+            reason: error?.code ?? "error",
+        });
+        return false;
+    }
 }
 
 /** Send a draft that already exists at the provider (same document id). */
@@ -453,6 +489,25 @@ export async function reconcileEnvelope(deps, envelopeId) {
                 reason: error?.code ?? "error",
             });
             return null;
+        }
+        if (!(await hasAuditPage(deps, envelope, pdf))) {
+            // Keep the envelope open (polled again); block with reconcile.
+            deps.logger?.error?.({ code: "onboarding_audit_page_missing" });
+            const open = envelope.state === "VIEWED" ? "VIEWED" : "SENT";
+            return setEnvelopeState(
+                deps,
+                envelope.id,
+                {
+                    state: open,
+                    sent_at: envelope.sent_at ?? now,
+                    last_error_code: "audit_page_missing",
+                },
+                {
+                    signature_state: open,
+                    signature_code: "audit_page_missing",
+                    signature_at: now,
+                }
+            );
         }
         const stored = await deps.documentStore.put(pdf);
         const result = await setEnvelopeState(

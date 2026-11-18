@@ -619,3 +619,64 @@ it("a successful send never downgrades an envelope a concurrent reconcile saw VI
     const [envelope] = await envelopes();
     expect(envelope.state).toBe("VIEWED");
 });
+
+describe("completed PDF audit page", () => {
+    it("outside test mode, a completed PDF without the audit page is not COMPLETED", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        signature.complete(envelope.provider_document_id);
+        signature.omitAuditPage(envelope.provider_document_id);
+        await reconcileEnvelope(deps, envelope.id);
+        const open = (await envelopes())[0];
+        expect(open).toMatchObject({
+            state: "SENT",
+            last_error_code: "audit_page_missing",
+            completed_storage_key: null,
+        });
+        expect(await request()).toMatchObject({
+            signature_state: "SENT",
+            signature_code: "audit_page_missing",
+        });
+        expect(deps.onSignatureCompleted).not.toHaveBeenCalled();
+        expect(
+            deps.logger.lines.some(
+                (l) => l.code === "onboarding_audit_page_missing"
+            )
+        ).toBe(true);
+        const status = (await app.call("GET", `/requests/${KEY}`)).json;
+        expect(status).toMatchObject({
+            readiness: "BLOCKED",
+            blocked: { code: "audit_page_missing", action: "reconcile" },
+            documents: { signed_available: false },
+        });
+        // Still polled; once the provider serves the audit page it completes.
+        expect(await openEnvelopeIds(prisma, Date.now())).toContain(
+            envelope.id
+        );
+        signature.documents.get(envelope.provider_document_id).omitAuditPage =
+            false;
+        await reconcileEnvelope(deps, envelope.id);
+        expect(await request()).toMatchObject({
+            signature_state: "COMPLETED",
+            signature_code: null,
+        });
+    });
+
+    it("with the audit page, the completed PDF has more pages than the packet", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        signature.complete(envelope.provider_document_id);
+        await reconcileEnvelope(deps, envelope.id);
+        expect((await request()).signature_state).toBe("COMPLETED");
+    });
+
+    it("in SignWell test mode the check is skipped", async () => {
+        config.signature.testMode = true;
+        await put();
+        const [envelope] = await envelopes();
+        signature.complete(envelope.provider_document_id);
+        signature.omitAuditPage(envelope.provider_document_id);
+        await reconcileEnvelope(deps, envelope.id);
+        expect((await request()).signature_state).toBe("COMPLETED");
+    });
+});

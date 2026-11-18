@@ -1,4 +1,22 @@
+import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SignatureError } from "./errors.js";
+
+// The completed PDF: every filled page, then (unless omitted) an audit page.
+async function completedPdf(files, withAuditPage) {
+    const out = await PDFDocument.create();
+    for (const file of files ?? []) {
+        if (!file?.bytes) continue;
+        const source = await PDFDocument.load(file.bytes);
+        const pages = await out.copyPages(source, source.getPageIndices());
+        pages.forEach((page) => out.addPage(page));
+    }
+    if (withAuditPage) {
+        const page = out.addPage([612, 792]);
+        const font = await out.embedFont(StandardFonts.Helvetica);
+        page.drawText("Audit trail (fake provider)", { x: 72, y: 700, font });
+    }
+    return Buffer.from(await out.save());
+}
 
 // In-memory signature provider for tests and local development. Never sends
 // email. Failure injection: failNext(op, mode) with mode "timeout" (no
@@ -45,6 +63,10 @@ export function createFakeSignatureProvider() {
         decline: (id) => setStatus(id, "declined"),
         expire: (id) => setStatus(id, "expired"),
         view: (id) => setStatus(id, "viewed"),
+        // Simulates a completed PDF without the provider audit page.
+        omitAuditPage: (id) => {
+            doc(id).omitAuditPage = true;
+        },
         async createEnvelope(filled, signers, metadata) {
             calls.createEnvelope += 1;
             return maybeFail("createEnvelope", () => {
@@ -81,15 +103,14 @@ export function createFakeSignatureProvider() {
         },
         async downloadCompleted(id) {
             calls.downloadCompleted += 1;
-            return maybeFail("downloadCompleted", () => {
+            const d = maybeFail("downloadCompleted", () => {
                 if (doc(id).status !== "completed")
                     throw new SignatureError("provider_http_409", {
                         status: 409,
                     });
-                return Buffer.from(
-                    `%PDF-1.7\n% completed ${id} with audit page\n%%EOF\n`
-                );
+                return doc(id);
             });
+            return completedPdf(d.files, !d.omitAuditPage);
         },
         async delete(id) {
             calls.delete += 1;
