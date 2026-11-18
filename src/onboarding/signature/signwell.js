@@ -77,8 +77,10 @@ export function signwellFields(files, calibration = DEFAULT_CALIBRATION) {
  * - `embedded_signing` (boolean, default false): enables embedded signing.
  * - `embedded_signing_notifications` (boolean, default false): "On embedding
  *   signing, document owners (and CC'd contacts) do not get a notification
- *   email when documents have been completed" — set true so the owner keeps
- *   the completed-document email they had before R14.
+ *   email when documents have been completed". Left at the default (not
+ *   sent): no CC contacts are used, the owner turns off account-owner
+ *   notification emails anyway (ops doc "Owner settings in SignWell"), and
+ *   iwd stores the completed PDF for Outreach.
  * - Recipients[].`send_email` (boolean, default false): "Applies on when
  *   `embedded_signing` is `true`. By default, recipients are not notified
  *   through email" — true for both recipients (the carrier signs by email).
@@ -86,13 +88,10 @@ export function signwellFields(files, calibration = DEFAULT_CALIBRATION) {
  *   with embedded signing the email "will not go out if the document is
  *   completed before the delay time is over". Set only for the Iron Wing
  *   recipient (signer.emailDelayMinutes).
- * The send call repeats both document flags because
- * UpdateDocumentAndSendRequest also carries them with default false.
+ * The send call repeats `embedded_signing` because
+ * UpdateDocumentAndSendRequest also carries it with default false.
  */
-export const EMBEDDED_DOCUMENT_FLAGS = {
-    embedded_signing: true,
-    embedded_signing_notifications: true,
-};
+export const EMBEDDED_DOCUMENT_FLAGS = { embedded_signing: true };
 
 export function signwellRecipient(signer) {
     return {

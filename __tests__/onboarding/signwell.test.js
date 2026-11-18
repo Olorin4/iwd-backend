@@ -188,7 +188,6 @@ it("sends with the test-mode flag and maps timeouts and errors to safe codes", a
     expect(calls[0].body).toEqual({
         test_mode: false,
         embedded_signing: true,
-        embedded_signing_notifications: true,
     });
     await expect(p.send("doc_1")).rejects.toMatchObject({
         code: "provider_timeout",
@@ -457,7 +456,8 @@ it("creates an embedded-signing document with per-recipient email settings (R14)
     );
     const body = calls[0].body;
     expect(body.embedded_signing).toBe(true);
-    expect(body.embedded_signing_notifications).toBe(true);
+    // Default (false) kept: owner/CC completion emails stay off.
+    expect(body).not.toHaveProperty("embedded_signing_notifications");
     expect(body.apply_signing_order).toBe(true);
     expect(body.recipients).toEqual([
         {
