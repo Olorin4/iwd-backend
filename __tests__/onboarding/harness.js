@@ -45,7 +45,26 @@ export const TABLES = [
     "client",
 ];
 
+/**
+ * Destructive helpers refuse unless DB_URL names a disposable database
+ * (name ending in _test or _scratch).
+ */
+export function assertDisposableDatabase(url) {
+    let name = "";
+    try {
+        name = decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
+    } catch {
+        name = "";
+    }
+    if (!/(_test|_scratch)$/.test(name))
+        throw new Error(
+            `Refusing to touch database "${name || "(unset)"}": its name must end in _test or _scratch.`
+        );
+    return name;
+}
+
 export async function cleanTables(db) {
+    assertDisposableDatabase(process.env.DB_URL);
     for (const table of TABLES)
         await db.$executeRawUnsafe(`DELETE FROM "${table}"`);
 }
@@ -55,6 +74,7 @@ export async function cleanTables(db) {
  * so each file holds a session advisory lock for its whole run.
  */
 export function serializeSuite() {
+    assertDisposableDatabase(process.env.DB_URL);
     let client;
     beforeAll(async () => {
         client = new pg.Client({ connectionString: process.env.DB_URL });

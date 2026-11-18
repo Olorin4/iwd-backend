@@ -41,6 +41,13 @@ it("the fixture's terms_hash is a placeholder that the receiver must recompute",
     expect(termsHash(body.terms)).toMatch(/^[0-9a-f]{64}$/);
 });
 
+it("pins the golden canonical terms hash of the shared fixture", () => {
+    // Same literal as the Outreach side; a change here breaks the contract.
+    expect(termsHash(read("onboarding.request.v1").terms)).toBe(
+        "a10001dcd4e5aa60b7d3789632dce8dc15770bce695fb2f71c9e77137c0f47ab"
+    );
+});
+
 it("canonical JSON sorts keys recursively and keeps array order", () => {
     expect(canonicalJson({ b: 1, a: [{ d: null, c: "x" }, 2] })).toBe(
         '{"a":[{"c":"x","d":null},2],"b":1}'
