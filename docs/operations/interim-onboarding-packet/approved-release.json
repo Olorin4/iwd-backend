@@ -1,17 +1,17 @@
 {
     "temporary": "Manual bridge until permanent onboarding; retain executed client records privately.",
-    "version": "2026-11-18-v3",
-    "stem": "Iron-Wing-Onboarding-Packet-v3",
-    "supersedes": "2026-11-18-v2 (Iron-Wing-Onboarding-Packet-v2.pdf, sandbox test documents only)",
-    "approval": "Owner approved on 2026-11-18: the limited power of attorney's signature table is ordered DISPATCH (Agent) | CARRIER, matching the service agreement (DISPATCH | CARRIER) and the signing order (Iron Wing signs first), and the agent block is headed 'DISPATCH (Agent)' instead of 'Accepted by DISPATCH'. No other wording changed. Lawyer confirmation of the v2 and v3 changes is still to be obtained before the first real send.",
+    "version": "2026-11-18-v4",
+    "stem": "Iron-Wing-Onboarding-Packet-v4",
+    "supersedes": "2026-11-18-v3 (Iron-Wing-Onboarding-Packet-v3.pdf, sandbox and one live test document only)",
+    "approval": "Owner approved on 2026-11-18: formatting only. On the payment authorization form the printed '______ / ______ / 20____' authorization-date blank becomes a plain line so SignWell's automatic signing date fills it (the carrier then only signs). No wording changed. Lawyer confirmation of the v2\u2013v4 changes is still to be obtained before the first real send.",
     "sources": {
         "dispatch-service-agreement.md": "9df75fcc057c39e92686c1b886b05f626c3ce381d4f16c7a96a563ccc57f1bd0",
         "limited-power-of-attorney.md": "9aa45dcffe256fd45c5737b33f27a08be84e6885debcd2039db929df00a15f29",
-        "payment-authorization-form.md": "5d7b65fdc279f18da9cf1b13bd016661fb67265e70d8a007726e3c9eff2679ef",
-        "combined-packet.html": "8fd1631462d75b848a59d54579820ba101644d97ddb796f6e5fe761f37829ebc"
+        "payment-authorization-form.md": "1396de7282b1ca62b106e3c7bcdd327671f0d3d2f5b01d6e575a5f49778758d0",
+        "combined-packet.html": "ea18bb091511c32d81dcdb0b116885b825f9ff6c6aad26ef00ca2838c42b4bdd"
     },
     "artifacts": {
-        "Iron-Wing-Onboarding-Packet-v3.html": "95f75e73dcccdb18a17193ba070e4f91af1a7b96cbfbc46f072b99195dc676e0",
-        "Iron-Wing-Onboarding-Packet-v3.pdf": "3ae7aa7b747185a1c99d40aa019ae3fc5b42bb0fede038504930f2ead71260de"
+        "Iron-Wing-Onboarding-Packet-v4.html": "7c588782956ff24980ee78145120c79cd95f2b6833be6d804550374afcf32377",
+        "Iron-Wing-Onboarding-Packet-v4.pdf": "64ebc63ea1c7130a138d0bb2eb3a4c8bd55ccb080f4b613394b6f40862833ec5"
     }
 }

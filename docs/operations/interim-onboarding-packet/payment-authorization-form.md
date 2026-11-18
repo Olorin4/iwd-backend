@@ -60,7 +60,7 @@ info@iron-wing-dispatching.com **and** all fees on loads booked before that
 date have been charged. A revocation takes effect once DISPATCH has had a
 reasonable opportunity to act on it.
 
-______________________________    ______ / ______ / 20____
+______________________________    ________________________
 Signature                           Authorization date
 
 ______________________________
