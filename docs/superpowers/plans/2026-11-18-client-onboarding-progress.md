@@ -34,6 +34,7 @@ payment authorization form (Stripe-only). Packet files are not edited and no rel
 copies are generated here; release copies and field-coordinate review stay separate
 owner/orchestrator steps. Sandbox/test fixtures may use the watermarked review copies
 in test mode. Bundles support several files, so the three PDFs register as one version.
+
 - I4 3c26d06 signature port, SignWell adapter + fake, webhook hint + re-fetch, completed PDF storage, UNKNOWN/reconcile, reissue
 - I4-fix (next commit) bound SignWell webhook replay (security review): events >10 min from now → 202 `stale_event` (reconcile poller covers late deliveries); no provider call unless the id is one of our open envelopes; receipt key `type:time:hash:documentId`; ≤1 webhook-triggered re-fetch per envelope per 30 s (`signature_envelope.last_webhook_fetch_at`, added to the unreleased migration). Consequence: orphan drafts from a timed-out create are no longer deleted from the webhook (that needed fetching an unknown id); they are drafts that cannot email anyone and are left for manual cleanup.
 - I4-fix2 60b9d74 strict SignWell hash (64 lowercase hex) and integer time (canonical decimal), receipt key built from the server-recomputed HMAC
@@ -42,3 +43,5 @@ in test mode. Bundles support several files, so the three PDFs register as one v
 - I5 243b2ff payments/stripe.js, payment link after COMPLETED (one email per issued link), continue link, Stripe webhook (raw body, own secret, livemode, dedupe, re-fetch, ownership), ACH pending, failure/expiry → resend; strict hex compare (found `Buffer.from(hex)` accepting trailing junk on the continue token)
 - I6 (next commit) provisioning port (manual + Kelevo stub `kelevo_api_unavailable`), actions endpoint (audited, actor required, replay-guarded), signed document download (service auth + actor headers, DocumentAccessLog), status outbox (bearer + HMAC, backoff, permanent 4xx stop), workers behind switches; app.js gains `startOnboarding()` (no-op unless ONBOARDING_ENABLED=1)
 - Note: the app-to-app HMAC covers only `t.body`, not method/path (contract §5). The replay store rejects any reuse of a signature on any path, which bounds cross-endpoint replay; binding the path would be a contract change.
+- I6 ca92d2b provisioning, actions, signed documents, outbox, workers, `startOnboarding()` in app.js
+- I7 (next commit) sandbox script (refuses without confirm/single recipient/test keys/test mode/budget file/_test|_sandbox DB; persisted ≤10 email budget, 4 per packet send + 1 per email; `--pdf` + `--sha256` must match) — NOT run; ops doc and PRD-0020 proposal
