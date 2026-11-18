@@ -4,9 +4,9 @@
 
 Temporary billing for Iron Wing's first carriers. Delete this module when
 KelevoTMS dispatching-agency billing replaces it: [DISPOSE.md](DISPOSE.md).
-The code is deployed with billing disabled and automatic run creation off.
-Live activation and collection require separate approval; see the
-[deployment record](ops/release/DEPLOYMENT-2026-11-17.md).
+Manual live billing is enabled; automatic Friday run creation remains off.
+Every run requires approval of its exact invoice count and total. See the
+[activation record](ops/release/ACTIVATION-2026-11-18.md).
 
 Binding [design](../../docs/superpowers/specs/2026-11-17-interim-weekly-billing-design.md)
 and [plan](../../docs/superpowers/plans/2026-11-17-interim-weekly-billing.md).
@@ -23,7 +23,7 @@ verified API access from Dashboard permission and retry confirmations.
 
 ## Configuration
 
-Enable explicitly with `INTERIM_BILLING_ENABLED=true`,
+For local sandbox testing, enable explicitly with `INTERIM_BILLING_ENABLED=true`,
 `INTERIM_BILLING_MODE=sandbox`, a test-prefixed `STRIPE_SANDBOX_SECRET_KEY`,
 and an independent `INTERIM_BILLING_ADMIN_TOKEN` of at least 32 characters.
 Configure `INTERIM_BILLING_START_DATE` (UTC lower bound, YYYY-MM-DD),
@@ -41,10 +41,10 @@ Set all new CI secrets before any future approved deploy: the existing workflow
 rebuilds `.env`. Production SSH artifacts under [ops](ops/kelevo-prod/README.md)
 were subsequently approved, installed and verified; see the
 [installation record](ops/kelevo-prod/INSTALLATION.md).
-The branch was subsequently merged, pushed and deployed with billing disabled.
+The branch was merged, pushed and first deployed with billing disabled. Manual
+live operation was subsequently approved and activated on November 18, 2026.
 The live webhook and CI configuration are installed; no live carrier or charge
-was created. The deployment record lists verification and remaining activation
-checks.
+was created during deployment or activation.
 
 ## API and operation
 

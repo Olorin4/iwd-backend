@@ -3,8 +3,9 @@
 # Stripe permission and retry review — 2026-11-17
 
 The owner deferred further admin SSH-key replacement and requested Stripe
-permission/retry checks. Billing remains disabled; no activation or live invoice,
-customer, payment method or charge creation is authorized by this review.
+permission/retry checks. The review itself did not authorize activation or live
+invoice, customer, payment method or charge creation. The subsequent separately
+approved [manual activation](ACTIVATION-2026-11-18.md) is now complete.
 
 ## Verified API access
 
@@ -80,14 +81,14 @@ reads used here return neither the full key matrix nor those retry controls.
 ## Activation status
 
 No live setting, permission or retry policy was changed by these checks.
-Billing remains disabled. The Dashboard readiness confirmations are complete;
-manual activation still requires separate approval. Automatic
-Friday run creation remains off, and each run still requires approval of the
-exact invoice count and total before collection.
+The Dashboard readiness confirmations were completed, then the owner separately
+approved manual activation on 2026-11-18. It is now verified; see the activation
+record above. Automatic Friday run creation remains off, and each run still
+requires approval of its exact invoice count and total before collection.
 
-## Proposed manual activation
+## Approved manual activation procedure
 
-After explicit activation approval:
+Completed on 2026-11-18 after explicit activation approval:
 
 1. Set Actions secret `INTERIM_BILLING_ENABLED=true`. Leave
    `INTERIM_BILLING_AUTO_RUN=false`, live mode and the November 23 start date

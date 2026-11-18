@@ -4,8 +4,9 @@
 
 Status: the owner approved the disabled release, which is now deployed. See the
 [execution record](DEPLOYMENT-2026-11-17.md) for applied changes and remaining
-admin-key cleanup (subsequently deferred by the owner). Activation and
-collection remain unapproved. The owner selected **2026-11-23** as the initial billing start
+admin-key cleanup (subsequently deferred by the owner). Carrier onboarding and
+collection require separate authorization. Manual activation was subsequently
+approved and verified; see the [activation record](ACTIVATION-2026-11-18.md). The owner selected **2026-11-23** as the initial billing start
 date. Initial operation uses manually created runs, with automatic Friday run
 creation off and explicit approval of every invoice count and total.
 
