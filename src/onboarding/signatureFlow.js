@@ -12,6 +12,7 @@ import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
 import { REQUESTER_NAME, packetMessages } from "./signature/messages.js";
+import { IRON_WING_EMAIL_DELAY_DEFAULT_MINUTES } from "./config.js";
 
 // ERROR is not terminal: a verified re-fetch may show the provider did send the
 // document (found in the 2026-11-18 sandbox run), and a DRAFT in ERROR is sent
@@ -361,6 +362,11 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
             name: deps.config.signature.countersigner.name,
             email: deps.config.signature.countersigner.email,
             ...copy.dispatch,
+            // R14: the owner signs this recipient embedded in Outreach;
+            // SignWell emails it only if not signed within the delay.
+            emailDelayMinutes:
+                deps.config.signature.ironWingEmailDelayMinutes ??
+                IRON_WING_EMAIL_DELAY_DEFAULT_MINUTES,
         },
         {
             id: "1",

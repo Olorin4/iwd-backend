@@ -185,7 +185,11 @@ it("sends with the test-mode flag and maps timeouts and errors to safe codes", a
     );
     await p.send("doc_1");
     expect(calls[0].url).toBe(`${SIGNWELL_BASE_URL}/documents/doc_1/send/`);
-    expect(calls[0].body).toEqual({ test_mode: false });
+    expect(calls[0].body).toEqual({
+        test_mode: false,
+        embedded_signing: true,
+        embedded_signing_notifications: true,
+    });
     await expect(p.send("doc_1")).rejects.toMatchObject({
         code: "provider_timeout",
         ambiguous: true,
@@ -440,4 +444,38 @@ it("sends the requester identity and per-recipient subject/message", async () =>
     expect(calls[1].body.custom_requester_name).toBe(
         "Iron Wing Logistics L.L.C."
     );
+});
+
+it("creates an embedded-signing document with per-recipient email settings (R14)", async () => {
+    const { calls, p } = provider([
+        json(201, { id: "doc_1", status: "Draft" }),
+    ]);
+    await p.createEnvelope(
+        filled,
+        [{ ...signers[1], emailDelayMinutes: 45 }, { ...signers[0] }],
+        metadata
+    );
+    const body = calls[0].body;
+    expect(body.embedded_signing).toBe(true);
+    expect(body.embedded_signing_notifications).toBe(true);
+    expect(body.apply_signing_order).toBe(true);
+    expect(body.recipients).toEqual([
+        {
+            id: "2",
+            name: "Lead",
+            email: "lead@example.test",
+            send_email: true,
+            send_email_delay: 45,
+        },
+        { id: "1", name: "Sam", email: "sam@example.test", send_email: true },
+    ]);
+    // A zero delay is a real value (email immediately), not "unset".
+    await p
+        .createEnvelope(
+            filled,
+            [{ ...signers[1], emailDelayMinutes: 0 }],
+            metadata
+        )
+        .catch(() => null);
+    expect(calls[1].body.recipients[0].send_email_delay).toBe(0);
 });

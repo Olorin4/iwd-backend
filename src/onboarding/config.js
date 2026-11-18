@@ -56,6 +56,28 @@ function positiveInt(env, name, fallback, max) {
     return value;
 }
 
+/** A whole number in [min, max]; `fallback` when unset. */
+function intInRange(env, name, fallback, min, max) {
+    const raw = env[name];
+    const value =
+        raw === undefined || String(raw).trim() === ""
+            ? fallback
+            : Number(String(raw).trim());
+    if (!Number.isInteger(value) || value < min || value > max)
+        throw new OnboardingConfigError(
+            `${name} must be a whole number from ${min} to ${max}.`
+        );
+    return value;
+}
+
+/**
+ * Minutes SignWell waits before emailing the Iron Wing signer when the owner
+ * has not signed in the embedded flow (R14). SignWell's `send_email_delay`
+ * accepts 0–60 minutes (openapi.json, Recipients.send_email_delay).
+ */
+export const IRON_WING_EMAIL_DELAY_DEFAULT_MINUTES = 60;
+export const IRON_WING_EMAIL_DELAY_MAX_MINUTES = 60;
+
 function finiteNumber(env, name, fallback) {
     const raw = env[name];
     const value = raw === undefined || raw === "" ? fallback : Number(raw);
@@ -167,6 +189,13 @@ export function getOnboardingConfig(env = process.env) {
                 120000
             ),
             requesterEmail: optionalEmail(env, "ONBOARDING_REQUESTER_EMAIL"),
+            ironWingEmailDelayMinutes: intInRange(
+                env,
+                "ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES",
+                IRON_WING_EMAIL_DELAY_DEFAULT_MINUTES,
+                0,
+                IRON_WING_EMAIL_DELAY_MAX_MINUTES
+            ),
             countersigner: {
                 name: required(env, "ONBOARDING_COUNTERSIGNER_NAME"),
                 title: required(env, "ONBOARDING_COUNTERSIGNER_TITLE"),

@@ -120,3 +120,22 @@ it("accepts one optional requester email and refuses lists or junk", () => {
             getOnboardingConfig({ ...base, ONBOARDING_REQUESTER_EMAIL: bad })
         ).toThrow(/ONBOARDING_REQUESTER_EMAIL/);
 });
+
+it("validates the Iron Wing fallback email delay (0-60 minutes, default 60)", () => {
+    const delay = (value) =>
+        getOnboardingConfig({
+            ...base,
+            ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES: value,
+        }).signature.ironWingEmailDelayMinutes;
+    expect(getOnboardingConfig(base).signature.ironWingEmailDelayMinutes).toBe(
+        60
+    );
+    expect(delay("")).toBe(60);
+    expect(delay("0")).toBe(0);
+    expect(delay("15")).toBe(15);
+    expect(delay("60")).toBe(60);
+    for (const bad of ["61", "-1", "1.5", "abc", "1e3"])
+        expect(() => delay(bad)).toThrow(
+            /ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES/
+        );
+});

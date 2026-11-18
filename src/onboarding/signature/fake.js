@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { SignatureError } from "./errors.js";
 
@@ -30,6 +31,7 @@ export function createFakeSignatureProvider() {
         createEnvelope: 0,
         send: 0,
         get: 0,
+        embeddedSigningUrl: 0,
         downloadCompleted: 0,
         delete: 0,
     };
@@ -52,7 +54,21 @@ export function createFakeSignatureProvider() {
         return found;
     };
     const setStatus = (id, status) => {
-        doc(id).status = status;
+        const d = doc(id);
+        d.status = status;
+        if (status === "completed")
+            for (const r of d.recipients) r.status = "completed";
+    };
+    // Recipient statuses: created (draft) → sent → completed (signed).
+    const signRecipient = (id, recipientId) => {
+        const d = doc(id);
+        const recipient = d.recipients.find((r) => r.id === recipientId);
+        if (!recipient)
+            throw new SignatureError("provider_http_404", { status: 404 });
+        recipient.status = "completed";
+        if (d.recipients.every((r) => r.status === "completed"))
+            d.status = "completed";
+        else if (d.status !== "viewed") d.status = "pending";
     };
     return {
         name: "fake",
@@ -63,6 +79,13 @@ export function createFakeSignatureProvider() {
         decline: (id) => setStatus(id, "declined"),
         expire: (id) => setStatus(id, "expired"),
         view: (id) => setStatus(id, "viewed"),
+        // One recipient signs (R14: Iron Wing "2" first, then carrier "1").
+        sign: signRecipient,
+        // Overrides a recipient's raw provider status (e.g. unknown values).
+        setRecipientStatus: (id, recipientId, status) => {
+            doc(id).recipients.find((r) => r.id === recipientId).status =
+                status;
+        },
         // Simulates a completed PDF without the provider audit page.
         omitAuditPage: (id) => {
             doc(id).omitAuditPage = true;
@@ -77,6 +100,10 @@ export function createFakeSignatureProvider() {
                     files: filled.files,
                     signers,
                     metadata,
+                    recipients: signers.map((s) => ({
+                        id: String(s.id),
+                        status: "created",
+                    })),
                     sends: 0,
                 });
                 return { id, status: "draft" };
@@ -92,6 +119,7 @@ export function createFakeSignatureProvider() {
                     });
                 d.status = "pending";
                 d.sends += 1;
+                for (const r of d.recipients) r.status = "sent";
             });
         },
         async get(id) {
@@ -99,6 +127,16 @@ export function createFakeSignatureProvider() {
             return maybeFail("get", () => {
                 const d = doc(id);
                 return { id, status: d.status, metadata: d.metadata };
+            });
+        },
+        /** A fresh, unguessable test URL per call (never a real provider URL). */
+        async embeddedSigningUrl(id, recipientId) {
+            calls.embeddedSigningUrl += 1;
+            return maybeFail("embeddedSigningUrl", () => {
+                const d = doc(id);
+                if (!d.recipients.some((r) => r.id === recipientId))
+                    return null;
+                return `https://fake-signwell.example.test/embedded/${encodeURIComponent(id)}/${recipientId}/${randomBytes(8).toString("hex")}`;
             });
         },
         async downloadCompleted(id) {

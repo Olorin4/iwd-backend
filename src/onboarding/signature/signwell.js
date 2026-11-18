@@ -67,6 +67,46 @@ export function signwellFields(files, calibration = DEFAULT_CALIBRATION) {
     );
 }
 
+/**
+ * Embedded signing (owner ruling R14, 2026-11-18): the owner signs as Iron
+ * Wing inside Outreach through the recipient's `embedded_signing_url`; the
+ * carrier keeps normal email signing. Field names and units are from
+ * SignWell's OpenAPI file (DocumentRequest / UpdateDocumentAndSendRequest /
+ * Recipients):
+ * - `embedded_signing` (boolean, default false): enables embedded signing.
+ * - `embedded_signing_notifications` (boolean, default false): "On embedding
+ *   signing, document owners (and CC'd contacts) do not get a notification
+ *   email when documents have been completed" — set true so the owner keeps
+ *   the completed-document email they had before R14.
+ * - Recipients[].`send_email` (boolean, default false): "Applies on when
+ *   `embedded_signing` is `true`. By default, recipients are not notified
+ *   through email" — true for both recipients (the carrier signs by email).
+ * - Recipients[].`send_email_delay` (integer, minutes, 0–60, default 0):
+ *   with embedded signing the email "will not go out if the document is
+ *   completed before the delay time is over". Set only for the Iron Wing
+ *   recipient (signer.emailDelayMinutes).
+ * The send call repeats both document flags because
+ * UpdateDocumentAndSendRequest also carries them with default false.
+ */
+export const EMBEDDED_DOCUMENT_FLAGS = {
+    embedded_signing: true,
+    embedded_signing_notifications: true,
+};
+
+export function signwellRecipient(signer) {
+    return {
+        id: signer.id,
+        name: signer.name,
+        email: signer.email,
+        ...(signer.subject ? { subject: signer.subject } : {}),
+        ...(signer.message ? { message: signer.message } : {}),
+        send_email: true,
+        ...(Number.isInteger(signer.emailDelayMinutes)
+            ? { send_email_delay: signer.emailDelayMinutes }
+            : {}),
+    };
+}
+
 export function createSignwellProvider({
     apiKey,
     testMode = true,
@@ -132,15 +172,10 @@ export function createSignwellProvider({
                 ...(metadata.requester_email
                     ? { custom_requester_email: metadata.requester_email }
                     : {}),
-                recipients: signers.map((s) => ({
-                    id: s.id,
-                    name: s.name,
-                    email: s.email,
-                    ...(s.subject ? { subject: s.subject } : {}),
-                    ...(s.message ? { message: s.message } : {}),
-                })),
+                recipients: signers.map(signwellRecipient),
                 fields: signwellFields(filled.files, calibration),
                 apply_signing_order: true,
+                ...EMBEDDED_DOCUMENT_FLAGS,
                 reminders: false,
                 allow_decline: true,
                 expires_in: expiresInDays,
@@ -157,6 +192,7 @@ export function createSignwellProvider({
         async send(id) {
             await call("POST", `/documents/${encodeURIComponent(id)}/send/`, {
                 test_mode: testMode,
+                ...EMBEDDED_DOCUMENT_FLAGS,
             });
         },
         async get(id) {

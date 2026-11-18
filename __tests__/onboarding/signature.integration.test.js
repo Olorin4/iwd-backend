@@ -104,6 +104,12 @@ it("sends the filled packet once after the PUT: draft, then send, with both sign
         ["2", "Dispatch", "dispatch@example.test"],
         ["1", "Carrier", "owner@example.test"],
     ]);
+    // R14: only the Iron Wing recipient gets the fallback email delay
+    // (default 60 minutes); the carrier is emailed when its turn comes.
+    expect(doc.signers.map((s) => s.emailDelayMinutes)).toEqual([
+        60,
+        undefined,
+    ]);
     expect(doc.metadata).toMatchObject({
         onboarding_request_id: envelope.request_id,
         envelope_id: envelope.id,
@@ -709,4 +715,12 @@ it("the packet carries the requester name and per-recipient copy without braces"
         dispatch.message,
     ])
         expect(text).not.toMatch(/[{}]/);
+});
+
+it("passes the configured Iron Wing email delay to the provider (R14)", async () => {
+    config.signature.ironWingEmailDelayMinutes = 5;
+    await put();
+    const [envelope] = await envelopes();
+    const doc = signature.documents.get(envelope.provider_document_id);
+    expect(doc.signers[0]).toMatchObject({ id: "2", emailDelayMinutes: 5 });
 });
