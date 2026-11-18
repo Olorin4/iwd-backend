@@ -2,6 +2,7 @@ import {
     agreementFilename,
     completionEmail,
     refOf,
+    reminderEmail,
 } from "../../src/onboarding/emails";
 
 const terms = {
@@ -70,5 +71,61 @@ describe("R15 completion email", () => {
 
     it("ref is the first 8 characters of the request id", () => {
         expect(refOf(ID)).toBe("31700238");
+    });
+});
+
+describe("R15 reminder email", () => {
+    const subject =
+        "Reminder: still needed for your Iron Wing onboarding — Example Freight LLC (ref 31700238)";
+    const ending =
+        "\n\nPlease reply to this email. If you have questions or need more time, just let us know.";
+
+    it("lists only the missing documents, renumbered, plus the payment line", () => {
+        const mail = reminderEmail({
+            terms,
+            requestId: ID,
+            missingSlots: ["INSURANCE_COI", "FACTORING"],
+            paymentUrl: "https://x.test/c/t",
+        });
+        expect(mail.subject).toBe(subject);
+        expect(mail.text).toBe(
+            "Hello Sam Example,\n\n" +
+                "We're still missing the following for Example Freight LLC:\n" +
+                "1. Your certificate of insurance\n" +
+                "2. Your factoring company's notice of assignment, or reply \"no factoring\" if you don't use one\n" +
+                "Your payment method: save it on Stripe's secure page here: https://x.test/c/t" +
+                ending
+        );
+        expect(mail.text).not.toMatch(/[{}]/);
+    });
+
+    it("omits the payment line once the payment method is saved", () => {
+        const { text } = reminderEmail({
+            terms,
+            requestId: ID,
+            missingSlots: ["AUTHORITY_VERIFIED"],
+            paymentUrl: null,
+        });
+        expect(text).toBe(
+            "Hello Sam Example,\n\n" +
+                "We're still missing the following for Example Freight LLC:\n" +
+                "1. A copy of your operating authority (MC 123456)" +
+                ending
+        );
+    });
+
+    it("can be only the payment line", () => {
+        const { text } = reminderEmail({
+            terms,
+            requestId: ID,
+            missingSlots: [],
+            paymentUrl: "https://x.test/c/t",
+        });
+        expect(text).toBe(
+            "Hello Sam Example,\n\n" +
+                "We're still missing the following for Example Freight LLC:\n" +
+                "Your payment method: save it on Stripe's secure page here: https://x.test/c/t" +
+                ending
+        );
     });
 });

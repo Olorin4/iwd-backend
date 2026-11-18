@@ -6,6 +6,7 @@ import {
     reconcileSignature,
 } from "./signatureFlow.js";
 import { openPaymentRequestIds, reconcilePayment } from "./paymentFlow.js";
+import { reminderCandidateIds, sendDueReminder } from "./documentsFlow.js";
 import {
     recoverRequestSteps,
     stalledRequestIds,
@@ -13,8 +14,9 @@ import {
 } from "./recovery.js";
 
 /**
- * One reconcile pass: open envelopes, unsent packets, pending payments and
- * crash recovery of after-commit steps (payment link, provisioning).
+ * One reconcile pass: open envelopes, unsent packets, pending payments,
+ * crash recovery of after-commit steps (payment link, completion email,
+ * provisioning) and the R15 documents reminders.
  */
 export async function reconcileOnce(deps) {
     const log = (code) => deps.logger?.error?.({ code });
@@ -37,6 +39,11 @@ export async function reconcileOnce(deps) {
     for (const id of await stalledRequestIds(deps))
         await recoverRequestSteps(deps, id).catch(() =>
             log("onboarding_reconcile_recovery_failed")
+        );
+    // R15 documents reminders (this worker pass only, never the action).
+    for (const id of await reminderCandidateIds(deps))
+        await sendDueReminder(deps, id).catch(() =>
+            log("onboarding_reconcile_reminder_failed")
         );
 }
 

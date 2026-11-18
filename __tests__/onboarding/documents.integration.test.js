@@ -19,6 +19,8 @@ import {
 } from "./harness";
 import { makeSyntheticPacket, syntheticLayout } from "./pdfFixtures";
 import { createFakeStripe } from "./fakeStripe";
+import { reconcileOnce } from "../../src/onboarding/workers";
+import { sendDueReminder } from "../../src/onboarding/documentsFlow";
 import { onboardingStatusV1 } from "../../src/onboarding/contracts";
 
 serializeSuite();
@@ -217,5 +219,204 @@ describe("checklist actions", () => {
         expect(
             (await action("set_document_reminders", { paused: true })).status
         ).toBe(409);
+    });
+});
+
+describe("documents reminders (reconcile worker pass)", () => {
+    // Monday 2026-11-16 10:00 New York (EST).
+    const REQUESTED = new Date("2026-11-16T15:00:00.000Z");
+    const DUE_1 = new Date("2026-11-19T15:00:00.000Z"); // Thu, +3 business days
+    const DUE_2 = new Date("2026-11-25T15:00:00.000Z"); // Wed, +7 business days
+    let clock;
+    const at = (date) => {
+        clock = new Date(date);
+    };
+    const reminders = () =>
+        sendEmail.mock.calls
+            .map((c) => c[0])
+            .filter((m) => m.subject.startsWith("Reminder:"));
+    const setRow = (data) =>
+        prisma.onboardingRequest.update({
+            where: { idempotency_key: KEY },
+            data,
+        });
+
+    /** Completion email sent; the clock is then controlled by the test. */
+    async function requested() {
+        await completed();
+        await queue.drain();
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+        await setRow({ documents_requested_at: REQUESTED });
+        // Real time until a test sets the clock (signed Outreach calls are
+        // checked against deps.now()).
+        clock = null;
+        deps = makeDeps({ now: () => clock ?? new Date() });
+        return request();
+    }
+
+    it("sends reminder 1 after 3 and reminder 2 after 7 business days, then stops", async () => {
+        const row = await requested();
+        at(DUE_1.getTime() - 1);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(0);
+
+        at(DUE_1);
+        const v = (await request()).version;
+        await reconcileOnce(deps);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+        const mail = reminders()[0];
+        expect(mail.to).toBe("owner@example.test");
+        expect(mail.replyTo).toBe("ops@example.test");
+        expect(mail.subject).toBe(
+            `Reminder: still needed for your Iron Wing onboarding — Example Freight LLC (ref ${row.id.slice(0, 8)})`
+        );
+        expect(mail.text).toMatch(
+            /^Hello Sam Example,\n\nWe're still missing the following for Example Freight LLC:\n1\. A signed W-9 form\n2\. Your certificate of insurance\n3\. A copy of your operating authority \(MC 123456\)\n4\. .*\n5\. Your carrier profile: .*\nYour payment method: save it on Stripe's secure page here: https:\/\/api\.example\.test\/onboarding\/continue\/\S+\n\nPlease reply to this email\. If you have questions or need more time, just let us know\.$/
+        );
+        expect(mail.text).not.toMatch(/[{}]|FLEET|fleet/);
+        expect(mail.attachments).toBeUndefined();
+        let fresh = await request();
+        expect(fresh.reminders_sent).toBe(1);
+        expect(fresh.version).toBe(v + 1);
+        expect(
+            (await statusEvents()).at(-1).payload.operations.reminders_sent
+        ).toBe(1);
+
+        at(DUE_2.getTime() - 1);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+        at(DUE_2);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(2);
+        at(new Date("2027-01-15T15:00:00.000Z"));
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(2);
+        fresh = await request();
+        expect(fresh.reminders_sent).toBe(2);
+    });
+
+    it("lists only missing carrier-facing items and drops the payment line once saved", async () => {
+        await requested();
+        await action("mark_operation_item_received", { key: "W9" });
+        await action("verify_operation_item", { key: "NOT_FACTORING" });
+        await action("verify_operation_item", { key: "FLEET_MAPPING" });
+        await setRow({ payment_state: "READY" });
+        at(DUE_1);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+        expect(reminders()[0].text).toBe(
+            "Hello Sam Example,\n\n" +
+                "We're still missing the following for Example Freight LLC:\n" +
+                "1. Your certificate of insurance\n" +
+                "2. A copy of your operating authority (MC 123456)\n" +
+                "3. Your carrier profile: equipment, preferred lanes, minimum rates and any freight you won't haul (a short list in the email is fine)\n\n" +
+                "Please reply to this email. If you have questions or need more time, just let us know."
+        );
+    });
+
+    it("documents all in but payment not saved → only the payment line", async () => {
+        await requested();
+        for (const key of [
+            "W9",
+            "INSURANCE_COI",
+            "AUTHORITY_VERIFIED",
+            "FACTORING_NOA",
+            "CARRIER_PROFILE",
+        ])
+            await action("mark_operation_item_received", { key });
+        at(DUE_1);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+        expect(reminders()[0].text).toMatch(
+            /following for Example Freight LLC:\nYour payment method: save it on Stripe's secure page here: https:\/\//
+        );
+    });
+
+    it.each([["READY"], ["PENDING_VERIFICATION"]])(
+        "stops when every carrier-facing item is in and payment is %s",
+        async (payment) => {
+            await requested();
+            await action("mark_operation_item_received", { key: "W9" });
+            for (const key of [
+                "INSURANCE_COI",
+                "AUTHORITY_VERIFIED",
+                "NOT_FACTORING",
+            ])
+                await action("verify_operation_item", { key });
+            await action("mark_operation_item_received", {
+                key: "CARRIER_PROFILE",
+            });
+            // FLEET_MAPPING (internal) stays PENDING and never matters.
+            await setRow({ payment_state: payment });
+            at(DUE_2);
+            await reconcileOnce(deps);
+            expect(reminders()).toHaveLength(0);
+            expect((await request()).reminders_sent).toBe(0);
+        }
+    );
+
+    it("stops while paused and resumes after", async () => {
+        await requested();
+        await action("set_document_reminders", { paused: true });
+        at(DUE_1);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(0);
+        clock = null;
+        await action("set_document_reminders", { paused: false });
+        at(DUE_1);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+    });
+
+    it("never reminds a cancelled request", async () => {
+        await requested();
+        await action("cancel");
+        at(DUE_2);
+        await reconcileOnce(deps);
+        expect(await sendDueReminder(deps, (await request()).id)).toBe(false);
+        expect(reminders()).toHaveLength(0);
+    });
+
+    it("the reconcile action never sends reminders", async () => {
+        await requested();
+        // Due long ago at real time; only the worker pass may send it.
+        await setRow({
+            documents_requested_at: new Date(Date.now() - 30 * 86400000),
+        });
+        await action("reconcile");
+        expect(reminders()).toHaveLength(0);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+    });
+
+    it("each reminder number goes out once under concurrent passes", async () => {
+        const row = await requested();
+        at(DUE_1);
+        await Promise.all([
+            reconcileOnce(deps),
+            reconcileOnce(deps),
+            sendDueReminder(deps, row.id),
+            sendDueReminder(deps, row.id),
+        ]);
+        expect(reminders()).toHaveLength(1);
+        expect((await request()).reminders_sent).toBe(1);
+    });
+
+    it("a send failure gives the number back and the next pass retries", async () => {
+        await requested();
+        at(DUE_1);
+        sendEmail.mockRejectedValueOnce(new Error("smtp down"));
+        await reconcileOnce(deps);
+        expect((await request()).reminders_sent).toBe(0);
+        expect(logger.lines.map((l) => l.code)).toContain(
+            "onboarding_reminder_email_failed"
+        );
+        await reconcileOnce(deps);
+        expect((await request()).reminders_sent).toBe(1);
+        // Two attempts, one delivered.
+        expect(reminders()).toHaveLength(2);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(2);
     });
 });
