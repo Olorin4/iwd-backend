@@ -4,6 +4,9 @@
   "status": "DRAFT",
   "units": "PDF points, origin top-left of a 612x792 page",
   "calibration": "calibrated 2026-11-18 against release v1: SignWell = PDF points x 4/3 (CSS px at 96 DPI, top-left origin). Status stays DRAFT pending the owner's page-6 date-field decision.",
+  "owner_decisions": [
+    "page6_date_typed_mm_dd_yy 2026-11-18"
+  ],
   "fields": [
     {
       "page": 1,
@@ -526,12 +529,49 @@
       "page": 6,
       "kind": "signwell",
       "recipient": 1,
-      "type": "date (lock_sign_date, MM/DD/YYYY)",
+      "type": "text",
       "x": 233.4,
-      "y": 677.0,
-      "w": 122.6,
-      "h": 13.0,
-      "note": "covers the printed __/__/20__ blank"
+      "y": 678.5,
+      "w": 35.0,
+      "h": 11.5,
+      "required": true,
+      "fixed_width": true,
+      "label": "MM",
+      "validation_regex": "^(0[1-9]|1[0-2])$",
+      "validation_regex_error_message": "Enter the month as two digits, e.g. 03",
+      "note": "owner decision 2026-11-18: typed authorization date in the printed blank"
+    },
+    {
+      "page": 6,
+      "kind": "signwell",
+      "recipient": 1,
+      "type": "text",
+      "x": 277.1,
+      "y": 678.5,
+      "w": 35.1,
+      "h": 11.5,
+      "required": true,
+      "fixed_width": true,
+      "label": "DD",
+      "validation_regex": "^(0[1-9]|[12][0-9]|3[01])$",
+      "validation_regex_error_message": "Enter the day as two digits, e.g. 07",
+      "note": "owner decision 2026-11-18: typed authorization date in the printed blank"
+    },
+    {
+      "page": 6,
+      "kind": "signwell",
+      "recipient": 1,
+      "type": "text",
+      "x": 332.0,
+      "y": 678.5,
+      "w": 24.0,
+      "h": 11.5,
+      "required": true,
+      "fixed_width": true,
+      "label": "YY",
+      "validation_regex": "^[0-9]{2}$",
+      "validation_regex_error_message": "Enter the last two digits of the year, e.g. 26",
+      "note": "owner decision 2026-11-18: typed authorization date in the printed blank"
     },
     {
       "page": 6,

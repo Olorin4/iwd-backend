@@ -120,10 +120,15 @@ page 6 signature line (46.5, 670.5, 175.2×19.5 pt → 62, 894, 233.6×26 px).
 The conversion is the single function `toSignwellBox` in
 `src/onboarding/signature/signwell.js`; the settings above override it.
 
-Open finding: SignWell date fields render semi-transparent, so the page-6
-date field over the printed `__ / __ / 20__` blank shows the printed slashes
-through it. The field is unchanged until the owner decides; the layout stays
-DRAFT meanwhile.
+Page-6 authorization date (owner decision 2026-11-18,
+`owner_decisions: ["page6_date_typed_mm_dd_yy 2026-11-18"]` in the layout):
+SignWell date fields render semi-transparent, so a date field over the printed
+`__ / __ / 20__` showed the printed slashes through it. Page 6 therefore uses
+three required, fixed-width Carrier **text** fields in the printed blanks
+(MM, DD, and YY after the printed "20"), each with a custom pattern and a
+plain-words error message. These are typed by the signer; the SignWell audit
+page remains the authoritative signing time. Pages 4 and 5 keep their locked
+date-signed fields. The layout stays DRAFT.
 
 ## Migration
 

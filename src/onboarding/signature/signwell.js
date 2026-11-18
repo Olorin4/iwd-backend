@@ -41,12 +41,26 @@ export function signwellFields(files, calibration = DEFAULT_CALIBRATION) {
             const type = fieldType(field.type);
             return {
                 type,
-                required: true,
+                required: field.required !== false,
                 ...toSignwellBox(field, calibration),
                 recipient_id: String(field.recipient),
                 api_id: `r${field.recipient}_${type}_${index + 1}`,
                 ...(type === "date" && /lock_sign_date/.test(field.type)
                     ? { lock_sign_date: true }
+                    : {}),
+                ...(type === "text"
+                    ? {
+                          ...(field.label ? { label: field.label } : {}),
+                          ...(field.fixed_width ? { fixed_width: true } : {}),
+                          ...(field.validation_regex
+                              ? {
+                                    validation: "custom",
+                                    validation_regex: field.validation_regex,
+                                    validation_regex_error_message:
+                                        field.validation_regex_error_message,
+                                }
+                              : {}),
+                      }
                     : {}),
             };
         })

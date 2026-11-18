@@ -73,8 +73,45 @@ const signwell = z
         kind: z.literal("signwell"),
         recipient: z.union([z.literal(1), z.literal(2)]),
         type: z.string().regex(/^(signature|initials|date|text)\b/),
+        // Text fields only: a required, fixed-width typed value with an
+        // optional custom pattern (e.g. MM/DD/YY of the page-6 authorization date).
+        required: z.boolean().optional(),
+        fixed_width: z.boolean().optional(),
+        label: z.string().max(40).optional(),
+        validation_regex: z
+            .string()
+            .max(200)
+            .refine((r) => {
+                try {
+                    new RegExp(r);
+                    return true;
+                } catch {
+                    return false;
+                }
+            })
+            .optional(),
+        validation_regex_error_message: z.string().max(200).optional(),
     })
-    .strict();
+    .strict()
+    .refine(
+        (f) =>
+            f.type.startsWith("text") ||
+            (f.validation_regex === undefined &&
+                f.label === undefined &&
+                f.fixed_width === undefined),
+        {
+            message:
+                "label, fixed_width and validation apply to text fields only",
+        }
+    )
+    .refine(
+        (f) =>
+            (f.validation_regex === undefined) ===
+            (f.validation_regex_error_message === undefined),
+        {
+            message: "validation_regex needs a plain-words error message",
+        }
+    );
 
 const fileLayout = z
     .object({
@@ -86,12 +123,13 @@ const fileLayout = z
         status: z.string().max(20).optional(),
         units: z.string().max(200).optional(),
         calibration: z.string().max(500).optional(),
+        owner_decisions: z.array(z.string().max(200)).max(50).optional(),
         fields: z
             .array(
                 z.discriminatedUnion("kind", [
                     stamp.innerType(),
                     check,
-                    signwell,
+                    signwell.innerType().innerType(),
                 ])
             )
             .min(1)

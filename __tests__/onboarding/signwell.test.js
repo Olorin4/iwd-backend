@@ -283,3 +283,122 @@ it("normalizes provider statuses", () => {
     expect(normalizeProviderStatus("canceled")).toBe("CANCELLED");
     expect(normalizeProviderStatus("whatever")).toBeNull();
 });
+
+describe("page-6 typed authorization date (owner decision 2026-11-18)", () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const { layoutSchema } = require("../../src/onboarding/documents/layout");
+    const {
+        signwellFields,
+    } = require("../../src/onboarding/signature/signwell");
+    const raw = JSON.parse(
+        fs.readFileSync(
+            path.resolve(
+                __dirname,
+                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json"
+            ),
+            "utf8"
+        )
+    );
+
+    it("keeps the layout DRAFT and records the decision", () => {
+        expect(raw.status).toBe("DRAFT");
+        expect(raw.owner_decisions).toContain(
+            "page6_date_typed_mm_dd_yy 2026-11-18"
+        );
+    });
+
+    it("maps the three Carrier text fields with custom validation (× 4/3)", () => {
+        const [layout] = layoutSchema.parse(raw);
+        const fields = layout.fields.filter((f) => f.kind === "signwell");
+        const [mapped] = signwellFields([{ fields }]);
+        const page6 = mapped.filter((f) => f.page === 6);
+        expect(page6.some((f) => f.type === "date")).toBe(false);
+        const text = page6.filter((f) => f.type === "text");
+        expect(text).toHaveLength(3);
+        const [mm, dd, yy] = text;
+        for (const f of text)
+            expect(f).toMatchObject({
+                recipient_id: "1",
+                required: true,
+                fixed_width: true,
+                validation: "custom",
+                y: 904.67,
+                height: 15.33,
+            });
+        expect(mm).toMatchObject({
+            label: "MM",
+            x: 311.2,
+            width: 46.67,
+            validation_regex: "^(0[1-9]|1[0-2])$",
+            validation_regex_error_message:
+                "Enter the month as two digits, e.g. 03",
+        });
+        expect(dd).toMatchObject({
+            label: "DD",
+            x: 369.47,
+            validation_regex: "^(0[1-9]|[12][0-9]|3[01])$",
+        });
+        expect(yy).toMatchObject({
+            label: "YY",
+            x: 442.67,
+            width: 32,
+            validation_regex: "^[0-9]{2}$",
+        });
+        const re = (f) => new RegExp(f.validation_regex);
+        expect(
+            ["01", "12"].every((v) => re(mm).test(v)) &&
+                !re(mm).test("13") &&
+                !re(mm).test("3")
+        ).toBe(true);
+        expect(
+            re(dd).test("31") && !re(dd).test("32") && !re(dd).test("00")
+        ).toBe(true);
+        expect(re(yy).test("26") && !re(yy).test("2026")).toBe(true);
+        // Pages 4 and 5 keep their locked date-signed fields.
+        const locked = mapped.filter((f) => f.type === "date");
+        expect(locked.map((f) => f.page).sort()).toEqual([4, 4, 5, 5]);
+        expect(locked.every((f) => f.lock_sign_date)).toBe(true);
+    });
+
+    it("rejects validation on non-text fields, bad regexes and missing messages", () => {
+        const base = {
+            page: 1,
+            kind: "signwell",
+            recipient: 1,
+            x: 1,
+            y: 1,
+            w: 10,
+            h: 10,
+        };
+        const parse = (field) =>
+            layoutSchema.safeParse({
+                bundle: "p.pdf",
+                fields: [
+                    field,
+                    { ...base, type: "signature" },
+                    { ...base, recipient: 2, type: "signature" },
+                ],
+            }).success;
+        expect(
+            parse({
+                ...base,
+                type: "text",
+                validation_regex: "^a$",
+                validation_regex_error_message: "Type a",
+            })
+        ).toBe(true);
+        expect(parse({ ...base, type: "text", validation_regex: "^a$" })).toBe(
+            false
+        );
+        expect(
+            parse({
+                ...base,
+                type: "text",
+                validation_regex: "(",
+                validation_regex_error_message: "x",
+            })
+        ).toBe(false);
+        expect(parse({ ...base, type: "date", label: "MM" })).toBe(false);
+    });
+});
