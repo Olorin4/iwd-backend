@@ -934,3 +934,105 @@ test("a portal failure is logged with a code and a redacted path, never the toke
     });
     expect(JSON.stringify(deps.logger.lines)).not.toContain(raw);
 });
+
+test("a reissued packet stays in the portal flow and still sends the carrier no SignWell email", async () => {
+    const key = randomUUID();
+    const { row } = await putRequest(
+        deps,
+        key,
+        requestBody({ idempotency_key: key })
+    );
+    await approveTestBundle(db, deps.documentStore, {
+        makePacket: makeSyntheticPacket,
+        layout: syntheticLayout(),
+    });
+    await deps.onRequestCreated(row);
+    const first = await db.signatureEnvelope.findFirst({
+        where: { request_id: row.id },
+    });
+    signature.expire(first.provider_document_id);
+    await deps.reconcileSignature(row.id);
+    expect((await refreshed(row.id)).signature_state).toBe("EXPIRED");
+    const { reissuePacket } = await import(
+        "../../src/onboarding/signatureFlow.js"
+    );
+    await reissuePacket(deps, row.id);
+    const envelopes = await db.signatureEnvelope.findMany({
+        where: { request_id: row.id },
+        orderBy: { created_at: "asc" },
+    });
+    expect(envelopes).toHaveLength(2);
+    expect((await refreshed(row.id)).portal_flow).toBe(true);
+    expect(
+        signature.documents.get(envelopes[1].provider_document_id).signers[1]
+            .sendEmail
+    ).toBe(false);
+});
+
+test("inactive links show the contact page over HTTP: 31 days after READY, and once purged", async () => {
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id);
+    const base = pathname(token);
+    await db.onboardingRequest.update({
+        where: { id: row.id },
+        data: { ready_at: new Date(now.getTime() - 31 * 86400000) },
+    });
+    let response = await browser(base);
+    expect(response.status).toBe(410);
+    expect(await response.text()).toContain(
+        "onboarding@iron-wing-dispatching.com"
+    );
+    await db.onboardingRequest.update({
+        where: { id: row.id },
+        data: { ready_at: null, purged_at: now },
+    });
+    response = await browser(base + "/agreement");
+    expect(response.status).toBe(410);
+});
+
+test("an upload over 15 MB through the page is refused and stores nothing", async () => {
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const big = Buffer.concat([
+        Buffer.from("%PDF-1.7\n"),
+        Buffer.alloc(MAX_UPLOAD_BYTES),
+    ]);
+    const response = await browser(pathname(token) + "/documents/W9", {
+        method: "POST",
+        headers: { Origin: PORTAL_BASE_URL },
+        body: form(token, big, "w9.pdf"),
+    });
+    expect([303, 413]).toContain(response.status);
+    if (response.status === 303)
+        expect(response.headers.get("location")).toContain("error=too_large");
+    expect(objects.size).toBe(0);
+    expect(
+        await db.onboardingDocument.count({ where: { request_id: row.id } })
+    ).toBe(0);
+    expect(
+        (await refreshed(row.id)).operations.find((i) => i.key === "W9").state
+    ).toBe("PENDING");
+});
+
+test("a re-upload request bumps the version and writes one status event", async () => {
+    const row = await createRequest();
+    await recordUpload(deps, row.id, "W9", pdf, {
+        source: "CARRIER",
+        actor: { type: "carrier" },
+    });
+    const before = await refreshed(row.id);
+    const events = await eventCount(row.id);
+    await act(row, "request_reupload", {
+        key: "W9",
+        reason: "Page 2 missing.",
+    });
+    const after = await refreshed(row.id);
+    expect(after.version).toBe(before.version + 1);
+    expect(await eventCount(row.id)).toBe(events + 1);
+    expect(after.operations.find((i) => i.key === "W9")).toMatchObject({
+        state: "REUPLOAD_REQUESTED",
+        note: "Page 2 missing.",
+    });
+});
