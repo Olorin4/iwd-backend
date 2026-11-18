@@ -329,7 +329,10 @@ test("portal doc versions serialize and staff can read and audit downloads", asy
     );
     expect(response.status).toBe(409);
     expect(await response.json()).toEqual({ error: "document_present" });
-    await act(row, "verify_operation_item", { key: "W9" });
+    await act(row, "verify_operation_item", {
+        key: "W9",
+        document_id: versions[1].id,
+    });
     expect(await recordUpload(deps, row.id, "W9", pdf, upload)).toEqual({
         ok: false,
         code: "already_verified",
@@ -713,4 +716,23 @@ test("ready requests retain files until the third calendar anniversary", async (
     expect(await purgeDue(deps, new Date("2029-11-18T16:00:00Z"))).toEqual({
         purged: 1,
     });
+});
+
+test("verify applies only to the document version the closer saw", async () => {
+    const row = await createRequest();
+    const upload = { source: "CARRIER", actor: { type: "carrier" } };
+    const first = await recordUpload(deps, row.id, "W9", pdf, upload);
+    const second = await recordUpload(deps, row.id, "W9", pdf, upload);
+    await expect(
+        act(row, "verify_operation_item", { key: "W9", document_id: first.documentId })
+    ).rejects.toMatchObject({ extra: { code: "document_changed" } });
+    await expect(act(row, "verify_operation_item", { key: "W9" })).rejects.toMatchObject({
+        extra: { code: "document_changed" },
+    });
+    expect((await refreshed(row.id)).operations.find((i) => i.key === "W9").state).toBe("RECEIVED");
+    await act(row, "verify_operation_item", { key: "W9", document_id: second.documentId });
+    expect((await refreshed(row.id)).operations.find((i) => i.key === "W9").state).toBe("VERIFIED");
+    // Items with no stored file (carrier profile) verify without a document id.
+    await act(row, "verify_operation_item", { key: "CARRIER_PROFILE" });
+    expect((await refreshed(row.id)).operations.find((i) => i.key === "CARRIER_PROFILE").state).toBe("VERIFIED");
 });

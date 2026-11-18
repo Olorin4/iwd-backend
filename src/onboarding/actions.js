@@ -43,7 +43,11 @@ const SCHEMAS = {
             kelevo_ref: z.string().regex(/^[A-Za-z0-9._:-]{1,100}$/),
         })
         .strict(),
-    verify_operation_item: itemSchema,
+    // The closer verifies the document version they reviewed: refused when the
+    // carrier has uploaded another version since (or none was named).
+    verify_operation_item: itemSchema.extend({
+        document_id: z.string().uuid().nullable().optional(),
+    }),
     request_reupload: z
         .object({
             ...base,
@@ -157,13 +161,27 @@ async function perform(deps, row, action, input) {
             return "provisioning_confirmed";
         case "verify_operation_item": {
             const now = deps.now();
-            await transition(deps.db, row.id, (r) => ({
-                operations: verifyOperationItem(r.operations, input.key, {
-                    actor: input.actor,
-                    note: input.note ?? null,
-                    at: now,
-                }),
-            }));
+            await transition(deps.db, row.id, async (r, tx) => {
+                const current = await tx.onboardingDocument.findFirst({
+                    where: {
+                        request_id: r.id,
+                        item_key: input.key,
+                        state: "CURRENT",
+                    },
+                    select: { id: true },
+                });
+                if (current && input.document_id !== current.id)
+                    throw new OnboardingError("action_not_allowed", 409, {
+                        code: "document_changed",
+                    });
+                return {
+                    operations: verifyOperationItem(r.operations, input.key, {
+                        actor: input.actor,
+                        note: input.note ?? null,
+                        at: now,
+                    }),
+                };
+            });
             return "item_verified";
         }
         case "mark_operation_item_received": {
