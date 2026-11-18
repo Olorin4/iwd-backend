@@ -103,7 +103,8 @@ The SignWell hash covers only `type@time`, so events are hints: hashes must be
 from now are ignored (`stale_event`, 202); nothing is fetched unless the
 document id is one of our own open envelopes; the dedupe key is
 `type:time:<recomputed HMAC>:documentId`; webhooks re-fetch an envelope at most
-once per 30 s. Legitimately late or throttled events are covered by the
+once per 30 s; the throttle applies before the receipt is recorded, so a
+throttled event's redelivery is still processed. Legitimately late or throttled events are covered by the
 reconcile poller (`ONBOARDING_RECONCILE_ENABLED=1`) and the `reconcile` action.
 Orphan drafts from a timed-out create cannot email anyone and are left in
 SignWell for manual deletion (the log shows `packet_create_failed`).

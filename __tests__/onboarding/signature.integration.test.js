@@ -573,3 +573,34 @@ it("reissue from ERROR logs a failed withdrawal by code and still reissues", asy
     ).toBe(true);
     expect((await envelopes())[1].state).toBe("SENT");
 });
+
+it("a throttled SignWell event keeps its receipt: its redelivery is processed", async () => {
+    await put();
+    const [envelope] = await envelopes();
+    const time = nowS();
+    expect(
+        (await webhook("document_viewed", envelope.provider_document_id, time))
+            .status
+    ).toBe(200);
+    const before = signature.calls.get;
+    // Inside the 30 s window: throttled, no fetch.
+    expect(
+        (await webhook("document_signed", envelope.provider_document_id, time))
+            .status
+    ).toBe(202);
+    expect(signature.calls.get).toBe(before);
+    // Window over: SignWell redelivers the same event; it must be fetched.
+    await unthrottle();
+    expect(
+        (await webhook("document_signed", envelope.provider_document_id, time))
+            .status
+    ).toBe(200);
+    expect(signature.calls.get).toBe(before + 1);
+    // A true duplicate is still deduplicated without a fetch.
+    await unthrottle();
+    expect(
+        (await webhook("document_signed", envelope.provider_document_id, time))
+            .status
+    ).toBe(200);
+    expect(signature.calls.get).toBe(before + 1);
+});

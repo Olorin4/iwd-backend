@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { applyFacetChange, lockRequest, recordReceipt } from "./store.js";
+import {
+    applyFacetChange,
+    lockRequest,
+    receiptExists,
+    recordReceipt,
+} from "./store.js";
 import { latestApprovedBundle, loadBundleFiles } from "./documents/bundles.js";
 import { fillPacket } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
@@ -542,14 +547,10 @@ export async function handleSignwellWebhook(deps, body) {
         log(deps, "onboarding_signwell_event_ignored");
         return 202;
     }
-    if (
-        !(await recordReceipt(
-            deps.db,
-            "signwell",
-            `${type}:${time}:${expected}:${documentId}`
-        ))
-    )
-        return 200;
+    const receiptKey = `${type}:${time}:${expected}:${documentId}`;
+    if (await receiptExists(deps.db, "signwell", receiptKey)) return 200;
+    // Throttle first: a throttled event must not consume its receipt, so the
+    // provider's redelivery of it is still processed.
     const { count } = await deps.db.signatureEnvelope.updateMany({
         where: {
             id: envelope.id,
@@ -570,6 +571,7 @@ export async function handleSignwellWebhook(deps, body) {
         log(deps, "onboarding_signwell_event_throttled");
         return 202;
     }
+    if (!(await recordReceipt(deps.db, "signwell", receiptKey))) return 200;
     await reconcileEnvelope(deps, envelope.id);
     return 200;
 }
