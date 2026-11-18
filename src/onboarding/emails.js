@@ -10,15 +10,15 @@ export function paymentLinkEmail({ terms, url }) {
         .map((m) => METHOD_LABELS[m])
         .join(" or ");
     return {
-        subject:
-            "Next step: save your payment method for Iron Wing Dispatching",
+        subject: "Next step: save your payment method for Iron Wing",
         text: [
             `Hello ${terms.signer.name},`,
-            `Thank you for signing the Iron Wing Dispatching agreement for ${terms.legal_name}.`,
+            `Thank you for signing the Iron Wing dispatch service agreement for ${terms.legal_name}.`,
             `The next step is to save ${methods} on Stripe's secure page:\n${url}`,
             "Saving the payment method does not charge you. Fees are charged only as described in your signed agreement and payment authorization.",
             "Stripe collects the card or bank details. We will never ask for card or bank account numbers by email or phone.",
             "If the link no longer works, reply to this email and we will send a new one.",
+            "Iron Wing Logistics L.L.C.",
         ].join("\n\n"),
     };
 }

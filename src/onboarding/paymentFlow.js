@@ -417,15 +417,15 @@ export { sessionUsable, openSetup };
 const PAGES = {
     invalid: [
         410,
-        "This link is not valid. Please use the most recent email from Iron Wing Dispatching, or reply to it for a new link.",
+        "This link is not valid. Please use the most recent email from Iron Wing, or reply to it for a new link.",
     ],
     expired: [
         410,
-        "This link has expired. Reply to your Iron Wing Dispatching email and we will send a new one.",
+        "This link has expired. Reply to your Iron Wing email and we will send a new one.",
     ],
     closed: [
         410,
-        "This onboarding request is no longer active. Please contact Iron Wing Dispatching.",
+        "This onboarding request is no longer active. Please contact Iron Wing Logistics L.L.C. at info@iron-wing-dispatching.com.",
     ],
     waiting: [
         202,

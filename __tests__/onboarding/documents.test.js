@@ -105,12 +105,12 @@ const countersigner = {
     title: "Dispatch Manager",
     email: "d@example.test",
 };
-const releaseLayout = () =>
+const releaseLayout = (version = 1) =>
     JSON.parse(
         fs.readFileSync(
             path.resolve(
                 __dirname,
-                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.json"
+                `../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v${version}.layout.json`
             ),
             "utf8"
         )
@@ -270,5 +270,32 @@ describe("PDF inspection and filling", () => {
                     .length
             ).toBe(5);
         }
+    });
+
+    it("the v2 (legal name) layout is DRAFT, differs from v1 only in the page-1 opening and fits", async () => {
+        const v1 = releaseLayout(1);
+        const v2 = releaseLayout(2);
+        expect(v2.status).toBe("DRAFT");
+        expect(v2.bundle).toBe("Iron-Wing-Onboarding-Packet-v2.pdf");
+        expect(v2.fields).toHaveLength(v1.fields.length);
+        const changed = v2.fields
+            .map((f, i) => [f, v1.fields[i]])
+            .filter(([a, b]) => JSON.stringify(a) !== JSON.stringify(b))
+            .map(([a]) => `${a.page}:${a.key}`);
+        expect(changed.sort()).toEqual([
+            "1:legal_name",
+            "1:mc_number",
+            "1:usdot",
+        ]);
+        const layout = layoutSchema.parse(v2);
+        const [filled] = await fillPacket(
+            [{ name: v2.bundle, bytes: await makeBlankPages(6) }],
+            layout,
+            terms,
+            countersigner
+        );
+        expect(
+            filled.fields.filter((f) => f.type.startsWith("signature")).length
+        ).toBe(5);
     });
 });

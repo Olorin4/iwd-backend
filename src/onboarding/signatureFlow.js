@@ -220,13 +220,13 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
             {
                 onboarding_request_id: row.id,
                 envelope_id: envelope.id,
-                name: `Iron Wing Dispatching agreement - ${terms.legal_name}`.slice(
+                name: `Iron Wing dispatch agreement - ${terms.legal_name}`.slice(
                     0,
                     200
                 ),
-                subject: "Your Iron Wing Dispatching agreement",
+                subject: "Your Iron Wing dispatch agreement",
                 message:
-                    "Please review and sign your Iron Wing Dispatching service agreement, limited power of attorney and payment authorization.",
+                    "Please review and sign your Iron Wing Logistics L.L.C. dispatch service agreement, limited power of attorney and payment authorization.",
                 redirect_url: continueUrl(deps.config, row.id, deps.now()),
             }
         );

@@ -156,10 +156,12 @@ checks may report them.
 1. Deploy with `ONBOARDING_ENABLED` unset; apply the migration.
 2. Create the private document directory and key; back the key up offline.
 3. Register the approved release PDF as a bundle and approve it (owner):
-   `node -r dotenv/config scripts/onboarding-bundle.js register --name iron-wing-carrier-client --version 1 --pdf Iron-Wing-Onboarding-Packet-v1.pdf --expect-sha256 <release sha256> --layout <reviewed layout.json>`,
+   `node -r dotenv/config scripts/onboarding-bundle.js register --name iron-wing-carrier-client --version 2 --pdf Iron-Wing-Onboarding-Packet-v2.pdf --expect-sha256 <release sha256> --layout <reviewed layout.json>`,
    then `... approve --id <id> --by "<owner>"`. The shipped layout
-   `docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.json`
-   is owner-approved (2026-11-18); register it unchanged with the release PDF.
+   `docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v2.layout.json`
+   for release v2 (legal name only, sha256 ef482714…6225). It is **DRAFT** until the
+   owner approves it; the v1 layout (approved) belongs to the superseded v1 release
+   and must not be used for sending.
 4. Sandbox acceptance (`scripts/onboarding-sandbox.js`, test mode, ≤10 emails
    to one owner address) on a `_test`/`_sandbox` database.
 5. Configure the SignWell webhook and the Stripe webhook endpoint
@@ -201,3 +203,16 @@ line in `src/app.js`, which sits before the interim parser.
 - `src/router.js`: `router.use("/onboarding", onboardingRouter)`.
 - `package.json`: `zod`, `pdf-lib` (shifts the line numbers cited in
   `src/interimBilling/DISPOSE.md`; its code anchors remain authoritative).
+
+## Release v2 (legal name only), 2026-11-18
+
+The company has no registered DBA, so release v2 names the dispatcher only as
+Iron Wing Logistics L.L.C. (five passages and the footer; see the packet README).
+Re-measuring v2 against v1 showed that only the page-1 opening re-wrapped: the
+carrier legal-name blank moved to line 2 (x 303.3–496.3, y 105.7) and the MC and
+USDOT blanks moved left on line 3; every other blank and signature cell on all
+six pages is unchanged, so `Iron-Wing-Onboarding-Packet-v2.layout.json` differs
+from the approved v1 layout only in those three fields, carries v2's sha256 and
+keeps the v1 owner decisions and the 4/3 SignWell calibration. Emails and pages
+in this module say "Iron Wing" as the brand and "Iron Wing Logistics L.L.C."
+when naming the company. Lawyer confirmation of the v2 wording is pending.
