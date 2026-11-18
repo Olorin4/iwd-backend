@@ -100,7 +100,7 @@ export function portalPage(
     const waiting = row.signature_waiting_for === "CARRIER";
     const locked = !complete || cancelled;
     const paid = ["READY", "PENDING_VERIFICATION"].includes(row.payment_state);
-    const last4 = row.payment_last4 ? " ·•••• " + row.payment_last4 : "";
+    const last4 = row.payment_last4 ? " •••• " + row.payment_last4 : "";
     const paymentStatus =
         row.payment_state === "READY"
             ? "Saved ✓" + last4
