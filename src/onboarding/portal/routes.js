@@ -236,6 +236,13 @@ export function createPortalRouter(
             const { deps, row } = res.locals.portal;
             const result = await carrierSigningUrl(deps, row.id);
             if (result.url) return res.redirect(303, result.url);
+            // /sign may just have reconciled the completed packet: render the
+            // fresh state (download link, unlocked steps), not the stale row.
+            if (result.error === "completed")
+                res.locals.portal.row =
+                    (await deps.db.onboardingRequest.findUnique({
+                        where: { id: row.id },
+                    })) ?? row;
             return render(req, res, {
                 signed: result.error === "completed",
                 returned: result.error === "completed",

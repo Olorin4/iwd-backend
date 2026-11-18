@@ -513,10 +513,11 @@ test("fake ordered signing sends one invitation, moves to Stripe and never sends
     expect(sent.mock.calls[0][0].text).toContain(PORTAL_BASE_URL + base);
     expect((await browser(base + "/sign")).status).toBe(303);
     signature.sign(envelope.provider_document_id, "1");
-    await deps.reconcileSignature(row.id);
+    // The carrier returns from SignWell before any webhook or reconcile ran:
+    // /sign reconciles, and the first page already offers the download.
+    response = await browser(base + "/sign");
     await queue.drain();
     expect(sent).toHaveBeenCalledTimes(1);
-    response = await browser(base + "/sign");
     const signed = await response.text();
     expect(signed).toContain("Signed ✓");
     expect(signed).toContain("Download signed agreement");
