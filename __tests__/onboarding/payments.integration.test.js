@@ -131,6 +131,19 @@ it("reconcile emails a link whose email never went out, exactly once", async () 
     expect(stripe.calls.createSetupSession).toBe(1);
 });
 
+it("reconcile never emails a link the customer has already completed", async () => {
+    sendEmail.mockRejectedValueOnce(new Error("smtp down"));
+    const done = await signed();
+    const [setup] = await setups();
+    expect(setup.emailed_at).toBeNull();
+    // The customer completes the session (e.g. via the post-signing redirect)
+    // before any retry of the email.
+    stripe.complete(setup.checkout_session_id, { type: "card" });
+    await reconcilePayment(deps, done.id);
+    expect(sendEmail).toHaveBeenCalledTimes(1); // only the failed first attempt
+    expect((await request()).payment_state).toBe("READY");
+});
+
 it("allows exactly the payment methods in the terms", async () => {
     await signed({
         payment_methods: ["us_bank_account"],

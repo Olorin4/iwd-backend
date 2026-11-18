@@ -383,31 +383,38 @@ export async function handleStripeWebhook(deps, rawBody, signatureHeader) {
 
 /** Payment facet recovery for the `reconcile` action and the job. */
 export async function reconcilePayment(deps, requestId) {
-    const setup = await deps.db.paymentSetup.findFirst({
-        where: {
-            request_id: requestId,
-            state: { in: ["OPEN", "PENDING_VERIFICATION"] },
-        },
-        orderBy: { created_at: "desc" },
-    });
+    const find = () =>
+        deps.db.paymentSetup.findFirst({
+            where: {
+                request_id: requestId,
+                state: { in: ["OPEN", "PENDING_VERIFICATION"] },
+            },
+            orderBy: { created_at: "desc" },
+        });
+    const setup = await find();
     if (!setup?.checkout_session_id) return null;
+    // Refresh from Stripe first: a session the customer has already completed
+    // must never be emailed again.
+    const result = setup.setup_intent_id
+        ? await applySetupIntent(
+              deps,
+              setup,
+              await deps.stripe.retrieveSetupIntent(setup.setup_intent_id)
+          )
+        : await applySession(deps, setup, setup.checkout_session_id);
     // A link whose email never went out (process stopped between creating the
     // session and emailing, or SMTP failed and released the claim) is emailed
-    // exactly once here; emailOnce claims emailed_at atomically.
-    if (setup.state === "OPEN" && !setup.emailed_at) {
+    // exactly once, and only while the refreshed session is still OPEN;
+    // emailOnce claims emailed_at atomically.
+    const fresh = await find();
+    if (fresh?.id === setup.id && fresh.state === "OPEN" && !fresh.emailed_at) {
         const row = await deps.db.onboardingRequest.findUnique({
             where: { id: requestId },
         });
         if (row && !row.cancelled_at && row.signature_state === "COMPLETED")
-            await emailOnce(deps, setup, row);
+            await emailOnce(deps, fresh, row);
     }
-    if (setup.setup_intent_id)
-        return applySetupIntent(
-            deps,
-            setup,
-            await deps.stripe.retrieveSetupIntent(setup.setup_intent_id)
-        );
-    return applySession(deps, setup, setup.checkout_session_id);
+    return result;
 }
 
 export async function openPaymentRequestIds(db) {
