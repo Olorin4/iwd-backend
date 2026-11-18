@@ -92,8 +92,14 @@ async function main() {
         schedule: async (fn) => fn(),
     });
     const send = deps.signature.send.bind(deps.signature);
+    const reserved = new Set();
     deps.signature.send = async (id) => {
-        budget.reserve(COST.packetSend, "packet send");
+        // One reservation per provider document: a not-ready retry of the same
+        // send cannot email anyone twice.
+        if (!reserved.has(id)) {
+            budget.reserve(COST.packetSend, "packet send");
+            reserved.add(id);
+        }
         return send(id);
     };
     const { command, options } = args(process.argv.slice(2));

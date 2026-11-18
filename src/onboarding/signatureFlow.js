@@ -7,7 +7,31 @@ import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
 
-const TERMINAL = ["COMPLETED", "DECLINED", "EXPIRED", "CANCELLED", "ERROR"];
+// ERROR is not terminal: a verified re-fetch may show the provider did send the
+// document (found in the 2026-11-18 sandbox run), and a DRAFT in ERROR is sent
+// again on the same document id. Only provider-final states are terminal.
+const TERMINAL = ["COMPLETED", "DECLINED", "EXPIRED", "CANCELLED"];
+// SignWell can answer 422 to a send issued immediately after the upload while
+// it is still processing the file (sandbox 2026-11-18). Retry the same send on
+// the same document a few times before recording ERROR; never create another.
+export const SEND_NOT_READY_DELAYS_MS = [2000, 5000, 10000];
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function sendWithNotReadyRetry(deps, documentId) {
+    const sleep = deps.sleep ?? defaultSleep;
+    for (let attempt = 0; ; attempt += 1) {
+        try {
+            return await deps.signature.send(documentId);
+        } catch (error) {
+            const delay = SEND_NOT_READY_DELAYS_MS[attempt];
+            if (error?.status !== 422 || delay === undefined) throw error;
+            log(deps, "onboarding_signature_send_not_ready", {
+                attempt: attempt + 1,
+            });
+            await sleep(delay);
+        }
+    }
+}
 export const REISSUABLE = ["DECLINED", "EXPIRED", "CANCELLED", "ERROR"];
 const STALE_SENDING_MS = 10 * 60 * 1000;
 
@@ -137,7 +161,7 @@ async function storeFilled(deps, filledFiles) {
 /** Send a draft that already exists at the provider (same document id). */
 async function sendExisting(deps, envelope) {
     try {
-        await deps.signature.send(envelope.provider_document_id);
+        await sendWithNotReadyRetry(deps, envelope.provider_document_id);
     } catch (error) {
         if (error.ambiguous) {
             log(deps, "onboarding_signature_send_unknown");

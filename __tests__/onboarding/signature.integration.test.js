@@ -342,6 +342,34 @@ it("send timeout before acceptance → UNKNOWN → reconcile sends the same draf
     expect([...signature.documents.values()][0].sends).toBe(1);
 });
 
+it("a send refused as not ready (422) right after upload is retried on the same document", async () => {
+    deps.sleep = jest.fn(async () => {});
+    signature.failNext("send", "reject");
+    await put();
+    expect((await request()).signature_state).toBe("SENT");
+    expect(deps.sleep).toHaveBeenCalledTimes(1);
+    expect(signature.calls.createEnvelope).toBe(1);
+    expect([...signature.documents.values()][0].sends).toBe(1);
+});
+
+it("a send still refused after the retries is ERROR, and a verified re-fetch showing it sent recovers it", async () => {
+    deps.sleep = jest.fn(async () => {});
+    for (let i = 0; i < 4; i += 1) signature.failNext("send", "reject");
+    await put();
+    let row = await request();
+    expect(row.signature_state).toBe("ERROR");
+    expect(deps.sleep).toHaveBeenCalledTimes(3);
+    // The provider later shows the document as sent (e.g. an operator or a
+    // delayed send at the provider): reconcile must follow the re-fetch.
+    const [doc] = [...signature.documents.values()];
+    doc.status = "sent";
+    await reconcileSignature(deps, row.id);
+    row = await request();
+    expect(row.signature_state).toBe("SENT");
+    expect(signature.calls.createEnvelope).toBe(1);
+    expect(signature.documents.size).toBe(1);
+});
+
 it("create timeout → NOT_SENT blocked; an orphan draft's webhook is ignored unfetched; reconcile retries", async () => {
     signature.failNext("createEnvelope", "timeout_after");
     await put();
