@@ -27,8 +27,9 @@ Payment method details are collected only through Stripe’s secure hosted
 setup page. Do not enter card numbers, bank account numbers or routing
 numbers on this form.
 
-I authorize DISPATCH to debit this account electronically and, if a debit is
-made in error, to credit the account to correct it.
+If I select bank debit (ACH), I authorize DISPATCH to electronically debit the
+business bank account I provide through Stripe’s secure setup page and, if a
+debit is made in error, to credit that account to correct it.
 
 **If both are ticked,** charge first: [ ] Card  [ ] Bank debit.
 The other method is used only if the first is declined or returned.

@@ -13,7 +13,13 @@ Replacement instruction:
 
 > Payment method details are collected only through Stripe’s secure hosted setup page. Do not enter card numbers, bank account numbers or routing numbers on this form.
 
-Kept: card/ACH choices, primary/backup choice, electronic debit/correction authorization, start date, signature, date and statement email. These choices must agree with what is actually set up in Stripe; signing this form does not save a payment method or complete any Stripe-required mandate/verification.
+Clarified ACH authorization:
+
+> If I select bank debit (ACH), I authorize DISPATCH to electronically debit the business bank account I provide through Stripe’s secure setup page and, if a debit is made in error, to credit that account to correct it.
+
+This replaces “this account” with an explicit reference to the account supplied through Stripe and makes the authorization conditional on selecting ACH.
+
+Kept: card/ACH choices, primary/backup choice, start date, signature, date and statement email. These choices must agree with what is actually set up in Stripe; signing this form does not save a payment method or complete any Stripe-required mandate/verification.
 
 Removed editorial handling blockquote: its original instruction allowed collection on the signed form and discussed subsequent masking. That handling route is incompatible with the chosen Stripe-only process.
 
