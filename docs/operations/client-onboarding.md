@@ -419,6 +419,17 @@ call):
 7. Test mode: SignWell delivers all recipient emails to the account owner, so the fallback
    email's timing can be observed there.
 
+### SignWell facts from the portal sandbox
+
+On 2026-11-18, an embedded, ordered SignWell test-mode document used
+`send_email: true` with a 60-minute delay for Iron Wing and `send_email: false`
+for the carrier. Before Iron Wing signed, SignWell reported document `Sent`,
+Iron Wing `sent`, and carrier `waiting`. The carrier embedded URL was already
+present. After Iron Wing signed, SignWell reported document `Pending`,
+Iron Wing `completed`, and carrier `sent`. The carrier embedded URL remained
+present. The owner checked both controlled inboxes and confirmed that neither
+received a carrier signing email. The test document was deleted.
+
 ## R15 — signed copy, documents email, reminders (owner-approved 2026-11-18)
 
 **Carrier emails in total:** SignWell's "please sign" (unchanged); one combined email from
