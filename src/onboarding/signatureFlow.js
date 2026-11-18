@@ -10,6 +10,7 @@ import { fillPacket, pageCount } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
 import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
+import { deriveWaitingFor } from "./signature/waitingFor.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
 import { REQUESTER_NAME, packetMessages } from "./signature/messages.js";
 import { IRON_WING_EMAIL_DELAY_DEFAULT_MINUTES } from "./config.js";
@@ -307,6 +308,10 @@ async function sendExisting(deps, envelope) {
     }
     // Someone else's send already went through: follow the verified remote state.
     if (result?.alreadySent) return reconcileEnvelope(deps, envelope.id);
+    const waitingFor = await waitingForAfterSend(
+        deps,
+        envelope.provider_document_id
+    );
     // Compare-and-set: a concurrent reconcile may already have seen VIEWED or
     // COMPLETED; the success write never downgrades it.
     return setEnvelopeState(
@@ -322,8 +327,43 @@ async function sendExisting(deps, envelope) {
             signature_state: "SENT",
             signature_code: null,
             signature_at: deps.now(),
+            signature_waiting_for: waitingFor,
         }
     );
+}
+
+/**
+ * R14: who the just-sent packet waits for, from a re-fetch of its recipients.
+ * A failed re-fetch leaves it null; the webhook re-fetch or reconcile fills it.
+ */
+async function waitingForAfterSend(deps, documentId) {
+    try {
+        const remote = await deps.signature.get(documentId);
+        return deriveWaitingFor("SENT", remote?.recipients);
+    } catch (error) {
+        log(deps, "onboarding_signature_waiting_for_unavailable", {
+            reason: error?.code ?? "error",
+        });
+        return null;
+    }
+}
+
+/** Updates only signature_waiting_for on the live envelope's request. */
+function setWaitingFor(deps, envelope, waitingFor) {
+    return deps.db.$transaction(async (tx) => {
+        const row = await lockRequest(tx, envelope.request_id);
+        const fresh = await tx.signatureEnvelope.findUnique({
+            where: { id: envelope.id },
+        });
+        if (!row || row.cancelled_at || !fresh || fresh.superseded_by)
+            return { row, changed: false };
+        return applyFacetChange(
+            tx,
+            row,
+            { signature_waiting_for: waitingFor },
+            deps.now()
+        );
+    });
 }
 
 async function deliverEnvelope(deps, { envelope, bundle, row }) {
@@ -481,16 +521,24 @@ export async function reconcileEnvelope(deps, envelopeId) {
         return null;
     }
     if (state === "SENT" || state === "VIEWED") {
+        const waitingFor = deriveWaitingFor(state, remote.recipients);
         if (
             envelope.state === state ||
             (envelope.state === "VIEWED" && state === "SENT")
         )
-            return null;
+            // Same facet state: only who is awaited may have changed (e.g.
+            // Iron Wing signed); a real change bumps the version.
+            return setWaitingFor(deps, envelope, waitingFor);
         return setEnvelopeState(
             deps,
             envelope.id,
             { state, sent_at: envelope.sent_at ?? now, last_error_code: null },
-            { signature_state: state, signature_code: null, signature_at: now }
+            {
+                signature_state: state,
+                signature_code: null,
+                signature_at: now,
+                signature_waiting_for: waitingFor,
+            }
         );
     }
     if (state === "COMPLETED") {
@@ -521,6 +569,8 @@ export async function reconcileEnvelope(deps, envelopeId) {
                     signature_state: open,
                     signature_code: "audit_page_missing",
                     signature_at: now,
+                    // Everyone has signed; nobody is awaited.
+                    signature_waiting_for: null,
                 }
             );
         }

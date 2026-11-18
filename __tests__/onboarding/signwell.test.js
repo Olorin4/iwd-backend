@@ -479,3 +479,35 @@ it("creates an embedded-signing document with per-recipient email settings (R14)
         .catch(() => null);
     expect(calls[1].body.recipients[0].send_email_delay).toBe(0);
 });
+
+it("get() returns recipient ids and statuses only (no emails or URLs)", async () => {
+    const { p } = provider([
+        json(200, {
+            id: "doc_1",
+            status: "Pending",
+            metadata: { envelope_id: "env-1" },
+            recipients: [
+                {
+                    id: "2",
+                    name: "Lead",
+                    email: "lead@example.test",
+                    status: "completed",
+                    signing_order: 1,
+                    signing_url: "https://www.signwell.com/docs/secret1/",
+                    embedded_signing_url:
+                        "https://www.signwell.com/embedded/secret2/",
+                },
+                { id: "1", email: "sam@example.test", status: null },
+                null,
+            ],
+        }),
+        json(200, { id: "doc_2", status: "Sent" }),
+    ]);
+    const document = await p.get("doc_1");
+    expect(document.recipients).toEqual([
+        { id: "2", status: "completed", signing_order: 1 },
+        { id: "1", status: null, signing_order: null },
+    ]);
+    expect(JSON.stringify(document)).not.toMatch(/secret|@example/);
+    expect((await p.get("doc_2")).recipients).toEqual([]);
+});

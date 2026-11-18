@@ -94,3 +94,23 @@ it("enforces the amended plan, fleet and payment rules", () => {
     expect(ok({ effective_date: "2026-02-30" })).toBe(false);
     expect(ok({ payment_methods: ["card", "card"] })).toBe(false);
 });
+
+it("status.v1 signature.waiting_for is optional and nullable (R14 amendment)", () => {
+    const base = read("onboarding.status.v1");
+    const withWaiting = (value) => ({
+        ...base,
+        signature: { ...base.signature, waiting_for: value },
+    });
+    const { waiting_for: _omit, ...signature } = base.signature;
+    expect(onboardingStatusV1.safeParse({ ...base, signature }).success).toBe(
+        true
+    );
+    for (const ok of [null, "IRON_WING", "CARRIER"])
+        expect(onboardingStatusV1.safeParse(withWaiting(ok)).success).toBe(
+            true
+        );
+    for (const bad of ["iron_wing", "OWNER", "", 1])
+        expect(onboardingStatusV1.safeParse(withWaiting(bad)).success).toBe(
+            false
+        );
+});

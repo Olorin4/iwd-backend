@@ -127,7 +127,14 @@ export function buildStatus(row, { eventId, occurredAt, signedAvailable }) {
         client_id: row.client_id,
         version: row.version,
         occurred_at: iso(occurredAt),
-        signature: { state: row.signature_state, at: iso(row.signature_at) },
+        signature: {
+            state: row.signature_state,
+            at: iso(row.signature_at),
+            // R14 (additive): IRON_WING | CARRIER while SENT/VIEWED, else null.
+            waiting_for: ["SENT", "VIEWED"].includes(row.signature_state)
+                ? (row.signature_waiting_for ?? null)
+                : null,
+        },
         payment: {
             state: row.payment_state,
             method: row.payment_method_type ?? null,

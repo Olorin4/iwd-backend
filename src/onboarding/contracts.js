@@ -136,6 +136,7 @@ export const SIGNATURE_STATES = [
     "CANCELLED",
     "ERROR",
 ];
+export const SIGNATURE_WAITING_FOR = ["IRON_WING", "CARRIER"];
 export const PAYMENT_STATES = [
     "NOT_STARTED",
     "LINK_SENT",
@@ -178,7 +179,15 @@ export const onboardingStatusV1 = z
         version: z.number().int().min(1),
         occurred_at: iso,
         signature: z
-            .object({ state: z.enum(SIGNATURE_STATES), at: nullableIso })
+            .object({
+                state: z.enum(SIGNATURE_STATES),
+                at: nullableIso,
+                // R14 amendment: optional; a missing field means null.
+                waiting_for: z
+                    .enum(SIGNATURE_WAITING_FOR)
+                    .nullable()
+                    .optional(),
+            })
             .strict(),
         payment: z
             .object({

@@ -107,6 +107,23 @@ export function signwellRecipient(signer) {
     };
 }
 
+/**
+ * Recipients of a fetched document reduced to { id, status, signing_order }
+ * (DocumentResponse.recipients[]): never names, emails or signing URLs.
+ */
+export function signwellRecipientStatuses(recipients) {
+    if (!Array.isArray(recipients)) return [];
+    return recipients
+        .filter((r) => r && typeof r === "object")
+        .map((r) => ({
+            id: r.id === undefined || r.id === null ? null : String(r.id),
+            status: typeof r.status === "string" ? r.status : null,
+            signing_order: Number.isInteger(r.signing_order)
+                ? r.signing_order
+                : null,
+        }));
+}
+
 export function createSignwellProvider({
     apiKey,
     testMode = true,
@@ -204,6 +221,7 @@ export function createSignwellProvider({
                 id: document.id,
                 status: document.status,
                 metadata: document.metadata ?? {},
+                recipients: signwellRecipientStatuses(document.recipients),
             };
         },
         async downloadCompleted(id) {

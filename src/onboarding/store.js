@@ -3,11 +3,13 @@ import { buildStatus, deriveReadiness, facetsOf } from "./readiness.js";
 import { setClientStatus } from "../clients/index.js";
 
 export const STATUS_EVENT = "onboarding.status.v1";
+const OPEN_SIGNATURE = ["SENT", "VIEWED"];
 
 const FACET_FIELDS = [
     "signature_state",
     "signature_code",
     "signature_at",
+    "signature_waiting_for",
     "payment_state",
     "payment_code",
     "payment_method_type",
@@ -89,7 +91,12 @@ export async function lockRequest(tx, requestId) {
  */
 export async function applyFacetChange(tx, row, changes, now = new Date()) {
     const data = {};
-    for (const [key, value] of Object.entries(changes ?? {})) {
+    const merged = { ...(changes ?? {}) };
+    // waiting_for only means something while the packet is open (R14).
+    const nextSignature = merged.signature_state ?? row.signature_state;
+    if (!OPEN_SIGNATURE.includes(nextSignature))
+        merged.signature_waiting_for = null;
+    for (const [key, value] of Object.entries(merged)) {
         if (!FACET_FIELDS.includes(key))
             throw new Error(`not_a_facet_field:${key}`);
         if (!same(row[key], value)) data[key] = value;

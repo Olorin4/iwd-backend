@@ -126,7 +126,16 @@ export function createFakeSignatureProvider() {
             calls.get += 1;
             return maybeFail("get", () => {
                 const d = doc(id);
-                return { id, status: d.status, metadata: d.metadata };
+                return {
+                    id,
+                    status: d.status,
+                    metadata: d.metadata,
+                    recipients: d.recipients.map((r, index) => ({
+                        id: r.id,
+                        status: r.status,
+                        signing_order: index + 1,
+                    })),
+                };
             });
         },
         /** A fresh, unguessable test URL per call (never a real provider URL). */

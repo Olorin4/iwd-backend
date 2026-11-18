@@ -724,3 +724,101 @@ it("passes the configured Iron Wing email delay to the provider (R14)", async ()
     const doc = signature.documents.get(envelope.provider_document_id);
     expect(doc.signers[0]).toMatchObject({ id: "2", emailDelayMinutes: 5 });
 });
+
+describe("signature.waiting_for (R14)", () => {
+    const statusEvents = () =>
+        prisma.onboardingEvent.findMany({
+            where: { type: "onboarding.status.v1" },
+            orderBy: { version: "asc" },
+        });
+
+    it("is IRON_WING after send, CARRIER after Iron Wing signs (webhook), null when completed", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        const docId = envelope.provider_document_id;
+        expect((await request()).signature_waiting_for).toBe("IRON_WING");
+        let status = await app.call("GET", `/requests/${KEY}`);
+        expect(status.json.signature).toMatchObject({
+            state: "SENT",
+            waiting_for: "IRON_WING",
+        });
+        const before = (await request()).version;
+
+        // A hint with nothing changed bumps nothing.
+        await unthrottle();
+        await webhook("document_viewed", docId);
+        expect((await request()).version).toBe(before);
+
+        signature.sign(docId, "2");
+        await unthrottle();
+        expect((await webhook("document_signed", docId)).status).toBe(200);
+        const row = await request();
+        expect(row.signature_state).toBe("SENT");
+        expect(row.signature_waiting_for).toBe("CARRIER");
+        expect(row.version).toBe(before + 1);
+        const events = await statusEvents();
+        expect(events.at(-1).payload.signature.waiting_for).toBe("CARRIER");
+
+        signature.sign(docId, "1");
+        await unthrottle();
+        await webhook("document_completed", docId);
+        await queue.drain();
+        expect(await request()).toMatchObject({
+            signature_state: "COMPLETED",
+            signature_waiting_for: null,
+        });
+        status = await app.call("GET", `/requests/${KEY}`);
+        expect(status.json.signature.waiting_for).toBeNull();
+    });
+
+    it("the reconcile poll updates it too, and unknown recipient statuses give null", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        const docId = envelope.provider_document_id;
+        signature.sign(docId, "2");
+        await reconcileEnvelope(deps, envelope.id);
+        expect((await request()).signature_waiting_for).toBe("CARRIER");
+        signature.setRecipientStatus(docId, "1", "something_new");
+        await reconcileEnvelope(deps, envelope.id);
+        expect((await request()).signature_waiting_for).toBeNull();
+    });
+
+    it("a viewed document carries it with the VIEWED transition", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        signature.view(envelope.provider_document_id);
+        await reconcileEnvelope(deps, envelope.id);
+        expect(await request()).toMatchObject({
+            signature_state: "VIEWED",
+            signature_waiting_for: "IRON_WING",
+        });
+    });
+
+    it("a failed re-fetch after send leaves it null; reconcile fills it", async () => {
+        signature.failNext("get", "reject");
+        await put();
+        expect(await request()).toMatchObject({
+            signature_state: "SENT",
+            signature_waiting_for: null,
+        });
+        expect(
+            deps.logger.lines.some(
+                (l) => l.code === "onboarding_signature_waiting_for_unavailable"
+            )
+        ).toBe(true);
+        const [envelope] = await envelopes();
+        await reconcileEnvelope(deps, envelope.id);
+        expect((await request()).signature_waiting_for).toBe("IRON_WING");
+    });
+
+    it("a declined packet clears it", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        signature.decline(envelope.provider_document_id);
+        await reconcileEnvelope(deps, envelope.id);
+        expect(await request()).toMatchObject({
+            signature_state: "DECLINED",
+            signature_waiting_for: null,
+        });
+    });
+});

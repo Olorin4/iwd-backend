@@ -217,3 +217,38 @@ it("buildStatus produces a contract-valid onboarding.status.v1 payload", () => {
     expect(onboardingStatusV1.parse(status)).toEqual(status);
     expect(status.readiness).toBe("IN_PROGRESS");
 });
+
+describe("signature.waiting_for (R14)", () => {
+    const row = (state, waiting) => ({
+        id: "77777777-7777-4777-8777-777777777777",
+        idempotency_key: "0b7e8f5a-1c2d-4e3f-8a9b-0c1d2e3f4a5b",
+        client_id: "88888888-8888-4888-8888-888888888888",
+        version: 2,
+        signature_state: state,
+        signature_at: new Date("2026-11-19T09:30:00Z"),
+        signature_waiting_for: waiting,
+        payment_state: "NOT_STARTED",
+        provisioning_state: "NOT_STARTED",
+        operations: initialOperations(),
+    });
+    const build = (r) =>
+        buildStatus(r, {
+            eventId: "66666666-6666-4666-8666-666666666666",
+            occurredAt: new Date(),
+            signedAvailable: false,
+        });
+
+    it.each([
+        ["SENT", "IRON_WING", "IRON_WING"],
+        ["VIEWED", "CARRIER", "CARRIER"],
+        ["SENT", null, null],
+        ["SENT", undefined, null],
+        ["COMPLETED", "CARRIER", null],
+        ["DECLINED", "IRON_WING", null],
+        ["NOT_SENT", "IRON_WING", null],
+    ])("%s with stored %p → %p", (state, stored, expected) => {
+        const status = build(row(state, stored));
+        expect(status.signature.waiting_for).toBe(expected);
+        expect(onboardingStatusV1.parse(status)).toEqual(status);
+    });
+});
