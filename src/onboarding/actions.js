@@ -10,6 +10,7 @@ import {
 } from "./signatureFlow.js";
 import { issuePaymentLink, reconcilePayment } from "./paymentFlow.js";
 import { confirmProvisioning, startProvisioning } from "./provisioningFlow.js";
+import { recoverRequestSteps } from "./recovery.js";
 
 const base = { actor: actorSchema };
 const SCHEMAS = {
@@ -100,6 +101,7 @@ async function perform(deps, row, action, input) {
         case "reconcile":
             await reconcileSignature(deps, row.id);
             await reconcilePayment(deps, row.id);
+            await recoverRequestSteps(deps, row.id);
             return "reconciled";
         case "resend_payment_link": {
             const result = await issuePaymentLink(deps, row.id, {

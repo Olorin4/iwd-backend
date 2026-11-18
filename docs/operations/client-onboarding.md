@@ -201,19 +201,27 @@ checks may report them.
 
 ## Recovery
 
-| Situation                          | State / code                             | Action                                                       |
-| ---------------------------------- | ---------------------------------------- | ------------------------------------------------------------ |
-| No approved bundle                 | NOT_SENT `bundle_unavailable`            | approve a bundle, then `reconcile`                           |
-| Draft create failed/timed out      | NOT_SENT `packet_create_failed`          | `reconcile` (new draft; old draft cannot email)              |
-| Filling failed (overflow/encoding) | NOT_SENT `packet_fill_failed`            | fix the layout (new bundle version) or cancel and re-request |
-| Send timed out                     | UNKNOWN `send_outcome_unknown`           | `reconcile` (GET; draft → send same id)                      |
-| Send rejected                      | ERROR `send_rejected`                    | `reissue_packet`                                             |
-| Declined / expired                 | readiness CLOSED                         | `reissue_packet`                                             |
-| Checkout expired / setup failed    | FAILED `checkout_expired`/`setup_failed` | `resend_payment_link`                                        |
-| Stripe call failed                 | FAILED `stripe_session_failed`           | `resend_payment_link`                                        |
-| ACH micro-deposits                 | PENDING_VERIFICATION                     | wait; `reconcile` re-fetches                                 |
-| No Kelevo API                      | MANUAL_REQUIRED                          | provision in Kelevo, `confirm_provisioning`                  |
-| Outreach unreachable               | event retried with backoff (≤20)         | fix Outreach; 4xx other than 408/429 stops the event         |
+| Situation                          | State / code                                  | Action                                                       |
+| ---------------------------------- | --------------------------------------------- | ------------------------------------------------------------ |
+| No approved bundle                 | NOT_SENT `bundle_unavailable`                 | approve a bundle, then `reconcile`                           |
+| Draft create failed/timed out      | NOT_SENT `packet_create_failed`               | `reconcile` (new draft; old draft cannot email)              |
+| Filling failed (overflow/encoding) | NOT_SENT `packet_fill_failed`                 | fix the layout (new bundle version) or cancel and re-request |
+| Send timed out                     | UNKNOWN `send_outcome_unknown`                | `reconcile` (GET; draft → send same id)                      |
+| Send rejected                      | ERROR `send_rejected`                         | `reissue_packet`                                             |
+| Declined / expired                 | readiness CLOSED                              | `reissue_packet`                                             |
+| Checkout expired / setup failed    | FAILED `checkout_expired`/`setup_failed`      | `resend_payment_link`                                        |
+| Stripe call failed                 | FAILED `stripe_session_failed`                | `resend_payment_link`                                        |
+| ACH micro-deposits                 | PENDING_VERIFICATION                          | wait; `reconcile` re-fetches                                 |
+| No Kelevo API                      | MANUAL_REQUIRED                               | provision in Kelevo, `confirm_provisioning`                  |
+| Provisioning call never returned   | FAILED `provisioning_stale` (PENDING >10 min) | `retry_provisioning`                                         |
+| Outreach unreachable               | event retried with backoff (≤20)              | fix Outreach; 4xx other than 408/429 stops the event         |
+
+Crash recovery (reconcile worker pass and the `reconcile` action): after-commit
+steps that never ran are restarted. Signature COMPLETED + payment NOT_STARTED →
+initial payment link; payment READY + provisioning NOT_STARTED → provisioning;
+provisioning PENDING for more than 10 minutes → FAILED `provisioning_stale`;
+NOT_SENT requests (with a code, or older than 10 minutes in the worker; any age
+in the action) → packet send. Cancelled requests are skipped.
 
 ## Rollback
 

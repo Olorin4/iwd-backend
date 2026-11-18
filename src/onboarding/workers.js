@@ -2,33 +2,36 @@ import { deliverPending } from "./outbox.js";
 import {
     openEnvelopeIds,
     reconcileEnvelope,
-    sendPacket,
+    reconcileSignature,
 } from "./signatureFlow.js";
 import { openPaymentRequestIds, reconcilePayment } from "./paymentFlow.js";
+import {
+    recoverRequestSteps,
+    stalledRequestIds,
+    unsentRequestIds,
+} from "./recovery.js";
 
-/** One reconcile pass: open envelopes, unsent packets and pending payments. */
+/**
+ * One reconcile pass: open envelopes, unsent packets, pending payments and
+ * crash recovery of after-commit steps (payment link, provisioning).
+ */
 export async function reconcileOnce(deps) {
     const log = (code) => deps.logger?.error?.({ code });
     for (const id of await openEnvelopeIds(deps.db, deps.now().getTime()))
         await reconcileEnvelope(deps, id).catch(() =>
             log("onboarding_reconcile_envelope_failed")
         );
-    const unsent = await deps.db.onboardingRequest.findMany({
-        where: {
-            cancelled_at: null,
-            signature_state: "NOT_SENT",
-            signature_code: { not: null },
-        },
-        select: { id: true },
-        take: 100,
-    });
-    for (const { id } of unsent)
-        await sendPacket(deps, id).catch(() =>
+    for (const id of await unsentRequestIds(deps))
+        await reconcileSignature(deps, id).catch(() =>
             log("onboarding_reconcile_send_failed")
         );
     for (const id of await openPaymentRequestIds(deps.db))
         await reconcilePayment(deps, id).catch(() =>
             log("onboarding_reconcile_payment_failed")
+        );
+    for (const id of await stalledRequestIds(deps))
+        await recoverRequestSteps(deps, id).catch(() =>
+            log("onboarding_reconcile_recovery_failed")
         );
 }
 
