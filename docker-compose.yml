@@ -23,6 +23,10 @@ services:
         # TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
         volumes:
             - /home/nick-kalas/apps/interim-billing-secrets:/run/interim-billing:ro
+            # Permanent client onboarding: encrypted signed packets and documents
+            # (AES-256-GCM; key in .env as ONBOARDING_DOCUMENT_KEY). Private: never
+            # served by nginx; back up together with the key, separately.
+            - /home/nick-kalas/apps/onboarding-documents:/var/lib/onboarding-documents
         networks:
             - edge
 
