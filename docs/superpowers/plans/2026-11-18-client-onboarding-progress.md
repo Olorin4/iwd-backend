@@ -82,3 +82,13 @@ in test mode. Bundles support several files, so the three PDFs register as one v
 - F2 957b424 reconcile pass prunes `outreach:v2:*` receipts older than 24 h (raw DELETE … LIMIT 1000); provider receipts kept
 - F3 ea5c58b recovery: PaymentSetup CREATING >10 min → FAILED `payment_setup_stale` (+ payment facet unless READY/PENDING_VERIFICATION) → `resend_payment_link` works
 - Final after F1–F3: 47 suites / 454 tests passed (integration 8 / 98); eslint src/onboarding clean; npm run lint only the 3 pre-existing problems. Container removed.
+
+## R14 — Iron Wing signs in Outreach (2026-11-18)
+
+- R14.1 4918534 SignWell `embedded_signing: true` (create + send); recipients `send_email: true`, Iron Wing `send_email_delay` = `ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES` (0–60, default 60; OpenAPI Recipients.send_email_delay is minutes 0–60); fake provider: per-recipient `sign(id, recipientId)`, `embeddedSigningUrl`.
+- R14.2 4b5845f `get()` returns recipients `[{id,status,signing_order}]`; pure `deriveWaitingFor` (signature/waitingFor.js; unknown statuses → null; signing-order fallback); migration `20261118140000_onboarding_signature_waiting_for` (nullable column + CHECK); set on send/webhook/reconcile, forced null outside SENT/VIEWED; status.v1 `signature.waiting_for` (zod optional+nullable).
+- R14.3 98a36b1 `GET /onboarding/requests/:key/iron-wing-signing-url` → `{url, expires_hint:null}` / 409 `not_waiting_for_iron_wing` / 422 / 502 `signing_url_unavailable`; document_access_log `iron_wing_signing_url:<envelope>`; no-store; URL never logged (tested).
+- R14.1b 178f695 decision: `embedded_signing_notifications` left at default false (owner notifications are off by owner choice; no CCs).
+- R14.4 (docs commit) ops doc R14 section, config row, endpoint row, migration note, unverified list (recipient status values, recipient ids, delay semantics with 2 signers, carrier email under embedded mode, URL lifetime/new-tab, carrier completed copy).
+- Final: 49 suites / 516 tests passed (integration 8 / 108); `eslint src/onboarding` clean; `npm run lint` only the 3 pre-existing problems. Container removed.
+- Note for Outreach: the shared fixture `onboarding.status.v1.json` is unchanged here; if Outreach adds `waiting_for` to it, copy it byte-identically.
