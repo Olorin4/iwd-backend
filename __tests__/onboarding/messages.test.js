@@ -28,9 +28,13 @@ it("writes the carrier and countersigner copy from the confirmed terms", () => {
     expect(copy.carrier.message).toMatch(/Stripe's secure page/);
     expect(copy.carrier.message).toMatch(/reply to this email before signing/);
     expect(copy.dispatch.subject).toBe(
-        "INTERNAL — countersign: Example Freight LLC (Full-Service, effective November 30, 2026)"
+        "INTERNAL — sign first: Example Freight LLC (Full-Service, effective November 30, 2026)"
     );
-    expect(copy.dispatch.message).toMatch(/^The carrier has signed\./);
+    expect(copy.dispatch.message).toMatch(
+        /^Please review and sign first; the packet then goes to the carrier/
+    );
+    expect(copy.carrier.message).toMatch(/which has already signed\./);
+    expect(copy.carrier.message).not.toMatch(/L\.L\.C\.\./);
     expect(copy.dispatch.message).toMatch(
         /legal name, MC\/USDOT, plan\/fee and effective date/
     );

@@ -453,7 +453,7 @@ const PAGES = {
     ],
     waiting: [
         202,
-        "Thank you. We are waiting for all signatures to be completed. You will receive an email with the payment setup link shortly.",
+        "Thank you, your signature is recorded. If you signed for Iron Wing, the packet now goes to the carrier and you can close this page. If you are the carrier, refresh this page in a moment to continue to the payment setup; we also email you the link.",
     ],
     preparing: [
         202,

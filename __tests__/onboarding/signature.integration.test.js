@@ -99,17 +99,18 @@ it("sends the filled packet once after the PUT: draft, then send, with both sign
     expect(envelope).toMatchObject({ state: "SENT", provider: "fake" });
     expect(envelope.filled_sha256).toMatch(/^[0-9a-f]{64}$/);
     const doc = signature.documents.get(envelope.provider_document_id);
+    // Iron Wing signs first; the carrier signs last (array order = signing order).
     expect(doc.signers.map((s) => [s.id, s.role, s.email])).toEqual([
-        ["1", "Carrier", "owner@example.test"],
         ["2", "Dispatch", "dispatch@example.test"],
+        ["1", "Carrier", "owner@example.test"],
     ]);
     expect(doc.metadata).toMatchObject({
         onboarding_request_id: envelope.request_id,
         envelope_id: envelope.id,
     });
-    // Every signer lands on the neutral page: no payment token in the redirect.
-    expect(doc.metadata.redirect_url).toBe(
-        "https://api.example.test/onboarding/signed"
+    // The carrier signs last, so the redirect is the continue link to payment.
+    expect(doc.metadata.redirect_url).toMatch(
+        /^https:\/\/api\.example\.test\/onboarding\/continue\//
     );
     // Repeated deliveries never send a second packet.
     await put();
@@ -690,9 +691,9 @@ it("the packet carries the requester name and per-recipient copy without braces"
         requester_name: "Iron Wing Logistics L.L.C.",
         requester_email: null,
     });
-    const [carrier, dispatch] = document.signers;
+    const [dispatch, carrier] = document.signers;
     expect(carrier.subject).toMatch(/^Iron Wing: your dispatch agreement for /);
-    expect(dispatch.subject).toMatch(/^INTERNAL — countersign: /);
+    expect(dispatch.subject).toMatch(/^INTERNAL — sign first: /);
     const [envelope] = await envelopes();
     const request = await prisma.onboardingRequest.findUnique({
         where: { id: envelope.request_id },
@@ -708,11 +709,4 @@ it("the packet carries the requester name and per-recipient copy without braces"
         dispatch.message,
     ])
         expect(text).not.toMatch(/[{}]/);
-});
-
-it("the after-signing page is public, neutral and carries no request data", async () => {
-    const page = await app.call("GET", "/signed", undefined, { auth: false });
-    expect(page.status).toBe(200);
-    expect(page.text).toMatch(/carrier will receive an email/);
-    expect(page.text).not.toMatch(/stripe|checkout|cs_test|[0-9a-f]{8}-/i);
 });

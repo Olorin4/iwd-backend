@@ -17,7 +17,8 @@ call has been made.** The module is off by default.
    Client by USDOT. Same key and hash → 200; different terms → 409.
 2. After commit, the approved document bundle is filled with the confirmed
    values (text stamps only) and sent with SignWell: draft first, then send.
-   Carrier signs first, then the Iron Wing countersigner.
+   Iron Wing signs first; the carrier signs last and is redirected to the
+   payment step.
 3. When the re-fetched SignWell document is `completed`, the completed PDF
    (with audit page) is stored encrypted and a Stripe Checkout session in
    `mode: setup` is created for exactly the agreed payment methods. One plain
@@ -302,8 +303,9 @@ when naming the company. Lawyer confirmation of the v2 wording is pending.
   recipients. Intended recipient on this message: …". A sandbox run therefore cannot test
   delivery to a real carrier mailbox; it does show the per-recipient subject and message
   (both verified: carrier text to recipient 1, the INTERNAL countersign text to recipient 2).
-- **`redirect_url` is per document, not per signer.** With signing order carrier →
-  countersigner, a payment link there reached only the countersigner. Every signer now lands
-  on the neutral `GET /onboarding/signed` page (no request data, no payment action). The
-  carrier receives the payment step only by the payment-link email after both signatures,
-  so production email delivery (SMTP) is a hard prerequisite.
+- **Signing order (owner ruling 2026-11-18): Iron Wing signs first, the carrier last.**
+  SignWell's `redirect_url` applies to every signer; with the carrier signing last it is the
+  continue link, which re-checks the signature with SignWell and takes the carrier straight to
+  Stripe's setup page. Iron Wing's signer passing through it sees a neutral "packet now goes to
+  the carrier" page. The payment-link email is still sent after both signatures as a backup.
+  (An earlier carrier-first order sent only the countersigner to Stripe — fixed.)

@@ -160,12 +160,12 @@ it("continue link re-checks the signature, then redirects to the open session", 
     await app.call("PUT", `/requests/${KEY}`, requestBody());
     await queue.drain();
     const [envelope] = await prisma.signatureEnvelope.findMany();
-    // The continue link reaches the carrier only in the payment email; the
-    // SignWell redirect is the neutral /signed page for every signer.
+    // The SignWell redirect (reached by the carrier, who signs last) and the
+    // payment email both use the continue link.
     expect(
         signature.documents.get(envelope.provider_document_id).metadata
             .redirect_url
-    ).not.toMatch(/continue/);
+    ).toMatch(/\/onboarding\/continue\//);
     const token = continueUrl(config, envelope.request_id).split(
         "/continue/"
     )[1];
@@ -173,7 +173,7 @@ it("continue link re-checks the signature, then redirects to the open session", 
         auth: false,
     });
     expect(waiting.status).toBe(202);
-    expect(waiting.text).toMatch(/waiting for all signatures/);
+    expect(waiting.text).toMatch(/If you are the carrier, refresh this page/);
 
     signature.complete(envelope.provider_document_id);
     const go = await app.call("GET", `/continue/${token}`, undefined, {

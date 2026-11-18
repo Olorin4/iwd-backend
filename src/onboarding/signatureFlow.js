@@ -8,7 +8,7 @@ import {
 import { latestApprovedBundle, loadBundleFiles } from "./documents/bundles.js";
 import { fillPacket, pageCount } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
-import { signedPageUrl } from "./continueToken.js";
+import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
 import { REQUESTER_NAME, packetMessages } from "./signature/messages.js";
@@ -349,20 +349,25 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
 
     const terms = row.terms;
     const copy = packetMessages(terms, { requestId: row.id });
+    // Signing order (owner ruling 2026-11-18): Iron Wing signs first, so its
+    // review happens before the carrier sees the packet; the carrier signs last
+    // and SignWell's redirect then takes the carrier to the payment step.
+    // SignWell signs in the order of this array; ids keep the layout's roles
+    // (recipient 1 = Carrier fields, recipient 2 = Dispatch fields).
     const signers = [
-        {
-            id: "1",
-            role: "Carrier",
-            name: terms.signer.name,
-            email: terms.signer.email,
-            ...copy.carrier,
-        },
         {
             id: "2",
             role: "Dispatch",
             name: deps.config.signature.countersigner.name,
             email: deps.config.signature.countersigner.email,
             ...copy.dispatch,
+        },
+        {
+            id: "1",
+            role: "Carrier",
+            name: terms.signer.name,
+            email: terms.signer.email,
+            ...copy.carrier,
         },
     ];
     if (await cancelledNow(deps, row.id)) return stopForCancel(deps, envelope);
@@ -379,7 +384,9 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
                 message: copy.carrier.message,
                 requester_name: REQUESTER_NAME,
                 requester_email: deps.config.signature.requesterEmail ?? null,
-                redirect_url: signedPageUrl(deps.config),
+                // The carrier signs last, so this redirect reaches the carrier;
+                // the dispatcher passing through it sees a neutral waiting page.
+                redirect_url: continueUrl(deps.config, row.id, deps.now()),
             }
         );
     } catch (error) {

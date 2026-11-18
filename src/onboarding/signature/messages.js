@@ -38,8 +38,8 @@ export function planLabel(terms) {
 }
 
 /**
- * Document name plus per-recipient subject/message for the carrier
- * (recipient 1) and the Iron Wing countersigner (recipient 2).
+ * Document name plus per-recipient subject/message for the Iron Wing signer
+ * (signs first) and the carrier (signs last, then continues to payment).
  */
 export function packetMessages(terms, { requestId }) {
     const legal = plain(terms.legal_name, 80);
@@ -55,20 +55,20 @@ export function packetMessages(terms, { requestId }) {
                 150
             ),
             message: [
-                `This signature request is from ${REQUESTER_NAME.replace(/\.$/, "")}.`,
+                `This signature request is from ${REQUESTER_NAME}, which has already signed.`,
                 "It contains your dispatch service agreement, limited power of attorney and payment authorization.",
-                "Payment details are not entered here: they are collected separately on Stripe's secure page, linked after signing.",
+                "Payment details are not entered here: after you sign, you continue to Stripe's secure page to save your payment method (we also email you that link).",
                 "If anything differs from what we agreed, reply to this email before signing.",
             ].join("\n"),
         },
         dispatch: {
             subject: plain(
-                `INTERNAL — countersign: ${legal} (${plan}, effective ${date})`,
+                `INTERNAL — sign first: ${legal} (${plan}, effective ${date})`,
                 150
             ),
             message: [
-                "The carrier has signed.",
-                "Before countersigning, check the legal name, MC/USDOT, plan/fee and effective date:",
+                "Please review and sign first; the packet then goes to the carrier for signature.",
+                "Before signing, check the legal name, MC/USDOT, plan/fee and effective date:",
                 `${legal}; MC ${mc}; USDOT ${plain(terms.usdot, 10)}; ${plan}, fee ${feePercent(terms.fee_bp)}; effective ${date}.`,
                 `Onboarding reference: ${reference}.`,
             ].join("\n"),
