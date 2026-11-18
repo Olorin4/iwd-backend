@@ -127,6 +127,34 @@ jobs:
                   echo "INTERIM_BILLING_ADMIN_TOKEN=${{ secrets.INTERIM_BILLING_ADMIN_TOKEN }}" >> .env
                   echo "STRIPE_SANDBOX_SECRET_KEY=${{ secrets.STRIPE_SANDBOX_SECRET_KEY }}" >> .env
                   echo "STRIPE_LIVE_SECRET_KEY=${{ secrets.STRIPE_LIVE_SECRET_KEY }}" >> .env
+                  # Permanent client onboarding (live since 2026-11-18). Every value here
+                  # must also exist on the server; a missing secret silently disables onboarding.
+                  echo "IWD_ONBOARDING_TOKEN=${{ secrets.IWD_ONBOARDING_TOKEN }}" >> .env
+                  echo "ONBOARDING_CONTINUE_TOKEN_SECRET=${{ secrets.ONBOARDING_CONTINUE_TOKEN_SECRET }}" >> .env
+                  echo "ONBOARDING_COUNTERSIGNER_EMAIL=${{ secrets.ONBOARDING_COUNTERSIGNER_EMAIL }}" >> .env
+                  echo "ONBOARDING_COUNTERSIGNER_NAME=${{ secrets.ONBOARDING_COUNTERSIGNER_NAME }}" >> .env
+                  echo "ONBOARDING_COUNTERSIGNER_TITLE=${{ secrets.ONBOARDING_COUNTERSIGNER_TITLE }}" >> .env
+                  echo "ONBOARDING_DOCUMENT_DIR=${{ secrets.ONBOARDING_DOCUMENT_DIR }}" >> .env
+                  echo "ONBOARDING_DOCUMENT_KEY=${{ secrets.ONBOARDING_DOCUMENT_KEY }}" >> .env
+                  echo "ONBOARDING_ENABLED=${{ secrets.ONBOARDING_ENABLED }}" >> .env
+                  echo "ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES=${{ secrets.ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES }}" >> .env
+                  echo "ONBOARDING_PROVISIONING_ADAPTER=${{ secrets.ONBOARDING_PROVISIONING_ADAPTER }}" >> .env
+                  echo "ONBOARDING_PUBLIC_BASE_URL=${{ secrets.ONBOARDING_PUBLIC_BASE_URL }}" >> .env
+                  echo "ONBOARDING_RECONCILE_ENABLED=${{ secrets.ONBOARDING_RECONCILE_ENABLED }}" >> .env
+                  echo "ONBOARDING_REQUESTER_EMAIL=${{ secrets.ONBOARDING_REQUESTER_EMAIL }}" >> .env
+                  echo "ONBOARDING_REQUEST_SIGNING_SECRET=${{ secrets.ONBOARDING_REQUEST_SIGNING_SECRET }}" >> .env
+                  echo "ONBOARDING_SIGNATURE_PROVIDER=${{ secrets.ONBOARDING_SIGNATURE_PROVIDER }}" >> .env
+                  echo "ONBOARDING_SIGNWELL_TEST_MODE=${{ secrets.ONBOARDING_SIGNWELL_TEST_MODE }}" >> .env
+                  echo "ONBOARDING_STATUS_SIGNING_SECRET=${{ secrets.ONBOARDING_STATUS_SIGNING_SECRET }}" >> .env
+                  echo "ONBOARDING_STATUS_TOKEN=${{ secrets.ONBOARDING_STATUS_TOKEN }}" >> .env
+                  echo "ONBOARDING_STRIPE_CANCEL_URL=${{ secrets.ONBOARDING_STRIPE_CANCEL_URL }}" >> .env
+                  echo "ONBOARDING_STRIPE_LIVE_CONFIRM=${{ secrets.ONBOARDING_STRIPE_LIVE_CONFIRM }}" >> .env
+                  echo "ONBOARDING_STRIPE_SECRET_KEY=${{ secrets.ONBOARDING_STRIPE_SECRET_KEY }}" >> .env
+                  echo "ONBOARDING_STRIPE_SUCCESS_URL=${{ secrets.ONBOARDING_STRIPE_SUCCESS_URL }}" >> .env
+                  echo "ONBOARDING_STRIPE_WEBHOOK_SECRET=${{ secrets.ONBOARDING_STRIPE_WEBHOOK_SECRET }}" >> .env
+                  echo "OUTREACH_STATUS_URL=${{ secrets.OUTREACH_STATUS_URL }}" >> .env
+                  echo "SIGNWELL_API_KEY=${{ secrets.SIGNWELL_API_KEY }}" >> .env
+                  echo "SIGNWELL_WEBHOOK_ID=${{ secrets.SIGNWELL_WEBHOOK_ID }}" >> .env
 
             # Step 5: Deploy to Server (Docker)
             #
