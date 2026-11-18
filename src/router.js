@@ -18,6 +18,7 @@ import { requireAdmin } from "./adminAuth.js";
 import { newsletterLimiter } from "./rateLimiter.js";
 import { requireTurnstile } from "./turnstile.js";
 import { attributionFields } from "./attribution.js";
+import { onboardingRouter } from "./onboarding/index.js";
 
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
 import { interimBillingRouter } from "./interimBilling/index.js";
@@ -25,6 +26,8 @@ import { interimBillingRouter } from "./interimBilling/index.js";
 const router = express.Router();
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
 router.use("/interim-billing", interimBillingRouter);
+// Permanent client onboarding (404 unless ONBOARDING_ENABLED=1).
+router.use("/onboarding", onboardingRouter);
 
 // Every public POST below must carry a valid Cloudflare Turnstile token
 // (`turnstileToken` in the JSON body). requireTurnstile runs first so nothing

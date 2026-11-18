@@ -1,0 +1,87 @@
+import express from "express";
+import { requireService } from "./auth.js";
+import { OnboardingError, getRequestStatus, putRequest } from "./requests.js";
+
+/** Captures the raw JSON body for HMAC and webhook signature checks. */
+export function onboardingRawBody(req, res, buf) {
+    req.rawBody = buf;
+}
+
+const KEY = /^[0-9a-fA-F-]{36}$/;
+
+export function createOnboardingRouter(getConfig, getDeps) {
+    const router = express.Router();
+
+    router.use((req, res, next) => {
+        let config;
+        try {
+            config = getConfig();
+        } catch {
+            return res.status(503).json({ error: "onboarding_config_invalid" });
+        }
+        if (!config.enabled)
+            return res.status(404).json({ error: "not_found" });
+        res.locals.onboardingConfig = config;
+        res.locals.onboardingDeps = getDeps(config);
+        return next();
+    });
+
+    const depsOf = (res) => res.locals.onboardingDeps;
+    const wrap = (fn) => (req, res, next) =>
+        Promise.resolve(fn(req, res, depsOf(res))).catch(next);
+    const auth = (options) => (req, res, next) => {
+        const d = depsOf(res);
+        return requireService(() => res.locals.onboardingConfig, {
+            now: () => d.now().getTime(),
+            ...(options.replay
+                ? {
+                      replayStore: (signature) =>
+                          d.recordReceipt("outreach", signature),
+                  }
+                : {}),
+        })(req, res, next);
+    };
+    const service = auth({ replay: true });
+    const serviceNoReplay = auth({ replay: false });
+    router.param("key", (req, res, next, key) =>
+        KEY.test(key) ? next() : res.status(404).json({ error: "not_found" })
+    );
+
+    router.put(
+        "/requests/:key",
+        serviceNoReplay,
+        wrap(async (req, res, d) => {
+            const result = await putRequest(d, req.params.key, req.body);
+            if (result.created)
+                d.schedule(() => d.onRequestCreated(result.row));
+            res.status(result.status).json(result.body);
+        })
+    );
+
+    router.get(
+        "/requests/:key",
+        serviceNoReplay,
+        wrap(async (req, res, d) =>
+            res.json(await getRequestStatus(d, req.params.key))
+        )
+    );
+
+    router.use((error, req, res, next) => {
+        if (error instanceof OnboardingError)
+            return res
+                .status(error.status)
+                .json({ error: error.code, ...error.extra });
+        if (error?.type === "entity.parse.failed")
+            return res.status(400).json({ error: "invalid_json" });
+        try {
+            depsOf(res)?.logger?.error({
+                code: "onboarding_route_failed",
+                route: req.route?.path,
+            });
+        } catch {
+            // logging must never mask the response
+        }
+        return res.status(500).json({ error: "internal_error" });
+    });
+    return router;
+}

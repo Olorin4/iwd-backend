@@ -11,6 +11,7 @@ import {
     interimBillingRawBody,
     startInterimBilling,
 } from "./interimBilling/index.js";
+import { onboardingRawBody } from "./onboarding/index.js";
 
 dotenvFlow.config();
 
@@ -18,6 +19,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Global Middleware
+// Onboarding keeps the raw body for HMAC and webhook signatures; it parses
+// first so the interim billing parser below is unchanged.
+app.use("/onboarding", express.json({ verify: onboardingRawBody }));
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
 app.use(express.json({ verify: interimBillingRawBody }));
 // The API sits behind exactly one proxy hop: the containerized nginx edge,
