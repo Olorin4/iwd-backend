@@ -118,10 +118,18 @@ export function signedHeaders({
     };
 }
 
-// Every accepted signature is recorded, so two identical calls in one second
-// would be a replay; default timestamps step back through the 300 s window.
-let sequence = 0;
-const freshSeconds = () => Math.floor(Date.now() / 1000) - (sequence++ % 250);
+// Every accepted signature is recorded, so two identical calls with one
+// timestamp would be a replay; default timestamps are never reused.
+const usedSeconds = new Set();
+function freshSeconds() {
+    const now = Math.floor(Date.now() / 1000);
+    for (let t = now; t > now - 250; t -= 1)
+        if (!usedSeconds.has(t)) {
+            usedSeconds.add(t);
+            return t;
+        }
+    throw new Error("harness: no unused signature timestamp left");
+}
 
 export async function startApp(getConfig, getDeps) {
     const app = express();
