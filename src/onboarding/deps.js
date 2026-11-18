@@ -5,6 +5,8 @@ import { createFakeSignatureProvider } from "./signature/fake.js";
 import { reconcileSignature, sendPacket } from "./signatureFlow.js";
 import { issuePaymentLink } from "./paymentFlow.js";
 import { createPaymentsStripe } from "../payments/index.js";
+import { startProvisioning } from "./provisioningFlow.js";
+import { provisioningFromConfig } from "./provisioning/adapters.js";
 
 function signatureFromConfig(config) {
     if (config.signature.provider === "fake")
@@ -49,7 +51,7 @@ export function createOnboardingDeps(
         onRequestCreated: (row) => sendPacket(deps, row.id),
         onSignatureCompleted: (requestId) =>
             issuePaymentLink(deps, requestId, { mode: "initial" }),
-        onPaymentReady: async () => {},
+        onPaymentReady: (requestId) => startProvisioning(deps, requestId),
         reconcileSignature: (requestId) => reconcileSignature(deps, requestId),
         ...overrides,
     };
@@ -57,5 +59,6 @@ export function createOnboardingDeps(
         deps.documentStore = createFileDocumentStore(config.documents);
     if (!deps.signature) deps.signature = signatureFromConfig(config);
     if (!deps.stripe) deps.stripe = createPaymentsStripe(config.stripe);
+    if (!deps.provisioning) deps.provisioning = provisioningFromConfig(config);
     return deps;
 }

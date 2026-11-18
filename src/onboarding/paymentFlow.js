@@ -46,7 +46,7 @@ async function emailOnce(deps, setup, row) {
         });
         log(deps, "onboarding_payment_link_emailed");
         return true;
-    } catch (error) {
+    } catch {
         await deps.db.paymentSetup.update({
             where: { id: setup.id },
             data: { emailed_at: null },

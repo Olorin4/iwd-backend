@@ -4,6 +4,7 @@ import { OnboardingError, getRequestStatus, putRequest } from "./requests.js";
 import { handleSignwellWebhook } from "./signatureFlow.js";
 import { handleContinue, handleStripeWebhook } from "./paymentFlow.js";
 import { verifyContinueToken } from "./continueToken.js";
+import { readSignedDocument, runAction } from "./actions.js";
 
 /** Captures the raw JSON body for HMAC and webhook signature checks. */
 export function onboardingRawBody(req, res, buf) {
@@ -69,6 +70,35 @@ export function createOnboardingRouter(getConfig, getDeps) {
         )
     );
 
+    router.post(
+        "/requests/:key/actions/:action",
+        service,
+        wrap(async (req, res, d) =>
+            res.json(
+                await runAction(d, req.params.key, req.params.action, req.body)
+            )
+        )
+    );
+
+    // Never public: service auth plus an actor, and every read is logged.
+    router.get(
+        "/requests/:key/documents/signed",
+        serviceNoReplay,
+        wrap(async (req, res, d) => {
+            const document = await readSignedDocument(d, req.params.key, {
+                user_id: req.headers["x-iw-actor-id"],
+                email: req.headers["x-iw-actor-email"],
+            });
+            res.set("Cache-Control", "no-store");
+            res.set("X-Content-SHA256", document.sha256);
+            res.set(
+                "Content-Disposition",
+                `attachment; filename="${document.filename}"`
+            );
+            res.type("application/pdf").send(document.bytes);
+        })
+    );
+
     // Provider webhooks: authenticated by the provider's own scheme, then
     // treated as hints (the owning record is re-fetched).
     router.post(
@@ -116,6 +146,7 @@ export function createOnboardingRouter(getConfig, getDeps) {
         })
     );
 
+    // eslint-disable-next-line no-unused-vars -- Express needs four arguments here.
     router.use((error, req, res, next) => {
         if (error instanceof OnboardingError)
             return res

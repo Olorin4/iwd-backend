@@ -6,6 +6,7 @@ import { sendEmail } from "../emailService.js";
 import { getOnboardingConfig } from "./config.js";
 import { createOnboardingDeps } from "./deps.js";
 import { createOnboardingRouter, onboardingRawBody } from "./routes.js";
+import { startOnboardingWorkers } from "./workers.js";
 
 let cached;
 function getDeps(config) {
@@ -27,3 +28,20 @@ function getConfig() {
 
 export { onboardingRawBody, getOnboardingConfig };
 export const onboardingRouter = createOnboardingRouter(getConfig, getDeps);
+
+/**
+ * Starts onboarding background workers. Off unless ONBOARDING_ENABLED=1;
+ * the outbox also needs OUTREACH_STATUS_URL/TOKEN/SIGNING_SECRET and the
+ * reconciler ONBOARDING_RECONCILE_ENABLED=1.
+ */
+export function startOnboarding() {
+    let config;
+    try {
+        config = getConfig();
+    } catch {
+        logger.error({ code: "onboarding_config_invalid" });
+        return null;
+    }
+    if (!config.enabled) return null;
+    return startOnboardingWorkers(getDeps(config));
+}

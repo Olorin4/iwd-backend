@@ -11,7 +11,7 @@ import {
     interimBillingRawBody,
     startInterimBilling,
 } from "./interimBilling/index.js";
-import { onboardingRawBody } from "./onboarding/index.js";
+import { onboardingRawBody, startOnboarding } from "./onboarding/index.js";
 
 dotenvFlow.config();
 
@@ -58,6 +58,9 @@ app.listen(PORT, "0.0.0.0", () =>
 
 // TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
 void startInterimBilling();
+
+// Onboarding workers; nothing starts unless ONBOARDING_ENABLED=1 and its switches.
+startOnboarding();
 
 // Flush queued PostHog events before the container stops.
 registerShutdown(process, shutdownPosthog);
