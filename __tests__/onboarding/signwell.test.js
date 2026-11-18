@@ -301,8 +301,8 @@ describe("page-6 typed authorization date (owner decision 2026-11-18)", () => {
         )
     );
 
-    it("is the owner-approved final layout and records the decisions", () => {
-        expect(raw.status).toBe("APPROVED");
+    it("records the v1 decisions and is superseded by v2", () => {
+        expect(raw.status).toBe("SUPERSEDED");
         expect(raw.owner_decisions).toContain(
             "page6_date_typed_mm_dd_yy 2026-11-18"
         );

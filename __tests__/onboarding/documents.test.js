@@ -243,9 +243,9 @@ describe("PDF inspection and filling", () => {
         expect(layoutSchema.safeParse(layout).success).toBe(false);
     });
 
-    it("the approved release layout parses and fits the fixture terms", async () => {
+    it("the superseded v1 release layout still parses and fits the fixture terms", async () => {
         const raw = releaseLayout();
-        expect(raw.status).toBe("APPROVED");
+        expect(raw.status).toBe("SUPERSEDED");
         const layout = layoutSchema.parse(raw);
         expect(layout[0].fields.length).toBeGreaterThan(30);
         const blank = await makeBlankPages(6);
@@ -272,10 +272,13 @@ describe("PDF inspection and filling", () => {
         }
     });
 
-    it("the v2 (legal name) layout is DRAFT, differs from v1 only in the page-1 opening and fits", async () => {
+    it("the owner-approved v2 (legal name) layout differs from v1 only in the page-1 opening and fits", async () => {
         const v1 = releaseLayout(1);
         const v2 = releaseLayout(2);
-        expect(v2.status).toBe("DRAFT");
+        expect(v2.status).toBe("APPROVED");
+        expect(v2.owner_decisions).toContain(
+            "layout_v2_approved_final 2026-11-18 by owner"
+        );
         expect(v2.bundle).toBe("Iron-Wing-Onboarding-Packet-v2.pdf");
         expect(v2.fields).toHaveLength(v1.fields.length);
         const changed = v2.fields

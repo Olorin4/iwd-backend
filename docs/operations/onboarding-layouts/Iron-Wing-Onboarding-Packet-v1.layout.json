@@ -1,14 +1,15 @@
 {
     "bundle": "Iron-Wing-Onboarding-Packet-v1.pdf",
     "sha256": "98922710004d0aae49d62d26ca6e6ad3a9ede239ac520cab20395bea618743aa",
-    "status": "APPROVED",
+    "status": "SUPERSEDED",
     "units": "PDF points, origin top-left of a 612x792 page",
     "calibration": "calibrated 2026-11-18 against release v1: SignWell = PDF points x 4/3 (CSS px at 96 DPI, top-left origin).",
     "owner_decisions": [
         "page6_date_typed_mm_dd_yy 2026-11-18",
         "layout_v1_approved_final 2026-11-18 by owner",
         "section1_document_checklist_left_blank 2026-11-18",
-        "section4_plan_prestamped_carrier_confirms_by_signing 2026-11-18"
+        "section4_plan_prestamped_carrier_confirms_by_signing 2026-11-18",
+        "superseded_by_v2_legal_name_only 2026-11-18"
     ],
     "fields": [
         {
