@@ -486,3 +486,90 @@ it("without an approved bundle the request is blocked, not sent", async () => {
     });
     expect(signature.calls.createEnvelope).toBe(0);
 });
+
+describe("cancel vs an in-flight send", () => {
+    const cancelRow = () =>
+        prisma.onboardingRequest.update({
+            where: { idempotency_key: KEY },
+            data: { cancelled_at: new Date() },
+        });
+
+    it("cancelled before the draft is created: nothing is created or sent", async () => {
+        const put = deps.documentStore.put.bind(deps.documentStore);
+        let first = true;
+        deps.documentStore.put = async (bytes) => {
+            if (first) {
+                first = false;
+                await cancelRow();
+            }
+            return put(bytes);
+        };
+        await app.call("PUT", `/requests/${KEY}`, requestBody());
+        await queue.drain();
+        expect(signature.calls.createEnvelope).toBe(0);
+        expect(signature.calls.send).toBe(0);
+        const [envelope] = await envelopes();
+        expect(envelope.state).toBe("CANCELLED");
+    });
+
+    it("cancelled after the draft was created: never sent, the draft is deleted", async () => {
+        const create = signature.createEnvelope.bind(signature);
+        signature.createEnvelope = async (...args) => {
+            const created = await create(...args);
+            await cancelRow();
+            return created;
+        };
+        await app.call("PUT", `/requests/${KEY}`, requestBody());
+        await queue.drain();
+        expect(signature.calls.send).toBe(0);
+        expect(signature.calls.delete).toBe(1);
+        expect(signature.documents.size).toBe(0);
+        const [envelope] = await envelopes();
+        expect(envelope.state).toBe("CANCELLED");
+        // A later reconcile never sends it either.
+        await reconcileEnvelope(deps, envelope.id);
+        expect(signature.calls.send).toBe(0);
+    });
+});
+
+it("reissue from ERROR withdraws the old provider document first", async () => {
+    await put();
+    const [old] = await envelopes();
+    await prisma.signatureEnvelope.update({
+        where: { id: old.id },
+        data: { state: "ERROR" },
+    });
+    await prisma.onboardingRequest.update({
+        where: { idempotency_key: KEY },
+        data: { signature_state: "ERROR", signature_code: "send_rejected" },
+    });
+    const { reissuePacket } = await import(
+        "../../src/onboarding/signatureFlow"
+    );
+    await reissuePacket(deps, old.request_id);
+    expect(signature.documents.has(old.provider_document_id)).toBe(false);
+    const [superseded, fresh] = await envelopes();
+    expect(superseded).toMatchObject({ id: old.id, state: "CANCELLED" });
+    expect(fresh.state).toBe("SENT");
+    expect(signature.documents.size).toBe(1);
+});
+
+it("reissue from ERROR logs a failed withdrawal by code and still reissues", async () => {
+    await put();
+    const [old] = await envelopes();
+    await prisma.signatureEnvelope.update({
+        where: { id: old.id },
+        data: { state: "ERROR" },
+    });
+    signature.failNext("delete", "reject");
+    const { reissuePacket } = await import(
+        "../../src/onboarding/signatureFlow"
+    );
+    await reissuePacket(deps, old.request_id);
+    expect(
+        deps.logger.lines.some(
+            (l) => l.code === "onboarding_reissue_withdraw_failed"
+        )
+    ).toBe(true);
+    expect((await envelopes())[1].state).toBe("SENT");
+});

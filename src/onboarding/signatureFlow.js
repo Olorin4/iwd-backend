@@ -113,8 +113,49 @@ async function claimEnvelope(deps, requestId, { supersede = false } = {}) {
             },
             deps.now()
         );
-        return { envelope, bundle, row };
+        return { envelope, bundle, row, superseded: current };
     });
+}
+
+/** Re-reads the request under its lock: true when it has been cancelled. */
+const cancelledNow = (deps, requestId) =>
+    deps.db.$transaction(async (tx) => {
+        const row = await lockRequest(tx, requestId);
+        return !row || !!row.cancelled_at;
+    });
+
+/** Best-effort withdrawal of a provider document; failures are logged by code. */
+async function withdrawDocument(deps, documentId, failureCode) {
+    try {
+        await deps.signature.delete(documentId);
+        return true;
+    } catch (error) {
+        deps.logger?.error?.({
+            code: failureCode,
+            reason: error?.code ?? "error",
+        });
+        return false;
+    }
+}
+
+/**
+ * The request was cancelled while a send was in flight: never send; withdraw
+ * any created provider document and close the envelope.
+ */
+async function stopForCancel(deps, envelope) {
+    if (envelope.provider_document_id)
+        await withdrawDocument(
+            deps,
+            envelope.provider_document_id,
+            "onboarding_cancel_withdraw_failed"
+        );
+    log(deps, "onboarding_signature_send_cancelled");
+    return setEnvelopeState(
+        deps,
+        envelope.id,
+        { state: "CANCELLED", onlyFrom: PRE_SEND },
+        null
+    );
 }
 
 /** Updates an envelope and, if it is the request's live envelope, the facet. */
@@ -180,6 +221,8 @@ async function storeFilled(deps, filledFiles) {
 
 /** Send a draft that already exists at the provider (same document id). */
 async function sendExisting(deps, envelope) {
+    if (await cancelledNow(deps, envelope.request_id))
+        return stopForCancel(deps, envelope);
     let result;
     try {
         result = await sendWithNotReadyRetry(
@@ -270,6 +313,7 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
             email: deps.config.signature.countersigner.email,
         },
     ];
+    if (await cancelledNow(deps, row.id)) return stopForCancel(deps, envelope);
     let created;
     try {
         created = await deps.signature.createEnvelope(
@@ -314,6 +358,21 @@ export async function sendPacket(deps, requestId) {
 export async function reissuePacket(deps, requestId) {
     const claim = await claimEnvelope(deps, requestId, { supersede: true });
     if (!claim) return null;
+    // A superseded envelope that is not provider-final (e.g. ERROR) may still
+    // be live at the provider: withdraw it so the signer never holds two.
+    const old = claim.superseded;
+    if (old?.provider_document_id && !TERMINAL.includes(old.state)) {
+        const withdrawn = await withdrawDocument(
+            deps,
+            old.provider_document_id,
+            "onboarding_reissue_withdraw_failed"
+        );
+        if (withdrawn)
+            await deps.db.signatureEnvelope.update({
+                where: { id: old.id },
+                data: { state: "CANCELLED" },
+            });
+    }
     return deliverEnvelope(deps, claim);
 }
 
