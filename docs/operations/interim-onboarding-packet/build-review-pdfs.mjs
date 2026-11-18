@@ -44,7 +44,7 @@ try {
             displayHeaderFooter: true,
             headerTemplate: "<span></span>",
             footerTemplate:
-                '<div style="width:100%;padding:0 47px;font:8px Arial;color:#66727c;display:flex;justify-content:space-between"><span>Iron Wing Dispatching · Review copy · 2026-11-18</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>',
+                '<div style="width:100%;padding:0 47px;font:8px Arial;color:#66727c;display:flex;justify-content:space-between"><span>Iron Wing Logistics L.L.C. · Review copy · 2026-11-18</span><span><span class="pageNumber"></span> / <span class="totalPages"></span></span></div>',
         });
         console.log(`Generated ${name}.pdf`);
     }

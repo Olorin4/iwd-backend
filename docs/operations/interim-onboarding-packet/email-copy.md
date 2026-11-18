@@ -6,7 +6,7 @@ Replace bracketed values before use. These are templates, not queued or sent mes
 
 ## Signing request — provider custom message
 
-Subject: Your Iron Wing Dispatching onboarding packet
+Subject: Your Iron Wing onboarding packet
 
 Hi [first name],
 
@@ -19,7 +19,7 @@ Payment details are collected separately through Stripe’s secure page. Please 
 Before dispatch begins, we also need your operating authority, insurance certificate, signed W-9 and, if you factor, your factoring company’s Notice of Assignment. Reply to arrange a suitable way to provide these documents.
 
 Thank you,
-Iron Wing Dispatching
+Iron Wing Logistics L.L.C.
 
 ## Payment setup — optional explanation after signing
 
@@ -34,7 +34,7 @@ If you chose a backup method, we will arrange a separate backup setup link. Do n
 We will confirm once the remaining paperwork and operational setup are complete.
 
 Thank you,
-Iron Wing Dispatching
+Iron Wing Logistics L.L.C.
 
 The existing billing endpoint already sends its own setup email. This explanation is optional; do not send it automatically in addition to every system message. Generate only one primary link initially. Generate a backup link only if agreed. Do not manually fabricate or reuse another carrier's link.
 
@@ -47,6 +47,6 @@ Hi [first name],
 I’m checking whether you need help with [specific outstanding item]. If you would like to continue, reply here and we can help you complete it. Please let us know if you would prefer to pause onboarding.
 
 Thank you,
-Iron Wing Dispatching
+Iron Wing Logistics L.L.C.
 
 Check the existing provider request before reminding. Use its existing request/reminder controls rather than creating another packet. No automated reminder sequence is enabled by these assets.

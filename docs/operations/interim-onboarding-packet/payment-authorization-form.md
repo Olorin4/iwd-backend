@@ -6,8 +6,7 @@
 
 I, __________________________________________, on behalf of
 __________________________________________, MC ____________ (CARRIER),
-authorize **Iron Wing Logistics L.L.C., doing business as Iron Wing
-Dispatching** (DISPATCH), to charge the payment method or methods below **every
+authorize **Iron Wing Logistics L.L.C.** (DISPATCH), to charge the payment method or methods below **every
 Friday** for the dispatch fees owed under our Dispatch Service Agreement: the
 fees on loads delivered during the previous week (Monday to Sunday) and on
 loads I cancelled after accepting them during that week. I understand that

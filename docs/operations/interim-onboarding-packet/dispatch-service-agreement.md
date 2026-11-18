@@ -5,8 +5,7 @@
 # Dispatch Service Agreement
 
 This Dispatch Service Agreement ("Agreement") is made effective as of
-___________________, by and between **Iron Wing Logistics L.L.C., doing
-business as Iron Wing Dispatching** (DISPATCH) and
+___________________, by and between **Iron Wing Logistics L.L.C.** (DISPATCH) and
 _________________________________, MC ____________, USDOT ____________
 (CARRIER).
 
@@ -234,7 +233,7 @@ first written above.
 
 | DISPATCH | CARRIER |
 | --- | --- |
-| Company: Iron Wing Dispatching | Company: |
+| Company: Iron Wing Logistics L.L.C. | Company: |
 | Contact: | Contact: |
 | Signature: | Signature: |
 | Date: | Date: |
