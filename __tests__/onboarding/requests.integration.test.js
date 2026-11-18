@@ -5,10 +5,13 @@ import {
     cleanTables,
     fixture,
     requestBody,
+    serializeSuite,
     startApp,
 } from "./harness";
 import { signBody } from "../../src/onboarding/signing";
 import { onboardingStatusV1 } from "../../src/onboarding/contracts";
+
+serializeSuite();
 
 let app, deps, config;
 const KEY = fixture("onboarding.request.v1").idempotency_key;

@@ -70,7 +70,14 @@ const envelopes = async () =>
         where: { request: { idempotency_key: KEY } },
         orderBy: { created_at: "asc" },
     });
-const webhook = (type, documentId, time = Math.floor(Date.now() / 1000)) =>
+const nowS = () => Math.floor(Date.now() / 1000);
+// Webhook re-fetches are throttled per envelope; tests that need several
+// re-fetches clear the throttle explicitly.
+const unthrottle = () =>
+    prisma.signatureEnvelope.updateMany({
+        data: { last_webhook_fetch_at: null },
+    });
+const webhook = (type, documentId, time = nowS()) =>
     app.call(
         "POST",
         "/webhooks/signwell",
@@ -126,9 +133,9 @@ it("completes only after re-fetching: stores the completed PDF encrypted with it
     ).toBe(200);
     expect((await request()).signature_state).toBe("SENT");
     signature.complete(envelope.provider_document_id);
+    await unthrottle();
     expect(
-        (await webhook("document_completed", envelope.provider_document_id, 1))
-            .status
+        (await webhook("document_signed", envelope.provider_document_id)).status
     ).toBe(200);
     await queue.drain();
     const done = (await envelopes())[0];
@@ -153,7 +160,7 @@ it("rejects a forged webhook and ignores a replayed one", async () => {
         {
             event: {
                 type: "document_completed",
-                time: 5,
+                time: nowS(),
                 hash: "0".repeat(64),
             },
             data: { object: { id: envelope.provider_document_id } },
@@ -162,9 +169,28 @@ it("rejects a forged webhook and ignores a replayed one", async () => {
     );
     expect(forged.status).toBe(401);
     signature.complete(envelope.provider_document_id);
-    await webhook("document_completed", envelope.provider_document_id, 77);
+    const time = nowS();
+    expect(
+        (
+            await webhook(
+                "document_completed",
+                envelope.provider_document_id,
+                time
+            )
+        ).status
+    ).toBe(200);
     const gets = signature.calls.get;
-    await webhook("document_completed", envelope.provider_document_id, 77);
+    await unthrottle();
+    // Same signed tuple again: dropped (the envelope is closed now as well).
+    expect([200, 202]).toContain(
+        (
+            await webhook(
+                "document_completed",
+                envelope.provider_document_id,
+                time
+            )
+        ).status
+    );
     expect(signature.calls.get).toBe(gets);
     expect(signature.calls.downloadCompleted).toBe(1);
     expect(
@@ -172,6 +198,61 @@ it("rejects a forged webhook and ignores a replayed one", async () => {
             where: { provider: "signwell" },
         })
     ).toBe(1);
+});
+
+it("bounds replays: stale events, unknown or closed ids and bursts never reach the provider", async () => {
+    await put();
+    const [envelope] = await envelopes();
+    const gets = () => signature.calls.get;
+    const before = gets();
+    // Captured event replayed later (or from the future): ignored.
+    expect(
+        (
+            await webhook(
+                "document_completed",
+                envelope.provider_document_id,
+                nowS() - 601
+            )
+        ).status
+    ).toBe(202);
+    expect(
+        (
+            await webhook(
+                "document_completed",
+                envelope.provider_document_id,
+                nowS() + 601
+            )
+        ).status
+    ).toBe(202);
+    expect(deps.logger.lines.some((l) => l.code === "stale_event")).toBe(true);
+    // A valid tuple with an id we did not create: no provider fetch.
+    expect(
+        (await webhook("document_completed", "someone_elses_document")).status
+    ).toBe(202);
+    expect(gets()).toBe(before);
+    // Distinct documents sharing one second both process (different ids in the key).
+    const time = nowS();
+    expect(
+        (await webhook("document_viewed", envelope.provider_document_id, time))
+            .status
+    ).toBe(200);
+    expect(gets()).toBe(before + 1);
+    // Burst: a different event within 30 s is throttled.
+    expect(
+        (await webhook("document_signed", envelope.provider_document_id, time))
+            .status
+    ).toBe(202);
+    expect(gets()).toBe(before + 1);
+    // A closed envelope is never fetched by a webhook.
+    signature.decline(envelope.provider_document_id);
+    await reconcileEnvelope(deps, envelope.id);
+    const afterDecline = gets();
+    await unthrottle();
+    expect(
+        (await webhook("document_declined", envelope.provider_document_id))
+            .status
+    ).toBe(202);
+    expect(gets()).toBe(afterDecline);
 });
 
 it("recovers a lost webhook through the reconcile poll", async () => {
@@ -213,7 +294,7 @@ it("send timeout before acceptance → UNKNOWN → reconcile sends the same draf
     expect([...signature.documents.values()][0].sends).toBe(1);
 });
 
-it("create timeout → NOT_SENT blocked; an orphan draft is deleted on its webhook; reconcile retries", async () => {
+it("create timeout → NOT_SENT blocked; an orphan draft's webhook is ignored unfetched; reconcile retries", async () => {
     signature.failNext("createEnvelope", "timeout_after");
     await put();
     const row = await request();
@@ -222,11 +303,15 @@ it("create timeout → NOT_SENT blocked; an orphan draft is deleted on its webho
         signature_code: "packet_create_failed",
     });
     const [orphanId] = [...signature.documents.keys()];
-    await webhook("document_created", orphanId);
-    expect(signature.documents.has(orphanId)).toBe(false);
+    const gets = signature.calls.get;
+    expect((await webhook("document_created", orphanId)).status).toBe(202);
+    expect(signature.calls.get).toBe(gets);
+    // The orphan is a draft: it cannot email anyone. It stays for manual cleanup.
+    expect(signature.documents.get(orphanId).status).toBe("draft");
     await reconcileSignature(deps, row.id);
     expect((await request()).signature_state).toBe("SENT");
-    expect(signature.documents.size).toBe(1);
+    expect(signature.documents.size).toBe(2);
+    expect(signature.calls.send).toBe(1);
 });
 
 it("declined → CLOSED; reissue supersedes it with a new envelope; expired works the same", async () => {
@@ -254,7 +339,10 @@ it("declined → CLOSED; reissue supersedes it with a new envelope; expired work
     await reconcileEnvelope(deps, list[1].id);
     expect((await request()).signature_state).toBe("EXPIRED");
     // Late events for the superseded envelope do not touch the request.
-    await webhook("document_declined", first.provider_document_id, 99);
+    await unthrottle();
+    expect(
+        (await webhook("document_declined", first.provider_document_id)).status
+    ).toBe(202);
     expect((await request()).signature_state).toBe("EXPIRED");
     await reissuePacket(deps, first.request_id);
     list = await envelopes();

@@ -1,10 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-    applyFacetChange,
-    lockRequest,
-    receiptExists,
-    recordReceipt,
-} from "./store.js";
+import { applyFacetChange, lockRequest, recordReceipt } from "./store.js";
 import { latestApprovedBundle, loadBundleFiles } from "./documents/bundles.js";
 import { fillPacket } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
@@ -375,48 +370,79 @@ export async function reconcileSignature(deps, requestId) {
     return reconcileEnvelope(deps, envelope.id);
 }
 
+export const SIGNWELL_EVENT_MAX_SKEW_MS = 10 * 60 * 1000;
+export const WEBHOOK_REFETCH_INTERVAL_MS = 30 * 1000;
+const WEBHOOK_OPEN_STATES = ["SENDING", "UNKNOWN", "SENT", "VIEWED", "ERROR"];
+
 /**
- * POST /onboarding/webhooks/signwell. Returns an HTTP status. The event is a
- * hint: authenticity is checked with the webhook id, then the document is
- * re-fetched.
+ * POST /onboarding/webhooks/signwell. Returns an HTTP status.
+ *
+ * SignWell's hash covers only "type@time", so a captured event could be
+ * replayed with any document id. The event is therefore only a hint, bounded:
+ * - events more than 10 minutes from now are ignored (`stale_event`); the
+ *   reconcile poller covers legitimately late deliveries;
+ * - nothing is fetched unless the id is one of our own open envelopes;
+ * - receipts dedupe the signed tuple plus the document id;
+ * - webhooks re-fetch one envelope at most once per 30 seconds.
+ * Ignored events get 202 so the provider does not retry them.
  */
 export async function handleSignwellWebhook(deps, body) {
     if (!verifySignwellEvent(body, deps.config.signature.webhookId)) return 401;
-    const { type, time } = body.event;
+    const { type, time, hash } = body.event;
+    const now = deps.now();
+    const timeMs = Number(time) * 1000;
+    if (
+        !Number.isFinite(timeMs) ||
+        Math.abs(now.getTime() - timeMs) > SIGNWELL_EVENT_MAX_SKEW_MS
+    ) {
+        log(deps, "stale_event");
+        return 202;
+    }
     const documentId = body.data?.object?.id;
-    if (typeof documentId !== "string" || documentId.length > 200) return 200;
-    const receiptKey = `${type}:${time}:${documentId}`;
-    if (await receiptExists(deps.db, "signwell", receiptKey)) return 200;
+    if (typeof documentId !== "string" || documentId.length > 200) return 202;
 
     const envelope = await deps.db.signatureEnvelope.findUnique({
         where: { provider_document_id: documentId },
     });
-    if (envelope) {
-        await reconcileEnvelope(deps, envelope.id);
-    } else {
-        // Possibly an orphan draft from a create call that timed out.
-        let remote = null;
-        try {
-            remote = await deps.signature.get(documentId);
-        } catch {
-            remote = null;
-        }
-        const claimed = remote?.metadata?.envelope_id;
-        const owner =
-            typeof claimed === "string" && /^[0-9a-f-]{36}$/.test(claimed)
-                ? await deps.db.signatureEnvelope.findUnique({
-                      where: { id: claimed },
-                  })
-                : null;
-        if (
-            owner?.state === "ABANDONED" &&
-            normalizeProviderStatus(remote.status) === "DRAFT"
-        ) {
-            await deps.signature.delete(documentId);
-            log(deps, "onboarding_orphan_draft_deleted");
-        }
+    const open =
+        envelope &&
+        !envelope.superseded_by &&
+        (WEBHOOK_OPEN_STATES.includes(envelope.state) ||
+            (envelope.state === "COMPLETED" &&
+                !envelope.completed_storage_key));
+    if (!open) {
+        log(deps, "onboarding_signwell_event_ignored");
+        return 202;
     }
-    await recordReceipt(deps.db, "signwell", receiptKey);
+    if (
+        !(await recordReceipt(
+            deps.db,
+            "signwell",
+            `${type}:${time}:${hash}:${documentId}`
+        ))
+    )
+        return 200;
+    const { count } = await deps.db.signatureEnvelope.updateMany({
+        where: {
+            id: envelope.id,
+            OR: [
+                { last_webhook_fetch_at: null },
+                {
+                    last_webhook_fetch_at: {
+                        lt: new Date(
+                            now.getTime() - WEBHOOK_REFETCH_INTERVAL_MS
+                        ),
+                    },
+                },
+            ],
+        },
+        data: { last_webhook_fetch_at: now },
+    });
+    if (count !== 1) {
+        log(deps, "onboarding_signwell_event_throttled");
+        return 202;
+    }
+    await reconcileEnvelope(deps, envelope.id);
     return 200;
 }
 

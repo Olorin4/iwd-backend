@@ -34,3 +34,5 @@ payment authorization form (Stripe-only). Packet files are not edited and no rel
 copies are generated here; release copies and field-coordinate review stay separate
 owner/orchestrator steps. Sandbox/test fixtures may use the watermarked review copies
 in test mode. Bundles support several files, so the three PDFs register as one version.
+- I4 3c26d06 signature port, SignWell adapter + fake, webhook hint + re-fetch, completed PDF storage, UNKNOWN/reconcile, reissue
+- I4-fix (next commit) bound SignWell webhook replay (security review): events >10 min from now → 202 `stale_event` (reconcile poller covers late deliveries); no provider call unless the id is one of our open envelopes; receipt key `type:time:hash:documentId`; ≤1 webhook-triggered re-fetch per envelope per 30 s (`signature_envelope.last_webhook_fetch_at`, added to the unreleased migration). Consequence: orphan drafts from a timed-out create are no longer deleted from the webhook (that needed fetching an unknown id); they are drafts that cannot email anyone and are left for manual cleanup.

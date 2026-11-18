@@ -87,6 +87,7 @@ CREATE TABLE "signature_envelope" (
     "declined_at" TIMESTAMP(3),
     "expired_at" TIMESTAMP(3),
     "superseded_by" TEXT,
+    "last_webhook_fetch_at" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
