@@ -1,8 +1,8 @@
 <!-- TEMPORARY: manual bridge until permanent onboarding is available. Retain executed client records privately. -->
 
-# Payment form adaptation for owner review
+# Approved payment form adaptation
 
-The original remains unchanged in the Windows business folder. This proposed copy changes the collection surface; it does not change the fee, weekly schedule, linehaul basis, cancellation rule, backup rule, declined-charge rule or revocation wording.
+The original remains unchanged in the Windows business folder. This approved copy changes the collection surface; it does not change the fee, weekly schedule, linehaul basis, cancellation rule, backup rule, declined-charge rule or revocation wording.
 
 Removed fields:
 
@@ -29,4 +29,4 @@ Removed editorial handling blockquote: its original instruction allowed collecti
 
 All three customer documents also omit the source's editorial DRAFT/provenance blockquote. The owner reported that lawyer review was completed November 17, 2026; the source labels themselves remain stale. No new legal review of this collection adaptation is claimed.
 
-Decision needed: approve this Stripe-only version for the interim packet. Until then, the generated PDFs remain watermarked review copies.
+Owner approved the updated Stripe-only form and combined packet November 18, 2026. The approved v1 combined PDF is unwatermarked; earlier review PDFs remain watermarked. Signature-provider configuration, carrier-specific prefill and a controlled signing test remain separate steps.
