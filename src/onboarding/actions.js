@@ -11,6 +11,7 @@ import {
 import { issuePaymentLink, reconcilePayment } from "./paymentFlow.js";
 import { confirmProvisioning, startProvisioning } from "./provisioningFlow.js";
 import { recoverRequestSteps } from "./recovery.js";
+import { SIGNER_ROLES } from "./signature/waitingFor.js";
 
 const base = { actor: actorSchema };
 const SCHEMAS = {
@@ -227,4 +228,62 @@ export async function readSignedDocument(deps, key, actor) {
         filename: `signed-packet-${row.id}.pdf`,
         sha256: envelope.completed_sha256,
     };
+}
+
+const IRON_WING_RECIPIENT_ID = SIGNER_ROLES.IRON_WING.id;
+
+/**
+ * GET /onboarding/requests/:key/iron-wing-signing-url (R14). Returns the
+ * Iron Wing recipient's SignWell embedded signing URL only while the open
+ * packet waits for Iron Wing; every disclosure is recorded in the access log
+ * with the signed actor. The URL is never logged.
+ */
+export async function ironWingSigningUrl(deps, key, actor) {
+    const parsedActor = actorSchema.safeParse(actor);
+    if (!parsedActor.success) throw new OnboardingError("actor_required", 422);
+    const row = await findRequestByKey(deps.db, key);
+    const notWaiting = () =>
+        new OnboardingError("not_waiting_for_iron_wing", 409);
+    if (
+        row.cancelled_at ||
+        !["SENT", "VIEWED"].includes(row.signature_state) ||
+        row.signature_waiting_for !== "IRON_WING"
+    )
+        throw notWaiting();
+    const envelope = await deps.db.signatureEnvelope.findFirst({
+        where: {
+            request_id: row.id,
+            superseded_by: null,
+            state: { in: ["SENT", "VIEWED"] },
+            provider_document_id: { not: null },
+        },
+    });
+    if (!envelope) throw notWaiting();
+    let url;
+    try {
+        url = await deps.signature.embeddedSigningUrl(
+            envelope.provider_document_id,
+            IRON_WING_RECIPIENT_ID
+        );
+    } catch (error) {
+        deps.logger?.error?.({
+            code: "onboarding_signing_url_failed",
+            reason: error?.code ?? "error",
+        });
+        throw new OnboardingError("signing_url_unavailable", 502);
+    }
+    if (typeof url !== "string" || !url.startsWith("https://")) {
+        deps.logger?.error?.({ code: "onboarding_signing_url_missing" });
+        throw new OnboardingError("signing_url_unavailable", 502);
+    }
+    await deps.db.documentAccessLog.create({
+        data: {
+            request_id: row.id,
+            actor: parsedActor.data,
+            document: `iron_wing_signing_url:${envelope.id}`,
+        },
+    });
+    // SignWell documents no lifetime for embedded_signing_url, so no expiry
+    // is promised: callers fetch a fresh URL for every click.
+    return { url, expires_hint: null };
 }

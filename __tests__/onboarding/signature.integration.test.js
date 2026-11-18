@@ -822,3 +822,108 @@ describe("signature.waiting_for (R14)", () => {
         });
     });
 });
+
+describe("GET /requests/:key/iron-wing-signing-url (R14)", () => {
+    const ACTOR = {
+        user_id: "55555555-5555-4555-8555-555555555555",
+        email: "owner@outreach.example.test",
+    };
+    const PATH = `/requests/${KEY}/iron-wing-signing-url`;
+    const actorHeaders = {
+        "X-IW-Actor-Id": ACTOR.user_id,
+        "X-IW-Actor-Email": ACTOR.email,
+    };
+    const getUrl = (options = { headers: actorHeaders }) =>
+        app.call("GET", PATH, undefined, options);
+    // Everything any logger received, as one string.
+    const logged = () => JSON.stringify(deps.logger.lines);
+
+    it("returns the embedded URL while waiting for Iron Wing; audited, no-store, never logged", async () => {
+        await put();
+        const response = await getUrl();
+        expect(response.status).toBe(200);
+        expect(response.json).toEqual({
+            url: expect.stringMatching(
+                /^https:\/\/fake-signwell\.example\.test\/embedded\/.+\/2\//
+            ),
+            expires_hint: null,
+        });
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        expect(signature.calls.embeddedSigningUrl).toBe(1);
+        const [envelope] = await envelopes();
+        const logs = await prisma.documentAccessLog.findMany();
+        expect(logs).toHaveLength(1);
+        expect(logs[0]).toMatchObject({
+            actor: ACTOR,
+            document: `iron_wing_signing_url:${envelope.id}`,
+        });
+        expect(logged()).not.toContain(response.json.url);
+        expect(logged()).not.toContain("fake-signwell");
+    });
+
+    it("409 not_waiting_for_iron_wing once Iron Wing has signed (and for closed packets)", async () => {
+        await put();
+        const [envelope] = await envelopes();
+        signature.sign(envelope.provider_document_id, "2");
+        await reconcileEnvelope(deps, envelope.id);
+        const response = await getUrl();
+        expect(response).toMatchObject({
+            status: 409,
+            json: { error: "not_waiting_for_iron_wing" },
+        });
+        expect(response.headers.get("cache-control")).toBe("no-store");
+        signature.decline(envelope.provider_document_id);
+        await reconcileEnvelope(deps, envelope.id);
+        expect((await getUrl()).status).toBe(409);
+        expect(signature.calls.embeddedSigningUrl).toBe(0);
+        expect(await prisma.documentAccessLog.count()).toBe(0);
+    });
+
+    it("requires the signed actor, service auth, a fresh signature and a known key", async () => {
+        await put();
+        expect(await getUrl({})).toMatchObject({
+            status: 422,
+            json: { error: "actor_required" },
+        });
+        expect((await getUrl({ auth: false })).status).toBe(401);
+        const fixed = {
+            headers: actorHeaders,
+            nowSeconds: Math.floor(Date.now() / 1000),
+            nonce: "0123456789abcdef0123456789abcdef",
+        };
+        expect((await getUrl(fixed)).status).toBe(200);
+        expect(await getUrl(fixed)).toMatchObject({
+            status: 401,
+            json: { error: "replayed_signature" },
+        });
+        const unknown = await app.call(
+            "GET",
+            "/requests/00000000-0000-4000-8000-000000000000/iron-wing-signing-url",
+            undefined,
+            { headers: actorHeaders }
+        );
+        expect(unknown.status).toBe(404);
+        expect(await prisma.documentAccessLog.count()).toBe(1);
+    });
+
+    it("a provider failure is 502 signing_url_unavailable, logged by code only", async () => {
+        await put();
+        signature.failNext("embeddedSigningUrl", "timeout");
+        const response = await getUrl();
+        expect(response).toMatchObject({
+            status: 502,
+            json: { error: "signing_url_unavailable" },
+        });
+        expect(deps.logger.lines).toContainEqual(
+            expect.objectContaining({
+                code: "onboarding_signing_url_failed",
+                reason: "provider_timeout",
+            })
+        );
+        expect(await prisma.documentAccessLog.count()).toBe(0);
+        // The next call works and its URL still never reaches the logger.
+        const ok = await getUrl();
+        expect(ok.status).toBe(200);
+        expect(logged()).not.toContain(ok.json.url);
+    });
+});

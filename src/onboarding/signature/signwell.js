@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { safeEqualHex } from "../signing.js";
 import { SignatureError } from "./errors.js";
+import { SIGNER_ROLES, findRecipient } from "./waitingFor.js";
 
 // SignWell adapter for the signature port (design §8): Create Document with
 // uploaded files (no templates), draft first, then send. The API key is sent
@@ -223,6 +224,30 @@ export function createSignwellProvider({
                 metadata: document.metadata ?? {},
                 recipients: signwellRecipientStatuses(document.recipients),
             };
+        },
+        /**
+         * The recipient's DocumentResponse.recipients[].embedded_signing_url
+         * from GET /documents/:id (R14), or null. The URL is a bearer link:
+         * callers must never log or cache it.
+         */
+        async embeddedSigningUrl(id, recipientId) {
+            const document = await call(
+                "GET",
+                `/documents/${encodeURIComponent(id)}/`
+            );
+            const recipients = Array.isArray(document?.recipients)
+                ? document.recipients
+                : [];
+            const role = Object.keys(SIGNER_ROLES).find(
+                (key) => SIGNER_ROLES[key].id === recipientId
+            );
+            const recipient = role
+                ? findRecipient(recipients, role)
+                : recipients.find((r) => String(r?.id) === recipientId);
+            const url = recipient?.embedded_signing_url;
+            return typeof url === "string" && url.startsWith("https://")
+                ? url
+                : null;
         },
         async downloadCompleted(id) {
             const bytes = await call(

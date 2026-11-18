@@ -511,3 +511,30 @@ it("get() returns recipient ids and statuses only (no emails or URLs)", async ()
     expect(JSON.stringify(document)).not.toMatch(/secret|@example/);
     expect((await p.get("doc_2")).recipients).toEqual([]);
 });
+
+it("embeddedSigningUrl reads the recipient's embedded_signing_url from GET /documents/:id", async () => {
+    const doc = (recipients) => json(200, { id: "doc_1", recipients });
+    const IW = "https://www.signwell.com/embedded/iw-secret/";
+    const { calls, p } = provider([
+        doc([
+            { id: "1", embedded_signing_url: "https://x.test/carrier" },
+            { id: "2", embedded_signing_url: IW },
+        ]),
+        // SignWell-generated ids: matched by signing order (Iron Wing first).
+        doc([
+            { id: "u-2", signing_order: 2, embedded_signing_url: "https://c" },
+            { id: "u-1", signing_order: 1, embedded_signing_url: IW },
+        ]),
+        doc([{ id: "2", embedded_signing_url: null }]),
+        doc([{ id: "2", embedded_signing_url: "http://insecure.test/" }]),
+        json(404, {}),
+    ]);
+    expect(await p.embeddedSigningUrl("doc_1", "2")).toBe(IW);
+    expect(calls[0].url).toBe(`${SIGNWELL_BASE_URL}/documents/doc_1/`);
+    expect(calls[0].init.method).toBe("GET");
+    expect(await p.embeddedSigningUrl("doc_1", "2")).toBe(IW);
+    expect(await p.embeddedSigningUrl("doc_1", "2")).toBeNull();
+    expect(await p.embeddedSigningUrl("doc_1", "2")).toBeNull();
+    const error = await p.embeddedSigningUrl("doc_1", "2").catch((e) => e);
+    expect(error).toMatchObject({ code: "provider_http_404" });
+});

@@ -4,7 +4,11 @@ import { OnboardingError, getRequestStatus, putRequest } from "./requests.js";
 import { handleSignwellWebhook } from "./signatureFlow.js";
 import { handleContinue, handleStripeWebhook } from "./paymentFlow.js";
 import { verifyContinueToken } from "./continueToken.js";
-import { readSignedDocument, runAction } from "./actions.js";
+import {
+    ironWingSigningUrl,
+    readSignedDocument,
+    runAction,
+} from "./actions.js";
 
 /** Captures the raw JSON body for HMAC and webhook signature checks. */
 export function onboardingRawBody(req, res, buf) {
@@ -93,6 +97,24 @@ export function createOnboardingRouter(getConfig, getDeps) {
                 `attachment; filename="${document.filename}"`
             );
             res.type("application/pdf").send(document.bytes);
+        })
+    );
+
+    // R14: the owner signs as Iron Wing in Outreach. Service auth plus a
+    // required actor; every disclosure is logged; the URL is never logged.
+    router.get(
+        "/requests/:key/iron-wing-signing-url",
+        service,
+        wrap(async (req, res, d) => {
+            res.set("Cache-Control", "no-store");
+            res.set("Referrer-Policy", "no-referrer");
+            res.json(
+                await ironWingSigningUrl(
+                    d,
+                    req.params.key,
+                    res.locals.signedActor ?? {}
+                )
+            );
         })
     );
 
