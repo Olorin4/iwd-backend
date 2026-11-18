@@ -14,6 +14,9 @@ const TERMINAL = ["COMPLETED", "DECLINED", "EXPIRED", "CANCELLED"];
 // SignWell can answer 422 to a send issued immediately after the upload while
 // it is still processing the file (sandbox 2026-11-18). Retry the same send on
 // the same document a few times before recording ERROR; never create another.
+// Failure writes from a send attempt apply only while the envelope has not been
+// confirmed sent; a concurrent successful send must never be downgraded.
+const PRE_SEND = ["SENDING", "UNKNOWN", "ERROR"];
 export const SEND_NOT_READY_DELAYS_MS = [2000, 5000, 10000];
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -23,8 +26,20 @@ async function sendWithNotReadyRetry(deps, documentId) {
         try {
             return await deps.signature.send(documentId);
         } catch (error) {
+            if (error?.status !== 422) throw error;
+            // A 422 is either "still processing" (retry) or "not a draft any
+            // more" (a concurrent send already succeeded). Decide from a
+            // verified re-fetch, never from the 422 alone.
+            let remote = null;
+            try {
+                remote = await deps.signature.get(documentId);
+            } catch {
+                throw error;
+            }
+            const state = normalizeProviderStatus(remote?.status);
+            if (state && state !== "DRAFT") return { alreadySent: state };
             const delay = SEND_NOT_READY_DELAYS_MS[attempt];
-            if (error?.status !== 422 || delay === undefined) throw error;
+            if (delay === undefined) throw error;
             log(deps, "onboarding_signature_send_not_ready", {
                 attempt: attempt + 1,
             });
@@ -103,7 +118,8 @@ async function claimEnvelope(deps, requestId, { supersede = false } = {}) {
 }
 
 /** Updates an envelope and, if it is the request's live envelope, the facet. */
-async function setEnvelopeState(deps, envelopeId, envelopeData, facet) {
+async function setEnvelopeState(deps, envelopeId, envelopeUpdate, facet) {
+    const { onlyFrom, ...envelopeData } = envelopeUpdate;
     return deps.db.$transaction(async (tx) => {
         const envelope = await tx.signatureEnvelope.findUnique({
             where: { id: envelopeId },
@@ -117,6 +133,10 @@ async function setEnvelopeState(deps, envelopeId, envelopeData, facet) {
             envelopeData.state &&
             envelopeData.state !== fresh.state
         )
+            return { row, changed: false };
+        // Compare-and-set under the request lock: a failure write only applies
+        // over a pre-send state.
+        if (onlyFrom && !onlyFrom.includes(fresh.state))
             return { row, changed: false };
         await tx.signatureEnvelope.update({
             where: { id: envelopeId },
@@ -160,15 +180,23 @@ async function storeFilled(deps, filledFiles) {
 
 /** Send a draft that already exists at the provider (same document id). */
 async function sendExisting(deps, envelope) {
+    let result;
     try {
-        await sendWithNotReadyRetry(deps, envelope.provider_document_id);
+        result = await sendWithNotReadyRetry(
+            deps,
+            envelope.provider_document_id
+        );
     } catch (error) {
         if (error.ambiguous) {
             log(deps, "onboarding_signature_send_unknown");
             return setEnvelopeState(
                 deps,
                 envelope.id,
-                { state: "UNKNOWN", last_error_code: error.code },
+                {
+                    state: "UNKNOWN",
+                    last_error_code: error.code,
+                    onlyFrom: PRE_SEND,
+                },
                 {
                     signature_state: "UNKNOWN",
                     signature_code: "send_outcome_unknown",
@@ -179,7 +207,11 @@ async function sendExisting(deps, envelope) {
         return setEnvelopeState(
             deps,
             envelope.id,
-            { state: "ERROR", last_error_code: error.code ?? "send_failed" },
+            {
+                state: "ERROR",
+                last_error_code: error.code ?? "send_failed",
+                onlyFrom: PRE_SEND,
+            },
             {
                 signature_state: "ERROR",
                 signature_code: "send_rejected",
@@ -187,6 +219,8 @@ async function sendExisting(deps, envelope) {
             }
         );
     }
+    // Someone else's send already went through: follow the verified remote state.
+    if (result?.alreadySent) return reconcileEnvelope(deps, envelope.id);
     return setEnvelopeState(
         deps,
         envelope.id,

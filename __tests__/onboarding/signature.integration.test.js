@@ -370,6 +370,58 @@ it("a send still refused after the retries is ERROR, and a verified re-fetch sho
     expect(signature.documents.size).toBe(1);
 });
 
+it("a 422 because a concurrent send already went through is success, never ERROR", async () => {
+    deps.sleep = jest.fn(async () => {});
+    await put();
+    let row = await request();
+    expect(row.signature_state).toBe("SENT");
+    // Force a second send of the same, already-sent document (as a concurrent
+    // reconcile would): the fake answers 422 because it is not a draft.
+    await prisma.signatureEnvelope.updateMany({ data: { state: "UNKNOWN" } });
+    await prisma.onboardingRequest.updateMany({
+        data: { signature_state: "UNKNOWN" },
+    });
+    const [doc] = [...signature.documents.values()];
+    doc.status = "draft"; // reconcile sees a draft and re-sends …
+    signature.failNext("send", "reject"); // … but the provider says 422
+    const realGet = signature.get.bind(signature);
+    signature.get = async (id) => {
+        const remote = await realGet(id);
+        if (signature.calls.send >= 2) return { ...remote, status: "sent" };
+        return remote;
+    };
+    await reconcileSignature(deps, row.id);
+    row = await request();
+    expect(row.signature_state).toBe("SENT");
+    expect(deps.sleep).not.toHaveBeenCalled();
+    expect(signature.calls.createEnvelope).toBe(1);
+});
+
+it("a failure write never downgrades an envelope confirmed SENT meanwhile", async () => {
+    await put();
+    const [envelope] = await envelopes();
+    // Put the envelope back into an uncertain state with a draft remotely, so
+    // reconcile re-sends; every send attempt is refused while it stays a draft.
+    await prisma.signatureEnvelope.update({
+        where: { id: envelope.id },
+        data: { state: "UNKNOWN" },
+    });
+    signature.documents.get(envelope.provider_document_id).status = "draft";
+    for (let i = 0; i < 4; i += 1) signature.failNext("send", "reject");
+    // While the retries sleep, a concurrent path confirms the send.
+    deps.sleep = jest.fn(async () => {
+        await prisma.signatureEnvelope.update({
+            where: { id: envelope.id },
+            data: { state: "SENT" },
+        });
+    });
+    await reconcileEnvelope(deps, envelope.id);
+    expect(deps.sleep).toHaveBeenCalled();
+    const [after] = await envelopes();
+    expect(after.state).toBe("SENT");
+    expect(after.last_error_code).toBeNull();
+});
+
 it("create timeout → NOT_SENT blocked; an orphan draft's webhook is ignored unfetched; reconcile retries", async () => {
     signature.failNext("createEnvelope", "timeout_after");
     await put();
