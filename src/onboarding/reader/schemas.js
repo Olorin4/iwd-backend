@@ -66,16 +66,20 @@ export const DOCUMENT_SCHEMAS = {
     FACTORING_NOA: noaSchema,
 };
 
-// SSN 3-2-4 with the same separator (or none) twice, so a ZIP+4 such as
-// 75201-4567 never matches; EIN 2-7. Separators: space, dot, hyphens/dashes.
+// Full tax-ID shapes: SSN 3-2-4 and EIN 2-7, each separator optional (space,
+// dot, hyphens/dashes). Over-matching is the safe side, with one exception: a
+// ZIP+4 right after a state code ("TX 75201-4567") is an address, not a TIN.
 const TIN_LIKE =
-    /(?<!\d)(?:\d{3}([\s.‐‑‒–—-]?)\d{2}\1\d{4}|\d{2}[\s.‐‑‒–—-]?\d{7})(?!\d)/;
+    /(?<!\d)(?:\d{3}[\s.‐‑‒–—-]?\d{2}[\s.‐‑‒–—-]?\d{4}|\d{2}[\s.‐‑‒–—-]?\d{7})(?!\d)/;
+const STATE_ZIP4 = /\b[A-Z]{2},?\s+\d{5}-\d{4}(?!\d)/g;
 
 // Remove full tax-ID shapes in free text throughout the parsed object. Also
 // handle nine-digit JSON numbers and defensive sanitization of key names.
 export function stripTinLike(value) {
     if (typeof value === "string" || typeof value === "number")
-        return TIN_LIKE.test(String(value)) ? null : value;
+        return TIN_LIKE.test(String(value).replace(STATE_ZIP4, " "))
+            ? null
+            : value;
     if (Array.isArray(value))
         return value.map(stripTinLike).filter((entry) => entry !== null);
     if (value && typeof value === "object")
