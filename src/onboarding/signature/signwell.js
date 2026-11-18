@@ -148,24 +148,40 @@ export function createSignwellProvider({
     };
 }
 
+/** Canonical decimal form of an integer event time, or null. */
+export function canonicalEventTime(time) {
+    if (typeof time === "number" && Number.isSafeInteger(time) && time >= 0)
+        return String(time);
+    if (typeof time === "string" && /^\d{1,15}$/.test(time))
+        return String(Number(time));
+    return null;
+}
+
 /**
- * SignWell webhook check: event.hash must equal hex HMAC-SHA256 with the
- * webhook id as key over "<type>@<time>". The hash does not cover the body,
- * so the event is only a hint and the document is always re-fetched.
+ * SignWell webhook check: event.hash must be exactly 64 lowercase hex chars
+ * and equal hex HMAC-SHA256 with the webhook id as key over
+ * "<type>@<canonical time>". The hash does not cover the body, so the event is
+ * only a hint and the document is always re-fetched.
+ * Returns { type, time, expected } (server-computed hash) or null.
  */
 export function verifySignwellEvent(body, webhookId) {
     const event = body?.event;
     if (
         !event ||
         typeof event.type !== "string" ||
-        event.time === undefined ||
-        typeof event.hash !== "string"
+        !/^[a-z_]{1,64}$/.test(event.type)
     )
-        return false;
+        return null;
+    if (typeof event.hash !== "string" || !/^[0-9a-f]{64}$/.test(event.hash))
+        return null;
+    const time = canonicalEventTime(event.time);
+    if (time === null) return null;
     const expected = createHmac("sha256", webhookId)
-        .update(`${event.type}@${event.time}`)
+        .update(`${event.type}@${time}`)
         .digest("hex");
-    return safeEqualHex(expected, event.hash.toLowerCase());
+    return safeEqualHex(expected, event.hash)
+        ? { type: event.type, time, expected }
+        : null;
 }
 
 export function signSignwellEvent(type, time, webhookId) {

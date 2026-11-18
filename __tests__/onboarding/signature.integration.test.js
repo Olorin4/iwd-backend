@@ -200,6 +200,54 @@ it("rejects a forged webhook and ignores a replayed one", async () => {
     ).toBe(1);
 });
 
+it("rejects non-canonical hashes and times; replays of one signed tuple are duplicates", async () => {
+    await put();
+    const [envelope] = await envelopes();
+    const time = nowS();
+    const hash = signSignwellEvent("document_viewed", time, WEBHOOK_ID);
+    const post = (event) =>
+        app.call(
+            "POST",
+            "/webhooks/signwell",
+            { event, data: { object: { id: envelope.provider_document_id } } },
+            { auth: false }
+        );
+    expect(
+        (
+            await post({
+                type: "document_viewed",
+                time,
+                hash: hash.toUpperCase(),
+            })
+        ).status
+    ).toBe(401);
+    expect(
+        (await post({ type: "document_viewed", time: time + 0.5, hash })).status
+    ).toBe(401);
+    expect(
+        (await post({ type: "document_viewed", time: `${time}.0`, hash }))
+            .status
+    ).toBe(401);
+    expect((await post({ type: "document_viewed", time, hash })).status).toBe(
+        200
+    );
+    await unthrottle();
+    const gets = signature.calls.get;
+    // Same tuple again, also with the time as a digit string: duplicate.
+    expect(
+        (await post({ type: "document_viewed", time: String(time), hash }))
+            .status
+    ).toBe(200);
+    expect(signature.calls.get).toBe(gets);
+    const receipts = await prisma.providerWebhookReceipt.findMany({
+        where: { provider: "signwell" },
+    });
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0].receipt_key).toBe(
+        `signwell:document_viewed:${time}:${hash}:${envelope.provider_document_id}`
+    );
+});
+
 it("bounds replays: stale events, unknown or closed ids and bursts never reach the provider", async () => {
     await put();
     const [envelope] = await envelopes();

@@ -169,23 +169,55 @@ it("downloads the completed PDF with the audit page and refuses non-PDF bytes", 
     });
 });
 
-it("verifies the event hash: HMAC-SHA256(webhook id, type@time)", () => {
+it("verifies the event hash: HMAC-SHA256(webhook id, type@canonical time)", () => {
     const hash = signSignwellEvent("document_completed", 1700000000, "hook-id");
-    const body = {
-        event: { type: "document_completed", time: 1700000000, hash },
-    };
-    expect(verifySignwellEvent(body, "hook-id")).toBe(true);
-    expect(verifySignwellEvent(body, "other-id")).toBe(false);
+    const event = { type: "document_completed", time: 1700000000, hash };
+    expect(verifySignwellEvent({ event }, "hook-id")).toEqual({
+        type: "document_completed",
+        time: "1700000000",
+        expected: hash,
+    });
+    // An all-digit string time is accepted in canonical form.
     expect(
         verifySignwellEvent(
-            { event: { ...body.event, type: "document_declined" } },
+            { event: { ...event, time: "1700000000" } },
             "hook-id"
         )
-    ).toBe(false);
+    ).not.toBeNull();
+    expect(verifySignwellEvent({ event }, "other-id")).toBeNull();
     expect(
-        verifySignwellEvent({ event: { ...body.event, hash: "zz" } }, "hook-id")
-    ).toBe(false);
-    expect(verifySignwellEvent({}, "hook-id")).toBe(false);
+        verifySignwellEvent(
+            { event: { ...event, type: "document_declined" } },
+            "hook-id"
+        )
+    ).toBeNull();
+    expect(
+        verifySignwellEvent(
+            { event: { ...event, hash: hash.toUpperCase() } },
+            "hook-id"
+        )
+    ).toBeNull();
+    expect(
+        verifySignwellEvent(
+            { event: { ...event, hash: `${hash}0` } },
+            "hook-id"
+        )
+    ).toBeNull();
+    expect(
+        verifySignwellEvent({ event: { ...event, hash: "zz" } }, "hook-id")
+    ).toBeNull();
+    for (const time of [
+        1700000000.5,
+        "1700000000.0",
+        "1e9",
+        -1,
+        null,
+        "01700000000x",
+    ])
+        expect(
+            verifySignwellEvent({ event: { ...event, time } }, "hook-id")
+        ).toBeNull();
+    expect(verifySignwellEvent({}, "hook-id")).toBeNull();
 });
 
 it("normalizes provider statuses", () => {

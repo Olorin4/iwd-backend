@@ -387,8 +387,9 @@ const WEBHOOK_OPEN_STATES = ["SENDING", "UNKNOWN", "SENT", "VIEWED", "ERROR"];
  * Ignored events get 202 so the provider does not retry them.
  */
 export async function handleSignwellWebhook(deps, body) {
-    if (!verifySignwellEvent(body, deps.config.signature.webhookId)) return 401;
-    const { type, time, hash } = body.event;
+    const verified = verifySignwellEvent(body, deps.config.signature.webhookId);
+    if (!verified) return 401;
+    const { type, time, expected } = verified;
     const now = deps.now();
     const timeMs = Number(time) * 1000;
     if (
@@ -418,7 +419,7 @@ export async function handleSignwellWebhook(deps, body) {
         !(await recordReceipt(
             deps.db,
             "signwell",
-            `${type}:${time}:${hash}:${documentId}`
+            `${type}:${time}:${expected}:${documentId}`
         ))
     )
         return 200;
