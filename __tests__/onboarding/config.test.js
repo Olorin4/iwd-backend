@@ -139,3 +139,43 @@ it("validates the Iron Wing fallback email delay (0-60 minutes, default 60)", ()
             /ONBOARDING_IRON_WING_EMAIL_DELAY_MINUTES/
         );
 });
+
+it("in production allows http for OUTREACH_STATUS_URL only on an internal Docker service name", () => {
+    const prod = {
+        ...base,
+        NODE_ENV: "production",
+        ONBOARDING_PUBLIC_BASE_URL: "https://api.example.test",
+        ONBOARDING_STRIPE_SUCCESS_URL: "https://api.example.test/done",
+        ONBOARDING_STRIPE_CANCEL_URL: "https://example.test/",
+    };
+    const withStatus = (url) => ({
+        ...prod,
+        OUTREACH_STATUS_URL: url,
+        ONBOARDING_STATUS_TOKEN: "t".repeat(40),
+        ONBOARDING_STATUS_SIGNING_SECRET: "u".repeat(40),
+    });
+    expect(
+        getOnboardingConfig(
+            withStatus("http://outreach:3012/internal/sales/onboarding-status")
+        ).outbox.url
+    ).toBe("http://outreach:3012/internal/sales/onboarding-status");
+    expect(
+        getOnboardingConfig(withStatus("https://outreach.example.test/x"))
+            .outbox.enabled
+    ).toBe(true);
+    for (const bad of [
+        "http://outreach.example.test/x",
+        "http://10.0.0.5:3012/x",
+        "http://localhost.evil.test/x",
+    ])
+        expect(() => getOnboardingConfig(withStatus(bad))).toThrow(
+            /OUTREACH_STATUS_URL must use https/
+        );
+    // Other URLs keep requiring https in production.
+    expect(() =>
+        getOnboardingConfig({
+            ...withStatus("http://outreach:3012/x"),
+            ONBOARDING_PUBLIC_BASE_URL: "http://iwd-backend:3000",
+        })
+    ).toThrow(/ONBOARDING_PUBLIC_BASE_URL must use https/);
+});

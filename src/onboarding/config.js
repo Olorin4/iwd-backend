@@ -33,7 +33,15 @@ function optionalEmail(env, name) {
     return value;
 }
 
-function httpsUrl(env, name, { allowHttp = false } = {}) {
+// A single-label host (no dot) is a Docker service name on the private
+// container network (e.g. http://outreach:3012); it can never be a public site.
+const INTERNAL_SERVICE_HOST = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+function httpsUrl(
+    env,
+    name,
+    { allowHttp = false, allowInternalHttp = false } = {}
+) {
     const value = required(env, name);
     let url;
     try {
@@ -41,7 +49,15 @@ function httpsUrl(env, name, { allowHttp = false } = {}) {
     } catch {
         throw new OnboardingConfigError(`${name} must be a URL.`);
     }
-    if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:"))
+    const internalHttp =
+        allowInternalHttp &&
+        url.protocol === "http:" &&
+        INTERNAL_SERVICE_HOST.test(url.hostname);
+    if (
+        url.protocol !== "https:" &&
+        !(allowHttp && url.protocol === "http:") &&
+        !internalHttp
+    )
         throw new OnboardingConfigError(`${name} must use https.`);
     return value.replace(/\/+$/, "");
 }
@@ -235,7 +251,11 @@ export function getOnboardingConfig(env = process.env) {
         outbox: {
             enabled: outboxConfigured,
             url: outboxConfigured
-                ? httpsUrl(env, "OUTREACH_STATUS_URL", { allowHttp })
+                ? httpsUrl(env, "OUTREACH_STATUS_URL", {
+                      allowHttp,
+                      // Outreach's internal listener is only on the Docker network.
+                      allowInternalHttp: true,
+                  })
                 : null,
             token: env.ONBOARDING_STATUS_TOKEN || null,
             signingSecret: env.ONBOARDING_STATUS_SIGNING_SECRET || null,
