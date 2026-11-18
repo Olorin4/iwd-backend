@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Field layout for a bundle file, in the reviewed draft format
-// (docs/operations/onboarding-layouts/*.layout.draft.json):
+// (docs/operations/onboarding-layouts/*.layout.json):
 //   units: PDF points, origin TOP-LEFT of the page; each field is a box
 //   { page (1-based), x, y, w, h }.
 //   kind "stamp":       text value `key` drawn into the box (size, min_size ≥ 7).

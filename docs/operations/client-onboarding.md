@@ -128,7 +128,16 @@ three required, fixed-width Carrier **text** fields in the printed blanks
 (MM, DD, and YY after the printed "20"), each with a custom pattern and a
 plain-words error message. These are typed by the signer; the SignWell audit
 page remains the authoritative signing time. Pages 4 and 5 keep their locked
-date-signed fields. The layout stays DRAFT.
+date-signed fields.
+
+Layout v1 approval (owner, 2026-11-18): the owner approved
+`Iron-Wing-Onboarding-Packet-v1.layout.json` as final (`status: APPROVED`),
+accepting that the Section 1 document checklist blanks stay empty and that the
+Section 4 plan box is ticked from the confirmed terms before sending (the carrier
+confirms it by signing). The file's `status` records the decision; a database
+bundle still becomes APPROVED only through the `approve` CLI step below, which
+the owner runs at deployment. Any wording or position change is a new layout
+version, never an edit of this file.
 
 ## Migration
 
@@ -149,8 +158,8 @@ checks may report them.
 3. Register the approved release PDF as a bundle and approve it (owner):
    `node -r dotenv/config scripts/onboarding-bundle.js register --name iron-wing-carrier-client --version 1 --pdf Iron-Wing-Onboarding-Packet-v1.pdf --expect-sha256 <release sha256> --layout <reviewed layout.json>`,
    then `... approve --id <id> --by "<owner>"`. The shipped layout
-   `docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json`
-   is a **DRAFT** pending the owner's page-6 date-field decision (below).
+   `docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.json`
+   is owner-approved (2026-11-18); register it unchanged with the release PDF.
 4. Sandbox acceptance (`scripts/onboarding-sandbox.js`, test mode, ≤10 emails
    to one owner address) on a `_test`/`_sandbox` database.
 5. Configure the SignWell webhook and the Stripe webhook endpoint

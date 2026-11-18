@@ -110,7 +110,7 @@ const releaseLayout = () =>
         fs.readFileSync(
             path.resolve(
                 __dirname,
-                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json"
+                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.json"
             ),
             "utf8"
         )
@@ -243,9 +243,9 @@ describe("PDF inspection and filling", () => {
         expect(layoutSchema.safeParse(layout).success).toBe(false);
     });
 
-    it("the reviewed draft release layout parses, stays DRAFT and fits the fixture terms", async () => {
+    it("the approved release layout parses and fits the fixture terms", async () => {
         const raw = releaseLayout();
-        expect(raw.status).toBe("DRAFT");
+        expect(raw.status).toBe("APPROVED");
         const layout = layoutSchema.parse(raw);
         expect(layout[0].fields.length).toBeGreaterThan(30);
         const blank = await makeBlankPages(6);

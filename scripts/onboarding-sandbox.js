@@ -9,7 +9,7 @@
 //   ONBOARDING_SANDBOX_BUDGET_FILE=/private/onboarding-sandbox-budget.json \
 //   node -r dotenv/config scripts/onboarding-sandbox.js start \
 //       --pdf /path/Iron-Wing-Onboarding-Packet-v1.pdf --sha256 <expected hex> \
-//       --layout docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json
+//       --layout docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.json
 //   node -r dotenv/config scripts/onboarding-sandbox.js status --key <idempotency key>
 //   node -r dotenv/config scripts/onboarding-sandbox.js reconcile --key <idempotency key>
 //

@@ -45,7 +45,7 @@ export async function makeBlankPages(count, size = [612, 792]) {
     return Buffer.from(await doc.save());
 }
 
-// Same format as docs/operations/onboarding-layouts/*.layout.draft.json
+// Same format as docs/operations/onboarding-layouts/*.layout.json
 // (PDF points, top-left origin).
 export const syntheticLayout = (name = "packet.pdf") => ({
     bundle: name,

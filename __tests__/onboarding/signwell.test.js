@@ -295,16 +295,19 @@ describe("page-6 typed authorization date (owner decision 2026-11-18)", () => {
         fs.readFileSync(
             path.resolve(
                 __dirname,
-                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json"
+                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.json"
             ),
             "utf8"
         )
     );
 
-    it("keeps the layout DRAFT and records the decision", () => {
-        expect(raw.status).toBe("DRAFT");
+    it("is the owner-approved final layout and records the decisions", () => {
+        expect(raw.status).toBe("APPROVED");
         expect(raw.owner_decisions).toContain(
             "page6_date_typed_mm_dd_yy 2026-11-18"
+        );
+        expect(raw.owner_decisions).toContain(
+            "layout_v1_approved_final 2026-11-18 by owner"
         );
     });
 
