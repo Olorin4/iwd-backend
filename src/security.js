@@ -47,6 +47,8 @@ function configureSecurity(app) {
         "http://localhost:3001",
         "https://iron-wing-dispatching.com",
         "https://api.iron-wing-dispatching.com",
+        // Carrier onboarding portal: its own form posts send this Origin.
+        "https://onboarding.iron-wing-dispatching.com",
     ];
 
     const corsOptions = {
