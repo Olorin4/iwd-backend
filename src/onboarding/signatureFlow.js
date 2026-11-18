@@ -197,8 +197,6 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
         data: hashes,
     });
 
-    if (deps.signature.calibrated === false)
-        deps.logger?.warn?.({ code: "signwell_coordinates_uncalibrated" });
     const terms = row.terms;
     const signers = [
         {

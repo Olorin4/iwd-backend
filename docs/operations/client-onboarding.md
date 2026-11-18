@@ -82,32 +82,48 @@ SignWell for manual deletion (the log shows `packet_create_failed`).
 
 ## Configuration
 
-| Setting                                                                              | Notes                                                                                                                             |
-| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `ONBOARDING_ENABLED`                                                                 | `1` to enable. Anything else: routes 404, no workers.                                                                             |
-| `IWD_ONBOARDING_TOKEN`                                                               | ≥32 chars; bearer from Outreach                                                                                                   |
-| `ONBOARDING_REQUEST_SIGNING_SECRET`                                                  | ≥32 chars; HMAC from Outreach; must differ from the token                                                                         |
-| `ONBOARDING_PUBLIC_BASE_URL`                                                         | public https base of this API (continue links)                                                                                    |
-| `ONBOARDING_CONTINUE_TOKEN_SECRET`                                                   | ≥32 chars                                                                                                                         |
-| `ONBOARDING_CONTINUE_TTL_DAYS`                                                       | default 30                                                                                                                        |
-| `ONBOARDING_DOCUMENT_DIR`                                                            | private volume, not web-served                                                                                                    |
-| `ONBOARDING_DOCUMENT_KEY`                                                            | 32 random bytes, base64 (`openssl rand -base64 32`). Losing it loses the documents.                                               |
-| `ONBOARDING_BUNDLE_NAME`                                                             | default `iron-wing-carrier-client`                                                                                                |
-| `ONBOARDING_SIGNATURE_PROVIDER`                                                      | `signwell` (default) or `fake` (refused in production)                                                                            |
-| `SIGNWELL_API_KEY`, `SIGNWELL_WEBHOOK_ID`                                            | SignWell API key and webhook id (the webhook HMAC key)                                                                            |
-| `ONBOARDING_SIGNWELL_TEST_MODE`                                                      | default true; only `false`/`0`/`no` turns it off                                                                                  |
-| `ONBOARDING_SIGNWELL_EXPIRES_IN_DAYS`                                                | default 14                                                                                                                        |
-| `ONBOARDING_SIGNWELL_TIMEOUT_MS`                                                     | default 15000                                                                                                                     |
-| `ONBOARDING_SIGNWELL_COORD_SCALE`, `_OFFSET_X`, `_OFFSET_Y`                          | layout points → SignWell coordinates; default identity, top-left                                                                  |
-| `ONBOARDING_SIGNWELL_COORDS_CALIBRATED`                                              | set `1` only after a draft calibration document confirms placement; until then each send logs `signwell_coordinates_uncalibrated` |
-| `ONBOARDING_COUNTERSIGNER_NAME`, `_TITLE`, `_EMAIL`                                  | Iron Wing countersigner (recipient 2, Dispatch)                                                                                   |
-| `ONBOARDING_STRIPE_SECRET_KEY`                                                       | `sk_test_`/`rk_test_` unless `ONBOARDING_STRIPE_LIVE_CONFIRM=yes`                                                                 |
-| `ONBOARDING_STRIPE_WEBHOOK_SECRET`                                                   | own endpoint secret (not the interim one)                                                                                         |
-| `ONBOARDING_STRIPE_SUCCESS_URL`, `_CANCEL_URL`                                       | https pages shown after Checkout                                                                                                  |
-| `ONBOARDING_PROVISIONING_ADAPTER`                                                    | `manual` (default) or `kelevo` (stub)                                                                                             |
-| `OUTREACH_STATUS_URL`, `ONBOARDING_STATUS_TOKEN`, `ONBOARDING_STATUS_SIGNING_SECRET` | all three enable the status outbox                                                                                                |
-| `ONBOARDING_RECONCILE_ENABLED`                                                       | `1` runs the 15-minute reconciler                                                                                                 |
-| `ONBOARDING_EMAIL_FROM`                                                              | default `EMAIL_USER`                                                                                                              |
+| Setting                                                                              | Notes                                                                                      |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| `ONBOARDING_ENABLED`                                                                 | `1` to enable. Anything else: routes 404, no workers.                                      |
+| `IWD_ONBOARDING_TOKEN`                                                               | ≥32 chars; bearer from Outreach                                                            |
+| `ONBOARDING_REQUEST_SIGNING_SECRET`                                                  | ≥32 chars; HMAC from Outreach; must differ from the token                                  |
+| `ONBOARDING_PUBLIC_BASE_URL`                                                         | public https base of this API (continue links)                                             |
+| `ONBOARDING_CONTINUE_TOKEN_SECRET`                                                   | ≥32 chars                                                                                  |
+| `ONBOARDING_CONTINUE_TTL_DAYS`                                                       | default 30                                                                                 |
+| `ONBOARDING_DOCUMENT_DIR`                                                            | private volume, not web-served                                                             |
+| `ONBOARDING_DOCUMENT_KEY`                                                            | 32 random bytes, base64 (`openssl rand -base64 32`). Losing it loses the documents.        |
+| `ONBOARDING_BUNDLE_NAME`                                                             | default `iron-wing-carrier-client`                                                         |
+| `ONBOARDING_SIGNATURE_PROVIDER`                                                      | `signwell` (default) or `fake` (refused in production)                                     |
+| `SIGNWELL_API_KEY`, `SIGNWELL_WEBHOOK_ID`                                            | SignWell API key and webhook id (the webhook HMAC key)                                     |
+| `ONBOARDING_SIGNWELL_TEST_MODE`                                                      | default true; only `false`/`0`/`no` turns it off                                           |
+| `ONBOARDING_SIGNWELL_EXPIRES_IN_DAYS`                                                | default 14                                                                                 |
+| `ONBOARDING_SIGNWELL_TIMEOUT_MS`                                                     | default 15000                                                                              |
+| `ONBOARDING_SIGNWELL_COORD_SCALE`, `_OFFSET_X`, `_OFFSET_Y`                          | layout points → SignWell coordinates; default scale 4/3, offsets 0 (calibrated; see below) |
+| `ONBOARDING_COUNTERSIGNER_NAME`, `_TITLE`, `_EMAIL`                                  | Iron Wing countersigner (recipient 2, Dispatch)                                            |
+| `ONBOARDING_STRIPE_SECRET_KEY`                                                       | `sk_test_`/`rk_test_` unless `ONBOARDING_STRIPE_LIVE_CONFIRM=yes`                          |
+| `ONBOARDING_STRIPE_WEBHOOK_SECRET`                                                   | own endpoint secret (not the interim one)                                                  |
+| `ONBOARDING_STRIPE_SUCCESS_URL`, `_CANCEL_URL`                                       | https pages shown after Checkout                                                           |
+| `ONBOARDING_PROVISIONING_ADAPTER`                                                    | `manual` (default) or `kelevo` (stub)                                                      |
+| `OUTREACH_STATUS_URL`, `ONBOARDING_STATUS_TOKEN`, `ONBOARDING_STATUS_SIGNING_SECRET` | all three enable the status outbox                                                         |
+| `ONBOARDING_RECONCILE_ENABLED`                                                       | `1` runs the 15-minute reconciler                                                          |
+| `ONBOARDING_EMAIL_FROM`                                                              | default `EMAIL_USER`                                                                       |
+
+## SignWell coordinate calibration
+
+Calibrated 2026-11-18 against release v1 (sha256 `98922710…43aa`): two
+test-mode drafts were created without email, measured in SignWell's editor
+and deleted (DELETE on a draft returns 204; GET then returns 404). SignWell
+uses a top-left origin in CSS pixels at 96 DPI (letter page 816×1056), so
+x, y, width and height are PDF points × 4/3. Verified within ~2 pt for x/y and
+exactly for widths at the page 1 corners, the page 4 signature cell and the
+page 6 signature line (46.5, 670.5, 175.2×19.5 pt → 62, 894, 233.6×26 px).
+The conversion is the single function `toSignwellBox` in
+`src/onboarding/signature/signwell.js`; the settings above override it.
+
+Open finding: SignWell date fields render semi-transparent, so the page-6
+date field over the printed `__ / __ / 20__` blank shows the printed slashes
+through it. The field is unchanged until the owner decides; the layout stays
+DRAFT meanwhile.
 
 ## Migration
 
@@ -129,8 +145,7 @@ checks may report them.
    `node -r dotenv/config scripts/onboarding-bundle.js register --name iron-wing-carrier-client --version 1 --pdf Iron-Wing-Onboarding-Packet-v1.pdf --expect-sha256 <release sha256> --layout <reviewed layout.json>`,
    then `... approve --id <id> --by "<owner>"`. The shipped layout
    `docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json`
-   is a **DRAFT**: field coordinates are unreviewed until a calibration
-   document is checked.
+   is a **DRAFT** pending the owner's page-6 date-field decision (below).
 4. Sandbox acceptance (`scripts/onboarding-sandbox.js`, test mode, ≤10 emails
    to one owner address) on a `_test`/`_sandbox` database.
 5. Configure the SignWell webhook and the Stripe webhook endpoint

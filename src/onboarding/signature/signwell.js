@@ -8,16 +8,17 @@ import { SignatureError } from "./errors.js";
 export const SIGNWELL_BASE_URL = "https://www.signwell.com/api/v1";
 
 /**
- * SignWell's pixel origin and scale are not documented. Every layout box
- * (PDF points, top-left origin) goes through this one function; the default
- * is identity with a top-left origin and is UNCALIBRATED until a draft
- * calibration document confirms or corrects it.
+ * Every layout box (PDF points, top-left origin) goes through this one
+ * function. Calibrated 2026-11-18 against release v1 with test-mode drafts
+ * measured in SignWell's editor: SignWell uses a TOP-LEFT origin in CSS
+ * pixels at 96 DPI (letter = 816×1056), so x, y, width and height are PDF
+ * points × 4/3 (within ~2 pt for x/y, exact for widths).
  */
+export const POINTS_TO_SIGNWELL = 4 / 3;
 export const DEFAULT_CALIBRATION = {
-    scale: 1,
+    scale: POINTS_TO_SIGNWELL,
     offsetX: 0,
     offsetY: 0,
-    calibrated: false,
 };
 
 export function toSignwellBox(field, calibration = DEFAULT_CALIBRATION) {
@@ -100,7 +101,6 @@ export function createSignwellProvider({
 
     return {
         name: "signwell",
-        calibrated: !!calibration.calibrated,
         async createEnvelope(filled, signers, metadata) {
             const document = await call("POST", "/documents/", {
                 test_mode: testMode,

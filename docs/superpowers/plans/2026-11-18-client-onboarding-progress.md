@@ -60,3 +60,4 @@ in test mode. Bundles support several files, so the three PDFs register as one v
 - Orphan SignWell drafts (create timeout) are not auto-deleted after the replay fix; manual cleanup.
 - Cancel withdraws the packet with SignWell DELETE (best effort); behaviour for a partially signed document is unverified against the real API.
 - SignWell field type for names: no dedicated type used; the reviewed layout has none.
+- calib (this commit) SignWell calibration applied: points × 4/3, top-left (calibrated 2026-11-18 against release v1); `signwell_coordinates_uncalibrated` warning and `ONBOARDING_SIGNWELL_COORDS_CALIBRATED` removed; layout file gains `calibration` metadata, status stays DRAFT pending the owner's page-6 date-field decision (semi-transparent date field shows the printed `__ / __ / 20__` slashes). Unit 338 passed, integration 58 passed, lint clean for new code.

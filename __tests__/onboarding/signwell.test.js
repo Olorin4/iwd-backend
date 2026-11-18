@@ -45,20 +45,20 @@ const filled = {
                     recipient: 1,
                     type: "signature",
                     page: 1,
-                    x: 10,
-                    y: 20,
-                    w: 100,
-                    h: 20,
+                    x: 30,
+                    y: 60,
+                    w: 150,
+                    h: 30,
                 },
                 {
                     kind: "signwell",
                     recipient: 2,
                     type: "date (lock_sign_date)",
                     page: 2,
-                    x: 30,
-                    y: 40,
-                    w: 50,
-                    h: 10,
+                    x: 45,
+                    y: 90,
+                    w: 75,
+                    h: 15,
                 },
             ],
         },
@@ -115,10 +115,10 @@ it("creates a draft document with uploaded files, ordered signers and safe defau
                 type: "signature",
                 required: true,
                 page: 1,
-                x: 10,
-                y: 20,
-                width: 100,
-                height: 20,
+                x: 40,
+                y: 80,
+                width: 200,
+                height: 40,
                 recipient_id: "1",
                 api_id: "r1_signature_1",
             },
@@ -126,10 +126,10 @@ it("creates a draft document with uploaded files, ordered signers and safe defau
                 type: "date",
                 required: true,
                 page: 2,
-                x: 30,
-                y: 40,
-                width: 50,
-                height: 10,
+                x: 60,
+                y: 120,
+                width: 100,
+                height: 20,
                 recipient_id: "2",
                 api_id: "r2_date_2",
                 lock_sign_date: true,
@@ -138,17 +138,36 @@ it("creates a draft document with uploaded files, ordered signers and safe defau
     ]);
 });
 
-it("converts boxes through one calibration function (identity by default)", () => {
-    const field = { page: 3, x: 100, y: 50, w: 20, h: 10 };
-    expect(toSignwellBox(field)).toEqual({
-        page: 3,
-        x: 100,
-        y: 50,
-        width: 20,
-        height: 10,
-    });
+it("converts points to SignWell pixels (× 4/3, top-left) through one function", () => {
+    // Page 6 carrier signature line of release v1.
     expect(
-        toSignwellBox(field, { scale: 1.5, offsetX: 2, offsetY: -1 })
+        toSignwellBox({ page: 6, x: 46.5, y: 670.5, w: 175.2, h: 19.5 })
+    ).toEqual({
+        page: 6,
+        x: 62,
+        y: 894,
+        width: 233.6,
+        height: 26,
+    });
+    // A letter page maps to 816×1056.
+    expect(toSignwellBox({ page: 1, x: 612, y: 792, w: 612, h: 792 })).toEqual({
+        page: 1,
+        x: 816,
+        y: 1056,
+        width: 816,
+        height: 1056,
+    });
+    expect(DEFAULT_CALIBRATION).toEqual({
+        scale: 4 / 3,
+        offsetX: 0,
+        offsetY: 0,
+    });
+    // Still configurable.
+    expect(
+        toSignwellBox(
+            { page: 3, x: 100, y: 50, w: 20, h: 10 },
+            { scale: 1.5, offsetX: 2, offsetY: -1 }
+        )
     ).toEqual({
         page: 3,
         x: 152,
@@ -156,7 +175,6 @@ it("converts boxes through one calibration function (identity by default)", () =
         width: 30,
         height: 15,
     });
-    expect(DEFAULT_CALIBRATION.calibrated).toBe(false);
 });
 
 it("sends with the test-mode flag and maps timeouts and errors to safe codes", async () => {

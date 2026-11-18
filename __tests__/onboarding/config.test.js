@@ -36,10 +36,9 @@ it("parses a full configuration with safe defaults", () => {
     expect(config.provisioning.adapter).toBe("manual");
     expect(config.documents.key).toHaveLength(32);
     expect(config.signature.calibration).toEqual({
-        scale: 1,
+        scale: 4 / 3,
         offsetX: 0,
         offsetY: 0,
-        calibrated: false,
     });
 });
 

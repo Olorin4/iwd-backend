@@ -160,7 +160,12 @@ export function getOnboardingConfig(env = process.env) {
                 email: required(env, "ONBOARDING_COUNTERSIGNER_EMAIL"),
             },
             calibration: {
-                scale: finiteNumber(env, "ONBOARDING_SIGNWELL_COORD_SCALE", 1),
+                // Calibrated 2026-11-18: points × 4/3, top-left origin.
+                scale: finiteNumber(
+                    env,
+                    "ONBOARDING_SIGNWELL_COORD_SCALE",
+                    4 / 3
+                ),
                 offsetX: finiteNumber(
                     env,
                     "ONBOARDING_SIGNWELL_COORD_OFFSET_X",
@@ -171,7 +176,6 @@ export function getOnboardingConfig(env = process.env) {
                     "ONBOARDING_SIGNWELL_COORD_OFFSET_Y",
                     0
                 ),
-                calibrated: env.ONBOARDING_SIGNWELL_COORDS_CALIBRATED === "1",
             },
         },
         stripe: {

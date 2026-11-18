@@ -85,6 +85,7 @@ const fileLayout = z
             .optional(),
         status: z.string().max(20).optional(),
         units: z.string().max(200).optional(),
+        calibration: z.string().max(500).optional(),
         fields: z
             .array(
                 z.discriminatedUnion("kind", [

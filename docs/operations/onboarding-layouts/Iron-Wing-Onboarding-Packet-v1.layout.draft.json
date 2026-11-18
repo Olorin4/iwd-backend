@@ -3,6 +3,7 @@
   "sha256": "98922710004d0aae49d62d26ca6e6ad3a9ede239ac520cab20395bea618743aa",
   "status": "DRAFT",
   "units": "PDF points, origin top-left of a 612x792 page",
+  "calibration": "calibrated 2026-11-18 against release v1: SignWell = PDF points x 4/3 (CSS px at 96 DPI, top-left origin). Status stays DRAFT pending the owner's page-6 date-field decision.",
   "fields": [
     {
       "page": 1,
