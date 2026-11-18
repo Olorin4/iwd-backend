@@ -100,7 +100,7 @@ export function signwellRecipient(signer) {
         email: signer.email,
         ...(signer.subject ? { subject: signer.subject } : {}),
         ...(signer.message ? { message: signer.message } : {}),
-        send_email: true,
+        send_email: signer.sendEmail !== false,
         ...(Number.isInteger(signer.emailDelayMinutes)
             ? { send_email_delay: signer.emailDelayMinutes }
             : {}),
@@ -229,11 +229,19 @@ export function createSignwellProvider({
          * from GET /documents/:id (R14), or null. The URL is a bearer link:
          * callers must never log or cache it.
          */
-        async embeddedSigningUrl(id, recipientId) {
+        async embeddedSigningUrl(id, recipientId, { allow } = {}) {
             const document = await call(
                 "GET",
                 `/documents/${encodeURIComponent(id)}/`
             );
+            if (
+                allow &&
+                !allow(
+                    document.status,
+                    signwellRecipientStatuses(document.recipients)
+                )
+            )
+                return null;
             const recipients = Array.isArray(document?.recipients)
                 ? document.recipients
                 : [];

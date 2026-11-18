@@ -1,3 +1,6 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { extractDocument } from "./reader/claude.js";
+import { fileStoreFromConfig } from "./files/r2Store.js";
 import { recordReceipt } from "./store.js";
 import { createFileDocumentStore } from "./documents/store.js";
 import { createSignwellProvider } from "./signature/signwell.js";
@@ -54,6 +57,10 @@ export function createOnboardingDeps(
         // link is skipped (e.g. the carrier already saved a method via the
         // SignWell redirect); it is claimed once per request.
         onSignatureCompleted: async (requestId) => {
+            const row = await db.onboardingRequest.findUnique({
+                where: { id: requestId },
+            });
+            if (row?.portal_flow) return;
             try {
                 await issuePaymentLink(deps, requestId, { mode: "initial" });
             } finally {
@@ -69,5 +76,20 @@ export function createOnboardingDeps(
     if (!deps.signature) deps.signature = signatureFromConfig(config);
     if (!deps.stripe) deps.stripe = createPaymentsStripe(config.stripe);
     if (!deps.provisioning) deps.provisioning = provisioningFromConfig(config);
+    if (!deps.fileStore && config.files?.r2)
+        deps.fileStore = fileStoreFromConfig(config.files);
+    if (!deps.extractDocument && config.reader?.enabled) {
+        const reader = {
+            client: new Anthropic({
+                apiKey: config.reader.apiKey,
+                timeout: 90000,
+                maxRetries: 0,
+                logLevel: "off",
+            }),
+            model: config.reader.model,
+        };
+        deps.extractDocument = (key, file) =>
+            extractDocument(reader, key, file);
+    }
     return deps;
 }

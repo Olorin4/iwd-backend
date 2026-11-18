@@ -2,7 +2,14 @@ import { z } from "zod";
 import { OPERATION_KEYS, actorSchema } from "./contracts.js";
 import { OnboardingError, findRequestByKey } from "./requests.js";
 import { currentStatus, transition, writeAuditEvent } from "./store.js";
-import { markOperationItemReceived, verifyOperationItem } from "./readiness.js";
+import {
+    markOperationItemReceived,
+    requestReupload,
+    unverifyOperationItem,
+    verifyOperationItem,
+} from "./readiness.js";
+import { rejectCurrent, UPLOADABLE_KEYS } from "./files/documents.js";
+import { sendPortalInvitation, sendPortalReupload } from "./portalFlow.js";
 import {
     REISSUABLE,
     reconcileSignature,
@@ -37,6 +44,17 @@ const SCHEMAS = {
         })
         .strict(),
     verify_operation_item: itemSchema,
+    request_reupload: z
+        .object({
+            ...base,
+            key: z.enum([...UPLOADABLE_KEYS, "NOT_FACTORING"]),
+            reason: z.string().trim().min(1).max(300),
+        })
+        .strict(),
+    unverify_operation_item: z
+        .object({ ...base, key: z.enum(OPERATION_KEYS) })
+        .strict(),
+    resend_portal_link: z.object(base).strict(),
     // R15: the document arrived (PENDING → RECEIVED); verify still follows.
     mark_operation_item_received: itemSchema,
     // R15: pause or resume the documents reminders (OWNER only in Outreach).
@@ -164,6 +182,48 @@ async function perform(deps, row, action, input) {
             });
             return "item_received";
         }
+        case "request_reupload": {
+            const now = deps.now();
+            await transition(deps.db, row.id, async (fresh, tx) => {
+                if (!fresh.portal_flow || fresh.cancelled_at || fresh.purged_at)
+                    notAllowed("portal_unavailable");
+                const operations = requestReupload(
+                    fresh.operations,
+                    input.key,
+                    {
+                        actor: input.actor,
+                        note: input.reason,
+                        at: now,
+                    }
+                );
+                if (!operations) notAllowed("item_not_received");
+                const documentKey =
+                    input.key === "NOT_FACTORING" ? "FACTORING_NOA" : input.key;
+                await rejectCurrent(tx, row.id, documentKey, input.reason);
+                return { operations };
+            });
+            await sendPortalReupload(deps, row.id, input.key, input.reason);
+            return "reupload_requested";
+        }
+        case "unverify_operation_item": {
+            const now = deps.now();
+            await transition(deps.db, row.id, (fresh) => {
+                if (fresh.cancelled_at || fresh.purged_at)
+                    notAllowed("request_closed");
+                const operations = unverifyOperationItem(
+                    fresh.operations,
+                    input.key,
+                    { actor: input.actor, at: now }
+                );
+                if (!operations) notAllowed("item_not_verified");
+                return { operations };
+            });
+            return "item_unverified";
+        }
+        case "resend_portal_link":
+            if (!(await sendPortalInvitation(deps, row.id, { resend: true })))
+                notAllowed("portal_link_unavailable");
+            return "portal_link_resent";
         case "set_document_reminders":
             await transition(deps.db, row.id, () => ({
                 reminders_paused: input.paused,
@@ -194,6 +254,7 @@ export async function runAction(deps, key, action, body) {
         });
     const row = await findRequestByKey(deps.db, key);
     const { actor, ...params } = parsed.data;
+    if (action === "request_reupload") delete params.reason;
     let outcome;
     try {
         outcome = await perform(deps, row, action, parsed.data);
@@ -229,9 +290,13 @@ export async function readSignedDocument(deps, key, actor) {
     const parsedActor = actorSchema.safeParse(actor);
     if (!parsedActor.success) throw new OnboardingError("actor_required", 422);
     const row = await findRequestByKey(deps.db, key);
+    return readSignedDocumentForRequest(deps, row.id, parsedActor.data);
+}
+
+export async function readSignedDocumentForRequest(deps, requestId, actor) {
     const envelope = await deps.db.signatureEnvelope.findFirst({
         where: {
-            request_id: row.id,
+            request_id: requestId,
             state: "COMPLETED",
             completed_storage_key: { not: null },
         },
@@ -243,14 +308,14 @@ export async function readSignedDocument(deps, key, actor) {
     });
     await deps.db.documentAccessLog.create({
         data: {
-            request_id: row.id,
-            actor: parsedActor.data,
+            request_id: requestId,
+            actor,
             document: `signed_packet:${envelope.id}`,
         },
     });
     return {
         bytes,
-        filename: `signed-packet-${row.id}.pdf`,
+        filename: `signed-packet-${requestId}.pdf`,
         sha256: envelope.completed_sha256,
     };
 }

@@ -1,3 +1,4 @@
+import { isPortalPath } from "./onboarding/portal/hostGuard.js";
 import morgan from "morgan";
 import fs from "fs";
 import path from "path";
@@ -15,7 +16,10 @@ const logger = winston.createLogger({
     ),
     transports: [
         new winston.transports.Console(),
-        new winston.transports.File({ filename: "logs/error.log", level: "error" }),
+        new winston.transports.File({
+            filename: "logs/error.log",
+            level: "error",
+        }),
         new winston.transports.File({ filename: "logs/combined.log" }),
     ],
 });
@@ -35,12 +39,14 @@ function configureLogging(app) {
     app.use(
         morgan("combined", {
             stream: accessLogStream,
-            skip: (req, res) => res.statusCode < 400, // Log only errors and warnings
+            skip: (req, res) =>
+                isPortalPath(req.originalUrl) || res.statusCode < 400, // Log only errors and warnings
         })
     );
 
     // Middleware to log all requests
     app.use((req, res, next) => {
+        if (isPortalPath(req.originalUrl)) return next();
         req.logger.info({
             message: "Incoming Request",
             method: req.method,

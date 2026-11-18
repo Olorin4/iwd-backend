@@ -6,6 +6,8 @@ import { sendEmail } from "../emailService.js";
 import { getOnboardingConfig } from "./config.js";
 import { createOnboardingDeps } from "./deps.js";
 import { createOnboardingRouter, onboardingRawBody } from "./routes.js";
+import { createPortalRouter } from "./portal/routes.js";
+import { limiter } from "../rateLimiter.js";
 import { startOnboardingWorkers } from "./workers.js";
 
 let cached;
@@ -27,6 +29,13 @@ function getConfig() {
 }
 
 export { onboardingRawBody, getOnboardingConfig };
+export function onboardingPortalRouter() {
+    return createPortalRouter(getConfig, getDeps, {
+        baseUrl: process.env.ONBOARDING_PORTAL_BASE_URL,
+        rateLimit: limiter,
+    });
+}
+
 export const onboardingRouter = createOnboardingRouter(getConfig, getDeps);
 
 /**

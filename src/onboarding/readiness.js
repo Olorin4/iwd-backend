@@ -61,6 +61,42 @@ export function markOperationItemReceived(
     );
 }
 
+export function requestReupload(items, key, { actor, note, at }) {
+    const reason = typeof note === "string" ? note.trim() : "";
+    if (!reason || reason.length > 300)
+        throw new Error("invalid_reupload_reason");
+    const current = items.find((item) => slotOf(item.key) === slotOf(key));
+    if (!current || !["RECEIVED", "VERIFIED"].includes(current.state))
+        return null;
+    return items.map((item) =>
+        item === current
+            ? {
+                  ...item,
+                  state: "REUPLOAD_REQUESTED",
+                  actor,
+                  at: at.toISOString(),
+                  note: reason,
+              }
+            : item
+    );
+}
+
+export function unverifyOperationItem(items, key, { actor, at }) {
+    const current = items.find((item) => slotOf(item.key) === slotOf(key));
+    if (current?.state !== "VERIFIED") return null;
+    return items.map((item) =>
+        item === current
+            ? {
+                  ...item,
+                  state: "RECEIVED",
+                  actor,
+                  at: at.toISOString(),
+                  note: null,
+              }
+            : item
+    );
+}
+
 /** Carrier-facing slots (FLEET_MAPPING is internal), in email order. */
 export const CARRIER_FACING_SLOTS = [
     "W9",
@@ -70,12 +106,14 @@ export const CARRIER_FACING_SLOTS = [
     "CARRIER_PROFILE",
 ];
 
-/** Carrier-facing slots still PENDING (RECEIVED and VERIFIED both count as in). */
+/** Outstanding carrier-facing checklist slots. */
 export const missingCarrierSlots = (items) =>
     CARRIER_FACING_SLOTS.filter(
         (slot) =>
             !(items ?? []).some(
-                (i) => slotOf(i.key) === slot && i.state !== "PENDING"
+                (i) =>
+                    slotOf(i.key) === slot &&
+                    ["RECEIVED", "VERIFIED"].includes(i.state)
             )
     );
 
@@ -159,7 +197,16 @@ export const facetsOf = (row) => ({
 const iso = (date) => (date ? new Date(date).toISOString() : null);
 
 /** Builds the full onboarding.status.v1 payload from a stored request row. */
-export function buildStatus(row, { eventId, occurredAt, signedAvailable }) {
+export function buildStatus(
+    row,
+    {
+        eventId,
+        occurredAt,
+        signedAvailable,
+        uploaded = [],
+        questionnaireSubmitted = false,
+    }
+) {
     const { readiness, blocked } = deriveReadiness(facetsOf(row));
     const items = row.operations ?? [];
     return {
@@ -195,12 +242,30 @@ export function buildStatus(row, { eventId, occurredAt, signedAvailable }) {
                 key: i.key,
                 state: i.state,
                 at: i.at ?? null,
+                ...(row.portal_flow
+                    ? {
+                          document:
+                              uploaded.find(
+                                  (document) => document.item_key === i.key
+                              )?.summary ?? null,
+                      }
+                    : {}),
             })),
             // R15 (additive): documents email and reminders.
             documents_requested_at: iso(row.documents_requested_at),
             reminders_sent: row.reminders_sent ?? 0,
             reminders_paused: !!row.reminders_paused,
         },
+        ...(row.portal_flow
+            ? {
+                  portal: {
+                      flow: true,
+                      invited_at: iso(row.portal_invited_at),
+                      last_opened_at: iso(row.portal_last_opened_at),
+                      questionnaire_submitted: questionnaireSubmitted,
+                  },
+              }
+            : {}),
         readiness,
         blocked,
         documents: { signed_available: !!signedAvailable },

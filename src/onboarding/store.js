@@ -25,6 +25,9 @@ const FACET_FIELDS = [
     "reminders_paused",
     "completion_email_code",
     "cancelled_at",
+    "portal_flow",
+    "portal_invited_at",
+    "portal_last_opened_at",
     "bundle_version_id",
 ];
 
@@ -48,6 +51,46 @@ export async function signedAvailable(db, requestId) {
     return count > 0;
 }
 
+async function portalStatusFields(db, row) {
+    if (!row.portal_flow) return {};
+    const [documents, questionnaire] = await Promise.all([
+        db.onboardingDocument.findMany({
+            where: { request_id: row.id, state: "CURRENT", purged_at: null },
+            select: {
+                item_key: true,
+                version: true,
+                source: true,
+                extraction_status: true,
+                flags: true,
+            },
+        }),
+        db.onboardingQuestionnaire.findUnique({
+            where: { request_id: row.id },
+            select: { request_id: true },
+        }),
+    ]);
+    return {
+        uploaded: documents.map((document) => ({
+            item_key: document.item_key,
+            summary: {
+                version: document.version,
+                source: document.source,
+                extraction: document.extraction_status,
+                flags: document.flags ?? [],
+            },
+        })),
+        questionnaireSubmitted: Boolean(questionnaire),
+    };
+}
+
+export async function bumpStatus(tx, row, now) {
+    const updated = await tx.onboardingRequest.update({
+        where: { id: row.id },
+        data: { version: { increment: 1 } },
+    });
+    return writeStatusEvent(tx, updated, now);
+}
+
 /** Writes the status event for the row's current version (same transaction). */
 export async function writeStatusEvent(tx, row, now) {
     const eventId = randomUUID();
@@ -55,6 +98,7 @@ export async function writeStatusEvent(tx, row, now) {
         eventId,
         occurredAt: now,
         signedAvailable: await signedAvailable(tx, row.id),
+        ...(await portalStatusFields(tx, row)),
     });
     await tx.onboardingEvent.create({
         data: {
@@ -107,12 +151,25 @@ export async function applyFacetChange(tx, row, changes, now = new Date()) {
     }
     if (Object.keys(data).length === 0)
         return { row, changed: false, status: null };
+    const readiness = deriveReadiness(facetsOf({ ...row, ...data })).readiness;
+    if (!row.ready_at && readiness === "READY") {
+        data.ready_at = now;
+        const expiry = new Date(now);
+        const month = expiry.getUTCMonth();
+        expiry.setUTCFullYear(expiry.getUTCFullYear() + 3);
+        if (expiry.getUTCMonth() !== month) expiry.setUTCDate(0);
+        data.purge_after = expiry;
+    } else if (!row.ready_at && data.cancelled_at) {
+        data.purge_after = new Date(
+            data.cancelled_at.getTime() + 90 * 86400000
+        );
+    }
     const updated = await tx.onboardingRequest.update({
         where: { id: row.id },
         data: { ...data, version: { increment: 1 } },
     });
     const status = await writeStatusEvent(tx, updated, now);
-    if (deriveReadiness(facetsOf(updated)).readiness === "READY")
+    if (readiness === "READY")
         await setClientStatus(tx, updated.client_id, "ACTIVE");
     return { row: updated, changed: true, status };
 }
@@ -145,6 +202,7 @@ export async function currentStatus(db, row) {
         eventId: latest?.event_id ?? randomUUID(),
         occurredAt: latest?.created_at ?? row.updated_at,
         signedAvailable: await signedAvailable(db, row.id),
+        ...(await portalStatusFields(db, row)),
     });
 }
 

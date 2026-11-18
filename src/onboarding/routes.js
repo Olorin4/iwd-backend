@@ -1,4 +1,5 @@
 import express from "express";
+import { mountStaffRoutes } from "./staffRoutes.js";
 import { requireService } from "./auth.js";
 import { OnboardingError, getRequestStatus, putRequest } from "./requests.js";
 import { handleSignwellWebhook } from "./signatureFlow.js";
@@ -47,7 +48,7 @@ export function createOnboardingRouter(getConfig, getDeps) {
         return requireService(() => res.locals.onboardingConfig, {
             now: () => d.now().getTime(),
             replayStore: (key) => d.recordReceipt("outreach", key),
-        })(req, res, next);
+        })(req, res, next).catch(next);
     };
     router.param("key", (req, res, next, key) =>
         KEY.test(key) ? next() : res.status(404).json({ error: "not_found" })
@@ -102,6 +103,8 @@ export function createOnboardingRouter(getConfig, getDeps) {
             res.type("application/pdf").send(document.bytes);
         })
     );
+
+    mountStaffRoutes(router, service, wrap);
 
     // R14: the owner signs as Iron Wing in Outreach. Service auth plus a
     // required actor; every disclosure is logged; the URL is never logged.
@@ -182,6 +185,10 @@ export function createOnboardingRouter(getConfig, getDeps) {
             return res
                 .status(error.status)
                 .json({ error: error.code, ...error.extra });
+        if (error?.type === "entity.too.large")
+            return res.status(413).json({ error: "too_large" });
+        if (error?.type === "encoding.unsupported")
+            return res.status(415).json({ error: "unsupported_type" });
         if (error?.type === "entity.parse.failed")
             return res.status(400).json({ error: "invalid_json" });
         try {

@@ -1,3 +1,4 @@
+import { isPortalPath } from "./onboarding/portal/hostGuard.js";
 import helmet from "helmet";
 import cors from "cors";
 import { limiter } from "./rateLimiter.js";
@@ -74,7 +75,8 @@ function configureSecurity(app) {
     app.use(
         morgan("combined", {
             stream: accessLogStream,
-            skip: (req, res) => res.statusCode < 400, // Log only errors and warnings
+            skip: (req, res) =>
+                isPortalPath(req.originalUrl) || res.statusCode < 400, // Log only errors and warnings
         })
     );
 }

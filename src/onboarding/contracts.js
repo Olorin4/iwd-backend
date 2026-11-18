@@ -161,7 +161,12 @@ export const OPERATION_KEYS = [
     "CARRIER_PROFILE",
     "FLEET_MAPPING",
 ];
-export const OPERATION_ITEM_STATES = ["PENDING", "RECEIVED", "VERIFIED"];
+export const OPERATION_ITEM_STATES = [
+    "PENDING",
+    "RECEIVED",
+    "VERIFIED",
+    "REUPLOAD_REQUESTED",
+];
 export const ACTIONS = [
     "resend_payment_link",
     "retry_provisioning",
@@ -219,6 +224,21 @@ export const onboardingStatusV1 = z
                             // checked).
                             state: z.enum(OPERATION_ITEM_STATES),
                             at: nullableIso,
+                            document: z
+                                .object({
+                                    version: z.number().int().positive(),
+                                    source: z.enum(["CARRIER", "STAFF"]),
+                                    extraction: z.enum([
+                                        "PENDING",
+                                        "DONE",
+                                        "FAILED",
+                                        "DISABLED",
+                                    ]),
+                                    flags: z.array(z.string()),
+                                })
+                                .strict()
+                                .nullable()
+                                .optional(),
                         })
                         .strict()
                 ),
@@ -228,6 +248,16 @@ export const onboardingStatusV1 = z
                 reminders_paused: z.boolean().optional(),
             })
             .strict(),
+        portal: z
+            .object({
+                flow: z.boolean(),
+                invited_at: nullableIso,
+                last_opened_at: nullableIso,
+                questionnaire_submitted: z.boolean(),
+            })
+            .strict()
+            .nullable()
+            .optional(),
         readiness: z.enum(["IN_PROGRESS", "BLOCKED", "READY", "CLOSED"]),
         blocked: z
             .object({

@@ -1,3 +1,6 @@
+import { portalReminderIds, sendDuePortalReminder } from "./portalFlow.js";
+import { readPendingDocuments } from "./reader/worker.js";
+import { purgeDue, retentionDay } from "./retention.js";
 import { deliverPending } from "./outbox.js";
 import { REPLAY_RECEIPT_TTL_MS, pruneReplayReceipts } from "./store.js";
 import {
@@ -45,6 +48,10 @@ export async function reconcileOnce(deps) {
         await sendDueReminder(deps, id).catch(() =>
             log("onboarding_reconcile_reminder_failed")
         );
+    for (const id of await portalReminderIds(deps))
+        await sendDuePortalReminder(deps, id).catch(() =>
+            log("onboarding_portal_reminder_failed")
+        );
 }
 
 function every(ms, fn) {
@@ -84,6 +91,30 @@ export function startOnboardingWorkers(deps) {
             every(
                 config.reconcile.intervalMs,
                 guard("onboarding_reconcile_failed", () => reconcileOnce(deps))
+            )
+        );
+    if (config.reader?.enabled)
+        timers.push(
+            every(
+                config.reconcile?.intervalMs ?? 60000,
+                guard("onboarding_reader_failed", () =>
+                    readPendingDocuments(deps)
+                )
+            )
+        );
+    let lastPurgeDay;
+    if (config.portal?.enabled)
+        timers.push(
+            every(
+                60000,
+                guard("onboarding_retention_failed", async () => {
+                    const now = deps.now();
+                    const day = retentionDay(now);
+                    if (day && day !== lastPurgeDay) {
+                        await purgeDue(deps, now);
+                        lastPurgeDay = day;
+                    }
+                })
             )
         );
     deps.logger?.info?.({

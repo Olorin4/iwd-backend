@@ -11,7 +11,12 @@ import {
     interimBillingRawBody,
     startInterimBilling,
 } from "./interimBilling/index.js";
-import { onboardingRawBody, startOnboarding } from "./onboarding/index.js";
+import { isPortalPath } from "./onboarding/portal/hostGuard.js";
+import {
+    onboardingPortalRouter,
+    onboardingRawBody,
+    startOnboarding,
+} from "./onboarding/index.js";
 
 dotenvFlow.config();
 
@@ -21,15 +26,17 @@ const PORT = process.env.PORT || 3000;
 // Global Middleware
 // Onboarding keeps the raw body for HMAC and webhook signatures; it parses
 // first so the interim billing parser below is unchanged.
-app.use("/onboarding", express.json({ verify: onboardingRawBody }));
-// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
-app.use(express.json({ verify: interimBillingRawBody }));
 // The API sits behind exactly one proxy hop: the containerized nginx edge,
 // which sets the real client IP (from Cloudflare's CF-Connecting-IP) as the
 // last X-Forwarded-For entry. Trusting one hop makes req.ip the real client, so
 // rate limits apply per visitor instead of to the proxy's address. Rate
 // limiting itself is applied once, in configureSecurity.
 app.set("trust proxy", 1);
+app.use(onboardingPortalRouter());
+
+app.use("/onboarding", express.json({ verify: onboardingRawBody }));
+// TEMPORARY: delete when the KelevoTMS dispatching-agency billing feature is live. See DISPOSE.md.
+app.use(express.json({ verify: interimBillingRawBody }));
 
 // Apply logging configurations
 configureLogging(app);
@@ -43,11 +50,14 @@ app.use(router); // Register all routes AFTER applying middleware
 app.use((req, res) => res.status(404).json({ error: "Not Found" }));
 // Error Handling Middleware
 app.use((err, req, res, next) => {
-    req.logger.error({
-        message: err.message,
-        stack: err.stack,
-        route: req.originalUrl,
-    });
+    if (isPortalPath(req.originalUrl))
+        logger.error({ message: "Portal request failed", route: "/p/[token]" });
+    else
+        (req.logger ?? logger).error({
+            message: err.message,
+            stack: err.stack,
+            route: req.originalUrl,
+        });
     res.status(500).json({ error: "Internal Server Error" });
 });
 

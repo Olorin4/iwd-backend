@@ -1,0 +1,79 @@
+{
+    "contract": "onboarding.status.v1",
+    "event_id": "66666666-6666-4666-8666-666666666666",
+    "idempotency_key": "0b7e8f5a-1c2d-4e3f-8a9b-0c1d2e3f4a5b",
+    "request_id": "77777777-7777-4777-8777-777777777777",
+    "client_id": "88888888-8888-4888-8888-888888888888",
+    "version": 7,
+    "occurred_at": "2026-11-19T10:00:00.000Z",
+    "signature": {
+        "state": "COMPLETED",
+        "at": "2026-11-19T09:30:00.000Z"
+    },
+    "payment": {
+        "state": "PENDING_VERIFICATION",
+        "method": "us_bank_account",
+        "last4": "6789",
+        "at": "2026-11-19T09:55:00.000Z"
+    },
+    "provisioning": {
+        "state": "NOT_STARTED",
+        "kelevo_ref": null,
+        "at": null
+    },
+    "operations": {
+        "state": "PENDING",
+        "items": [
+            {
+                "key": "AUTHORITY_VERIFIED",
+                "state": "VERIFIED",
+                "at": "2026-11-19T09:40:00.000Z"
+            },
+            {
+                "key": "INSURANCE_COI",
+                "state": "REUPLOAD_REQUESTED",
+                "at": "2026-11-19T09:50:00.000Z",
+                "document": null
+            },
+            {
+                "key": "W9",
+                "state": "RECEIVED",
+                "at": "2026-11-19T09:52:00.000Z",
+                "document": {
+                    "version": 2,
+                    "source": "CARRIER",
+                    "extraction": "DONE",
+                    "flags": [
+                        "name_mismatch"
+                    ]
+                }
+            },
+            {
+                "key": "FACTORING_NOA",
+                "state": "PENDING",
+                "at": null
+            },
+            {
+                "key": "CARRIER_PROFILE",
+                "state": "PENDING",
+                "at": null
+            },
+            {
+                "key": "FLEET_MAPPING",
+                "state": "PENDING",
+                "at": null
+            }
+        ]
+    },
+    "readiness": "IN_PROGRESS",
+    "blocked": null,
+    "documents": {
+        "signed_available": true
+    },
+    "portal": {
+        "flow": true,
+        "invited_at": "2026-11-19T09:00:00.000Z",
+        "last_opened_at": "2026-11-19T09:51:00.000Z",
+        "questionnaire_submitted": true
+    }
+}

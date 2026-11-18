@@ -10,7 +10,9 @@ import { fillPacket, pageCount } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
 import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
-import { deriveWaitingFor } from "./signature/waitingFor.js";
+import { activePortalUrl, createRequestToken } from "./portal/tokens.js";
+import { sendPortalInvitation } from "./portalFlow.js";
+import { deriveWaitingFor, SIGNER_ROLES } from "./signature/waitingFor.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
 import { REQUESTER_NAME, packetMessages } from "./signature/messages.js";
 import { IRON_WING_EMAIL_DELAY_DEFAULT_MINUTES } from "./config.js";
@@ -77,7 +79,13 @@ const log = (deps, code, extra = {}) => deps.logger?.info?.({ code, ...extra });
 async function claimEnvelope(deps, requestId, { supersede = false } = {}) {
     return deps.db.$transaction(async (tx) => {
         const row = await lockRequest(tx, requestId);
-        if (!row || row.cancelled_at) return null;
+        if (
+            !row ||
+            row.cancelled_at ||
+            row.purged_at ||
+            (row.portal_flow && !deps.config.portal?.enabled)
+        )
+            return null;
         const current = await activeEnvelope(tx, requestId);
         if (current && !supersede) return null;
         if (supersede && (!current || !REISSUABLE.includes(current.state)))
@@ -110,7 +118,19 @@ async function claimEnvelope(deps, requestId, { supersede = false } = {}) {
                 state: "SENDING",
             },
         });
-        await applyFacetChange(
+        const portalFlow =
+            row.bundle_version_id || current || row.portal_flow
+                ? row.portal_flow
+                : !!deps.config.portal?.enabled;
+        if (
+            portalFlow &&
+            !(await tx.portalToken.findFirst({
+                where: { request_id: requestId, revoked_at: null },
+                select: { id: true },
+            }))
+        )
+            await createRequestToken(tx, requestId, deps.now());
+        const result = await applyFacetChange(
             tx,
             row,
             {
@@ -118,10 +138,11 @@ async function claimEnvelope(deps, requestId, { supersede = false } = {}) {
                 signature_code: null,
                 signature_at: deps.now(),
                 bundle_version_id: bundle.id,
+                portal_flow: portalFlow,
             },
             deps.now()
         );
-        return { envelope, bundle, row, superseded: current };
+        return { envelope, bundle, row: result.row, superseded: current };
     });
 }
 
@@ -169,11 +190,12 @@ async function stopForCancel(deps, envelope) {
 /** Updates an envelope and, if it is the request's live envelope, the facet. */
 async function setEnvelopeState(deps, envelopeId, envelopeUpdate, facet) {
     const { onlyFrom, ...envelopeData } = envelopeUpdate;
-    return deps.db.$transaction(async (tx) => {
+    const result = await deps.db.$transaction(async (tx) => {
         const envelope = await tx.signatureEnvelope.findUnique({
             where: { id: envelopeId },
         });
         const row = await lockRequest(tx, envelope.request_id);
+        if (row.purged_at) return { row, changed: false };
         const fresh = await tx.signatureEnvelope.findUnique({
             where: { id: envelopeId },
         });
@@ -187,13 +209,21 @@ async function setEnvelopeState(deps, envelopeId, envelopeUpdate, facet) {
         // over a pre-send state.
         if (onlyFrom && !onlyFrom.includes(fresh.state))
             return { row, changed: false };
+        if (envelopeData.completed_storage_key && fresh.completed_storage_key)
+            return { row, changed: false, saved: false };
         await tx.signatureEnvelope.update({
             where: { id: envelopeId },
             data: envelopeData,
         });
-        if (!facet || fresh.superseded_by) return { row, changed: false };
-        return applyFacetChange(tx, row, facet, deps.now());
+        if (!facet || fresh.superseded_by)
+            return { row, changed: false, saved: true };
+        return {
+            ...(await applyFacetChange(tx, row, facet, deps.now())),
+            saved: true,
+        };
     });
+    scheduleInvitation(deps, result);
+    return result;
 }
 
 const abandon = (deps, envelopeId, code) =>
@@ -348,9 +378,19 @@ async function waitingForAfterSend(deps, documentId) {
     }
 }
 
+function scheduleInvitation(deps, result) {
+    if (
+        result?.changed &&
+        result.row.portal_flow &&
+        !result.row.portal_invited_at &&
+        result.row.signature_waiting_for === "CARRIER"
+    )
+        deps.schedule(() => sendPortalInvitation(deps, result.row.id));
+}
+
 /** Updates only signature_waiting_for on the live envelope's request. */
-function setWaitingFor(deps, envelope, waitingFor) {
-    return deps.db.$transaction(async (tx) => {
+async function setWaitingFor(deps, envelope, waitingFor) {
+    const result = await deps.db.$transaction(async (tx) => {
         const row = await lockRequest(tx, envelope.request_id);
         const fresh = await tx.signatureEnvelope.findUnique({
             where: { id: envelope.id },
@@ -364,6 +404,8 @@ function setWaitingFor(deps, envelope, waitingFor) {
             deps.now()
         );
     });
+    scheduleInvitation(deps, result);
+    return result;
 }
 
 async function deliverEnvelope(deps, { envelope, bundle, row }) {
@@ -414,6 +456,7 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
             name: terms.signer.name,
             email: terms.signer.email,
             ...copy.carrier,
+            ...(row.portal_flow ? { sendEmail: false } : {}),
         },
     ];
     if (await cancelledNow(deps, row.id)) return stopForCancel(deps, envelope);
@@ -432,7 +475,10 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
                 requester_email: deps.config.signature.requesterEmail ?? null,
                 // The carrier signs last, so this redirect reaches the carrier;
                 // the dispatcher passing through it sees a neutral waiting page.
-                redirect_url: continueUrl(deps.config, row.id, deps.now()),
+                redirect_url: row.portal_flow
+                    ? (await activePortalUrl(deps, row.id)) +
+                      "?signature=returned"
+                    : continueUrl(deps.config, row.id, deps.now()),
             }
         );
     } catch (error) {
@@ -486,8 +532,14 @@ export async function reissuePacket(deps, requestId) {
 export async function reconcileEnvelope(deps, envelopeId) {
     const envelope = await deps.db.signatureEnvelope.findUnique({
         where: { id: envelopeId },
+        include: { request: { select: { purged_at: true } } },
     });
-    if (!envelope || envelope.state === "ABANDONED") return null;
+    if (
+        !envelope ||
+        envelope.request.purged_at ||
+        envelope.state === "ABANDONED"
+    )
+        return null;
     if (!envelope.provider_document_id) {
         if (
             envelope.state === "SENDING" &&
@@ -590,6 +642,10 @@ export async function reconcileEnvelope(deps, envelopeId) {
                 signature_at: now,
             }
         );
+        if (!result.saved && deps.documentStore.delete)
+            await deps.documentStore
+                .delete(stored.storage_key)
+                .catch(() => log(deps, "onboarding_completed_cleanup_failed"));
         if (result.changed)
             deps.schedule(() => deps.onSignatureCompleted(envelope.request_id));
         return result;
@@ -616,11 +672,49 @@ export async function reconcileEnvelope(deps, envelopeId) {
 }
 
 /** Signature facet recovery for the `reconcile` action and the job. */
+export async function carrierSigningUrl(deps, requestId) {
+    const row = await deps.db.onboardingRequest.findUnique({
+        where: { id: requestId },
+    });
+    const waiting = { error: "not_waiting_for_carrier" };
+    if (!row?.portal_flow || row.cancelled_at || row.purged_at) return waiting;
+    if (row.signature_state === "COMPLETED") return { error: "completed" };
+    if (row.signature_waiting_for !== "CARRIER") return waiting;
+    const envelope = await activeEnvelope(deps.db, requestId);
+    if (
+        !envelope?.provider_document_id ||
+        !["SENT", "VIEWED"].includes(envelope.state)
+    )
+        return waiting;
+    const remote = await deps.signature.get(envelope.provider_document_id);
+    const state = normalizeProviderStatus(remote.status);
+    if (state === "COMPLETED") {
+        await reconcileEnvelope(deps, envelope.id);
+        return { error: "completed" };
+    }
+    if (deriveWaitingFor(state, remote.recipients) !== "CARRIER")
+        return waiting;
+    const url = await deps.signature.embeddedSigningUrl(
+        envelope.provider_document_id,
+        SIGNER_ROLES.CARRIER.id,
+        {
+            allow: (status, recipients) =>
+                deriveWaitingFor(
+                    normalizeProviderStatus(status),
+                    recipients
+                ) === "CARRIER",
+        }
+    );
+    return typeof url === "string" && url.startsWith("https://")
+        ? { url }
+        : waiting;
+}
+
 export async function reconcileSignature(deps, requestId) {
     const row = await deps.db.onboardingRequest.findUnique({
         where: { id: requestId },
     });
-    if (!row || row.cancelled_at) return null;
+    if (!row || row.cancelled_at || row.purged_at) return null;
     const envelope = await activeEnvelope(deps.db, requestId);
     if (!envelope)
         return row.signature_state === "NOT_SENT"

@@ -87,6 +87,7 @@ export async function sendCompletionEmail(deps, requestId) {
     const { count } = await db.onboardingRequest.updateMany({
         where: {
             id: requestId,
+            portal_flow: false,
             completion_emailed_at: null,
             cancelled_at: null,
             signature_state: "COMPLETED",
@@ -253,6 +254,7 @@ function reminderDue(row, now) {
 export async function reminderCandidateIds(deps) {
     const rows = await deps.db.onboardingRequest.findMany({
         where: {
+            portal_flow: false,
             cancelled_at: null,
             reminders_paused: false,
             reminders_sent: { lt: MAX_REMINDERS },
@@ -292,7 +294,7 @@ export async function sendDueReminder(deps, requestId) {
     const row = await db.onboardingRequest.findUnique({
         where: { id: requestId },
     });
-    if (!row) return false;
+    if (!row || row.portal_flow) return false;
     if (
         row.reminder_attempts >= MAX_EMAIL_ATTEMPTS &&
         row.reminder_claimed_at &&

@@ -1,3 +1,4 @@
+import { activePortalUrl } from "./portal/tokens.js";
 import {
     applyFacetChange,
     lockRequest,
@@ -95,6 +96,15 @@ export async function issuePaymentLink(
     if (!row || row.cancelled_at) return { skipped: "request_closed" };
     if (row.signature_state !== "COMPLETED")
         return { skipped: "signature_not_completed" };
+    if (
+        row.portal_flow &&
+        (mode !== "continue" || !deps.config.portal?.enabled)
+    )
+        return { skipped: "portal_flow" };
+    const portalReturn = row.portal_flow
+        ? await activePortalUrl(deps, requestId)
+        : null;
+    if (row.portal_flow && !portalReturn) return { skipped: "request_closed" };
     const allowed = {
         initial: ["NOT_STARTED"],
         resend: ["LINK_SENT", "FAILED"],
@@ -148,8 +158,12 @@ export async function issuePaymentLink(
             requestId,
             paymentSetupId: setup.id,
             methods: row.terms.payment_methods,
-            successUrl: deps.config.stripe.successUrl,
-            cancelUrl: deps.config.stripe.cancelUrl,
+            successUrl: portalReturn
+                ? portalReturn + "?payment=saved"
+                : deps.config.stripe.successUrl,
+            cancelUrl: portalReturn
+                ? portalReturn + "?payment=cancelled"
+                : deps.config.stripe.cancelUrl,
         });
         setup = await db.paymentSetup.update({
             where: { id: setup.id },
@@ -440,7 +454,12 @@ export async function reconcilePayment(deps, requestId) {
         const row = await deps.db.onboardingRequest.findUnique({
             where: { id: requestId },
         });
-        if (row && !row.cancelled_at && row.signature_state === "COMPLETED") {
+        if (
+            row &&
+            !row.portal_flow &&
+            !row.cancelled_at &&
+            row.signature_state === "COMPLETED"
+        ) {
             // Every setup is marked emailed once the combined email is
             // claimed, so an unmarked setup after that is a resend whose email
             // failed: retry that. Otherwise the combined email is still due;

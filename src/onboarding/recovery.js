@@ -1,3 +1,4 @@
+import { sendPortalInvitation } from "./portalFlow.js";
 import { transition } from "./store.js";
 import { issuePaymentLink } from "./paymentFlow.js";
 import { startProvisioning } from "./provisioningFlow.js";
@@ -71,12 +72,15 @@ export async function recoverRequestSteps(deps, requestId) {
     let row = await deps.db.onboardingRequest.findUnique({
         where: { id: requestId },
     });
-    if (!row) return;
+    if (!row || row.purged_at) return;
+    if (row.portal_flow && !row.portal_invited_at)
+        await sendPortalInvitation(deps, requestId);
     if (await failStalePaymentSetups(deps, requestId))
         row = await deps.db.onboardingRequest.findUnique({
             where: { id: requestId },
         });
     if (
+        !row.portal_flow &&
         !row.cancelled_at &&
         row.signature_state === "COMPLETED" &&
         row.payment_state === "NOT_STARTED"
@@ -85,6 +89,7 @@ export async function recoverRequestSteps(deps, requestId) {
     // R15: the combined completion email whatever the payment state (the
     // carrier may already have saved a method); claimed once per request.
     if (
+        !row.portal_flow &&
         !row.cancelled_at &&
         row.signature_state === "COMPLETED" &&
         !row.completion_emailed_at &&
@@ -110,11 +115,24 @@ export async function stalledRequestIds(deps) {
         where: {
             OR: [
                 {
+                    portal_flow: true,
+                    cancelled_at: null,
+                    purged_at: null,
+                    portal_invited_at: null,
+                    portal_invite_attempts: { lt: 3 },
+                    OR: [
+                        { signature_waiting_for: "CARRIER" },
+                        { signature_state: "COMPLETED" },
+                    ],
+                },
+                {
+                    portal_flow: false,
                     cancelled_at: null,
                     signature_state: "COMPLETED",
                     payment_state: "NOT_STARTED",
                 },
                 {
+                    portal_flow: false,
                     cancelled_at: null,
                     signature_state: "COMPLETED",
                     completion_emailed_at: null,

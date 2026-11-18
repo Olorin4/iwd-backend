@@ -38,6 +38,9 @@ export function requestBody(overrides = {}, termsOverrides = {}) {
 
 export const TABLES = [
     "document_access_log",
+    "onboarding_document",
+    "onboarding_questionnaire",
+    "portal_token",
     "onboarding_event",
     "payment_setup",
     "signature_envelope",
