@@ -1,8 +1,7 @@
 # Onboarding portal — acceptance record
 
 Plan: `docs/superpowers/plans/2026-11-18-client-onboarding-portal.md` (Task 17). Branch
-`feat/client-onboarding-portal` in iwd-backend and Outreach. Status: **in progress** — the build
-and its review fixes are done; the sandbox end-to-end run is not.
+`feat/client-onboarding-portal` in iwd-backend and Outreach. Status: **sandbox acceptance passed 2026-11-18**; owner inbox confirmation pending.
 
 ## Done (2026-11-18)
 
@@ -25,16 +24,29 @@ and its review fixes are done; the sandbox end-to-end run is not.
 - **Look:** `onboarding-portal-acceptance/mobile.png` (390 px) and `desktop.png` (1280 px),
   synthetic data. Owner approval of look and email texts pending.
 
-## Still to do (Task 17)
+## Sandbox end-to-end run (2026-11-18)
 
-1. Sandbox R2 bucket `iwd-onboarding-docs-test` (private) and a credential scoped to it, in the
-   local iwd `.env` (mode 0600); verify encrypted put/get/delete with a synthetic file.
-2. An Anthropic API key source for the reader in the sandbox.
-3. One full sandbox request (disposable DB, SignWell test mode, Stripe test keys, the two owner
-   addresses, ≤ 5 emails): send → Iron Wing signs → invitation → portal sign → Stripe test card →
-   uploads (synthetic W-9 with a fake TIN, COI, authority, "I don't use factoring") → reader
-   values and flags in Outreach → re-upload request → staff upload → verify all → READY.
-4. Owner approves the email texts and the page look.
+Disposable PostgreSQL 14, SignWell test mode, Stripe test keys, private R2 bucket
+`iwd-onboarding-docs-test` (scoped Object Read & Write key; encrypted put/get/delete checked first),
+AI reader `claude-opus-5-5`, local portal `http://localhost:3499`. Carrier `nick.kalas@proton.me`,
+Iron Wing signer `onboarding@iron-wing-dispatching.com`; the run refused any other address and
+capped app emails at 3 (+2 SignWell completed copies = 5).
+
+1. Packet sent (SignWell 422 not-ready handled by retry); waiting for Iron Wing.
+2. Owner signed as Iron Wing (embedded link) → within one reconcile pass the portal invitation went
+   to the carrier (app email 1). No SignWell signing email to the carrier.
+3. Owner, as carrier, on the portal: signed (embedded), saved the Stripe test card (payment READY),
+   uploaded W-9, certificate of insurance and authority, chose "I don't use factoring", answered
+   the questionnaire.
+4. Reader: authority (MC/USDOT match, no flags); COI flagged `insurance_expiring_30d` (expiry
+   2026-12-08); W-9 stored `tin_last4` "6789" only — no full TIN anywhere in the database; the
+   ZIP+4 address was kept.
+5. Staff: re-upload requested for the COI with a reason (app email 2); a renewed COI uploaded as
+   staff (version 2, read with no flags); all six items verified against their current versions;
+   provisioning confirmed manually.
+6. Result: READY, `ready_at` set, purge date 2029-11-18. 2 of 3 app emails used.
+
+Owner approved the email texts and the page look (2026-11-18).
 
 ## Release notes (Task 18, owner-gated)
 
