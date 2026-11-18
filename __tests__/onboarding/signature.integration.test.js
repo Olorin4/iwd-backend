@@ -107,8 +107,9 @@ it("sends the filled packet once after the PUT: draft, then send, with both sign
         onboarding_request_id: envelope.request_id,
         envelope_id: envelope.id,
     });
-    expect(doc.metadata.redirect_url).toMatch(
-        /^https:\/\/api\.example\.test\/onboarding\/continue\//
+    // Every signer lands on the neutral page: no payment token in the redirect.
+    expect(doc.metadata.redirect_url).toBe(
+        "https://api.example.test/onboarding/signed"
     );
     // Repeated deliveries never send a second packet.
     await put();
@@ -707,4 +708,11 @@ it("the packet carries the requester name and per-recipient copy without braces"
         dispatch.message,
     ])
         expect(text).not.toMatch(/[{}]/);
+});
+
+it("the after-signing page is public, neutral and carries no request data", async () => {
+    const page = await app.call("GET", "/signed", undefined, { auth: false });
+    expect(page.status).toBe(200);
+    expect(page.text).toMatch(/carrier will receive an email/);
+    expect(page.text).not.toMatch(/stripe|checkout|cs_test|[0-9a-f]{8}-/i);
 });

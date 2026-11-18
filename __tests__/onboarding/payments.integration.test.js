@@ -1,4 +1,5 @@
 import { prisma } from "../../src/prismaClient";
+import { continueUrl } from "../../src/onboarding/continueToken";
 import { createOnboardingDeps } from "../../src/onboarding/deps";
 import { createFakeSignatureProvider } from "../../src/onboarding/signature/fake";
 import {
@@ -159,9 +160,15 @@ it("continue link re-checks the signature, then redirects to the open session", 
     await app.call("PUT", `/requests/${KEY}`, requestBody());
     await queue.drain();
     const [envelope] = await prisma.signatureEnvelope.findMany();
-    const token = signature.documents
-        .get(envelope.provider_document_id)
-        .metadata.redirect_url.split("/continue/")[1];
+    // The continue link reaches the carrier only in the payment email; the
+    // SignWell redirect is the neutral /signed page for every signer.
+    expect(
+        signature.documents.get(envelope.provider_document_id).metadata
+            .redirect_url
+    ).not.toMatch(/continue/);
+    const token = continueUrl(config, envelope.request_id).split(
+        "/continue/"
+    )[1];
     const waiting = await app.call("GET", `/continue/${token}`, undefined, {
         auth: false,
     });

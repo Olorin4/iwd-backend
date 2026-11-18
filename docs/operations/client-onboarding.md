@@ -294,3 +294,16 @@ keeps the v1 owner decisions and the 4/3 SignWell calibration. The owner approve
 layout v2 as final on 2026-11-18 (`status: APPROVED`); v1 is `SUPERSEDED`. Emails and pages
 in this module say "Iron Wing" as the brand and "Iron Wing Logistics L.L.C."
 when naming the company. Lawyer confirmation of the v2 wording is pending.
+
+## SignWell test mode and the after-signing page (sandbox findings, 2026-11-18)
+
+- **Test mode never emails recipients.** SignWell delivers every recipient's email to the
+  account owner instead, stamped "This is a TEST MODE email. No messages were sent to your
+  recipients. Intended recipient on this message: …". A sandbox run therefore cannot test
+  delivery to a real carrier mailbox; it does show the per-recipient subject and message
+  (both verified: carrier text to recipient 1, the INTERNAL countersign text to recipient 2).
+- **`redirect_url` is per document, not per signer.** With signing order carrier →
+  countersigner, a payment link there reached only the countersigner. Every signer now lands
+  on the neutral `GET /onboarding/signed` page (no request data, no payment action). The
+  carrier receives the payment step only by the payment-link email after both signatures,
+  so production email delivery (SMTP) is a hard prerequisite.

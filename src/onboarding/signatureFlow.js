@@ -8,7 +8,7 @@ import {
 import { latestApprovedBundle, loadBundleFiles } from "./documents/bundles.js";
 import { fillPacket, pageCount } from "./documents/pdf.js";
 import { canonicalJson, sha256Hex } from "./canonical.js";
-import { continueUrl } from "./continueToken.js";
+import { signedPageUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
 import { REQUESTER_NAME, packetMessages } from "./signature/messages.js";
@@ -379,7 +379,7 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
                 message: copy.carrier.message,
                 requester_name: REQUESTER_NAME,
                 requester_email: deps.config.signature.requesterEmail ?? null,
-                redirect_url: continueUrl(deps.config, row.id, deps.now()),
+                redirect_url: signedPageUrl(deps.config),
             }
         );
     } catch (error) {

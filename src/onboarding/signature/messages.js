@@ -55,7 +55,7 @@ export function packetMessages(terms, { requestId }) {
                 150
             ),
             message: [
-                `This signature request is from ${REQUESTER_NAME}.`,
+                `This signature request is from ${REQUESTER_NAME.replace(/\.$/, "")}.`,
                 "It contains your dispatch service agreement, limited power of attorney and payment authorization.",
                 "Payment details are not entered here: they are collected separately on Stripe's secure page, linked after signing.",
                 "If anything differs from what we agreed, reply to this email before signing.",

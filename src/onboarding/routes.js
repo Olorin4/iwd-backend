@@ -13,6 +13,9 @@ export function onboardingRawBody(req, res, buf) {
 
 const KEY = /^[0-9a-fA-F-]{36}$/;
 
+export const SIGNED_PAGE_TEXT =
+    "Thank you, your signature is recorded. Once every party has signed, the carrier will receive an email from Iron Wing Logistics L.L.C. with the next step. You can close this page.";
+
 export function createOnboardingRouter(getConfig, getDeps) {
     const router = express.Router();
 
@@ -121,6 +124,14 @@ export function createOnboardingRouter(getConfig, getDeps) {
             );
         })
     );
+
+    // Public landing page after signing (SignWell redirect_url) for every
+    // signer: no request data, no payment action.
+    router.get("/signed", (req, res) => {
+        res.set("Cache-Control", "no-store");
+        res.set("Referrer-Policy", "no-referrer");
+        res.status(200).type("text/plain").send(SIGNED_PAGE_TEXT);
+    });
 
     // Public, signed and expiring link; plain text pages, no internal detail.
     router.get(

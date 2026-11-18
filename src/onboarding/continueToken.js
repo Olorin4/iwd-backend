@@ -36,6 +36,17 @@ export function verifyContinueToken(secret, token, nowSeconds) {
     return { requestId: payload.r };
 }
 
+/**
+ * Where SignWell sends EVERY signer after signing. SignWell's redirect_url is
+ * per document, not per recipient, and the carrier signs first, so a payment
+ * link here would only ever reach the Iron Wing countersigner (sandbox finding
+ * 2026-11-18). It is therefore a neutral page; the carrier gets the payment
+ * step by email once both have signed.
+ */
+export function signedPageUrl(config) {
+    return `${config.publicBaseUrl}/onboarding/signed`;
+}
+
 export function continueUrl(config, requestId, now = new Date()) {
     const exp = Math.floor(now.getTime() / 1000) + config.continueTtlSeconds;
     return `${config.publicBaseUrl}/onboarding/continue/${createContinueToken(config.continueSecret, requestId, exp)}`;
