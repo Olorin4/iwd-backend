@@ -17,7 +17,10 @@ const env = {
 };
 
 it("refuses unless every sandbox precondition holds", () => {
-    expect(assertSandboxEnvironment(env)).toBe("owner@example.test");
+    expect(assertSandboxEnvironment(env)).toEqual({
+        carrier: "owner@example.test",
+        dispatch: "owner@example.test",
+    });
     for (const change of [
         { ONBOARDING_SANDBOX_CONFIRM: "true" },
         { ONBOARDING_SANDBOX_RECIPIENT: "a@example.test,b@example.test" },
@@ -67,4 +70,48 @@ it("caps provider emails at 10 across runs and fails closed on a corrupt counter
     expect(() => createEmailBudget(file).reserve(1, "email")).toThrow(
         /budget exhausted/
     );
+});
+
+describe("two controlled sandbox recipients", () => {
+    const two = {
+        ...env,
+        ONBOARDING_SANDBOX_RECIPIENT: undefined,
+        ONBOARDING_SANDBOX_CARRIER_RECIPIENT: "carrier@example.test",
+        ONBOARDING_SANDBOX_DISPATCH_RECIPIENT: "dispatch@example.test",
+    };
+    it("returns both role addresses", () => {
+        expect(assertSandboxEnvironment(two)).toEqual({
+            carrier: "carrier@example.test",
+            dispatch: "dispatch@example.test",
+        });
+    });
+    it("refuses a list or a missing role address", () => {
+        expect(() =>
+            assertSandboxEnvironment({
+                ...two,
+                ONBOARDING_SANDBOX_DISPATCH_RECIPIENT:
+                    "a@example.test,b@example.test",
+            })
+        ).toThrow();
+        expect(() =>
+            assertSandboxEnvironment({
+                ...two,
+                ONBOARDING_SANDBOX_CARRIER_RECIPIENT: undefined,
+            })
+        ).toThrow();
+    });
+    it("allows only listed addresses", () => {
+        expect(() =>
+            assertOnlyRecipient(
+                ["carrier@example.test", "DISPATCH@example.test"],
+                ["carrier@example.test", "dispatch@example.test"]
+            )
+        ).not.toThrow();
+        expect(() =>
+            assertOnlyRecipient(
+                ["dispatch@example.test"],
+                "carrier@example.test"
+            )
+        ).toThrow();
+    });
 });

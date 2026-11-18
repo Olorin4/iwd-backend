@@ -21,16 +21,29 @@ const dbName = (url) => {
     return path.slice(path.lastIndexOf("/") + 1);
 };
 
-/** Throws SandboxRefusal unless every precondition holds. Returns the recipient. */
+const ONE_ADDRESS = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+
+/**
+ * Throws SandboxRefusal unless every precondition holds. Returns the controlled
+ * recipients: { carrier, dispatch }. Either one address for both roles
+ * (ONBOARDING_SANDBOX_RECIPIENT) or exactly two role addresses
+ * (ONBOARDING_SANDBOX_CARRIER_RECIPIENT + ONBOARDING_SANDBOX_DISPATCH_RECIPIENT).
+ */
 export function assertSandboxEnvironment(env) {
     if (env.ONBOARDING_SANDBOX_CONFIRM !== "yes")
         throw new SandboxRefusal(
             "Set ONBOARDING_SANDBOX_CONFIRM=yes to run the sandbox acceptance."
         );
-    const recipient = String(env.ONBOARDING_SANDBOX_RECIPIENT ?? "").trim();
-    if (!/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(recipient))
+    const single = String(env.ONBOARDING_SANDBOX_RECIPIENT ?? "").trim();
+    const carrier = String(
+        env.ONBOARDING_SANDBOX_CARRIER_RECIPIENT ?? single
+    ).trim();
+    const dispatch = String(
+        env.ONBOARDING_SANDBOX_DISPATCH_RECIPIENT ?? single
+    ).trim();
+    if (!ONE_ADDRESS.test(carrier) || !ONE_ADDRESS.test(dispatch))
         throw new SandboxRefusal(
-            "ONBOARDING_SANDBOX_RECIPIENT must be exactly one email address."
+            "Set ONBOARDING_SANDBOX_RECIPIENT, or both ONBOARDING_SANDBOX_CARRIER_RECIPIENT and ONBOARDING_SANDBOX_DISPATCH_RECIPIENT, each to exactly one email address."
         );
     if (!/^(sk|rk)_test_/.test(env.ONBOARDING_STRIPE_SECRET_KEY ?? ""))
         throw new SandboxRefusal(
@@ -60,15 +73,18 @@ export function assertSandboxEnvironment(env) {
         throw new SandboxRefusal(
             "Unset OUTREACH_STATUS_URL: the sandbox never posts status to Outreach."
         );
-    return recipient;
+    return { carrier, dispatch };
 }
 
-/** Every address the run may email must be the single sandbox recipient. */
-export function assertOnlyRecipient(addresses, recipient) {
+/** Every address the run may email must be one of the controlled recipients. */
+export function assertOnlyRecipient(addresses, allowed) {
+    const list = (Array.isArray(allowed) ? allowed : [allowed]).map((a) =>
+        String(a).toLowerCase()
+    );
     for (const address of addresses)
-        if (String(address).toLowerCase() !== recipient.toLowerCase())
+        if (!list.includes(String(address).toLowerCase()))
             throw new SandboxRefusal(
-                "Every sandbox email must go to ONBOARDING_SANDBOX_RECIPIENT."
+                "Every sandbox email must go to a controlled sandbox recipient."
             );
 }
 

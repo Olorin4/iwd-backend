@@ -1,11 +1,13 @@
 // Sandbox acceptance for client onboarding (plan I7, owner ruling R4).
 // NOT run by CI or by the implementation agents. It uses SignWell TEST MODE
 // and Stripe SANDBOX keys only, sends at most 10 provider emails in total
-// (persisted counter), all to ONBOARDING_SANDBOX_RECIPIENT, and never posts
+// (persisted counter), only to the controlled recipients (one address, or a
+// carrier address and a dispatch/countersigner address), and never posts
 // status to Outreach.
 //
 // Usage (after `npx prisma migrate deploy` on a *_test or *_sandbox database):
 //   ONBOARDING_SANDBOX_CONFIRM=yes ONBOARDING_SANDBOX_RECIPIENT=owner@example.com \
+//   (or ONBOARDING_SANDBOX_CARRIER_RECIPIENT=… ONBOARDING_SANDBOX_DISPATCH_RECIPIENT=…) \
 //   ONBOARDING_SANDBOX_BUDGET_FILE=/private/onboarding-sandbox-budget.json \
 //   node -r dotenv/config scripts/onboarding-sandbox.js start \
 //       --pdf /path/Iron-Wing-Onboarding-Packet-v2.pdf --sha256 <expected hex> \
@@ -50,7 +52,7 @@ function args(argv) {
 }
 
 async function main() {
-    const recipient = assertSandboxEnvironment(process.env);
+    const { carrier, dispatch } = assertSandboxEnvironment(process.env);
     const budget = createEmailBudget(
         process.env.ONBOARDING_SANDBOX_BUDGET_FILE
     );
@@ -58,7 +60,7 @@ async function main() {
         ...process.env,
         ONBOARDING_ENABLED: "1",
     });
-    // The countersigner is the same controlled address in the sandbox.
+    // The countersigner is the controlled dispatch address in the sandbox.
     const config = {
         ...base,
         bundleName: `sandbox-${base.bundleName}`,
@@ -67,7 +69,7 @@ async function main() {
             testMode: true,
             countersigner: {
                 ...base.signature.countersigner,
-                email: recipient,
+                email: dispatch,
             },
         },
         outbox: { enabled: false },
@@ -82,7 +84,8 @@ async function main() {
         db: prisma,
         logger,
         sendEmail: async (mail) => {
-            assertOnlyRecipient([mail.to], recipient);
+            // Only the carrier receives the payment link.
+            assertOnlyRecipient([mail.to], carrier);
             budget.reserve(COST.email, "payment link email");
             return sendEmail(mail);
         },
@@ -124,11 +127,11 @@ async function main() {
             dba_name: null,
             mc_number: "MC000000",
             usdot: String(9000000 + Math.floor(Math.random() * 999999)),
-            recipient_email: recipient,
+            recipient_email: carrier,
             signer: {
                 name: "Sandbox Signer",
                 title: "Owner",
-                email: recipient,
+                email: carrier,
             },
             plan: "FULL_SERVICE",
             fleet_service_plan: null,
@@ -143,25 +146,22 @@ async function main() {
             notes_for_packet: null,
         };
         assertOnlyRecipient(
-            [
-                terms.recipient_email,
-                terms.signer.email,
-                config.signature.countersigner.email,
-            ],
-            recipient
+            [terms.recipient_email, terms.signer.email],
+            carrier
         );
+        assertOnlyRecipient([config.signature.countersigner.email], dispatch);
         const body = {
             contract: "onboarding.request.v1",
             idempotency_key: key,
             source: "outreach",
             source_refs: {
                 workspace_id: "sandbox",
-                brand: "iron-wing",
+                brand: "IRON_WING",
                 opportunity_id: "sandbox",
                 party_id: "sandbox",
                 request_id: key,
             },
-            actor: { user_id: "sandbox", email: recipient },
+            actor: { user_id: "sandbox", email: dispatch },
             terms,
             terms_hash: termsHash(terms),
             confirmed_at: new Date().toISOString(),
