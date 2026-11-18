@@ -75,3 +75,45 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         request.send(payload);
     });
 });
+
+for (const form of document.querySelectorAll("form[data-post]")) {
+    form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const button = form.querySelector("button");
+        button.disabled = true;
+        let message = "Could not save. Try again.";
+        try {
+            // With a no-referrer policy, some browsers send Origin: null on
+            // form navigation. Same-origin fetch supplies the origin without
+            // including the private page URL as a referrer.
+            const response = await fetch(form.action, {
+                method: "POST",
+                body: new URLSearchParams(new FormData(form)),
+            });
+            if (response.redirected) {
+                location.assign(response.url);
+                return;
+            }
+            if (response.status === 410) {
+                location.reload();
+                return;
+            }
+            if (
+                response.status === 422 &&
+                form.hasAttribute("data-questionnaire")
+            )
+                message =
+                    "Check the values and try again. Truck count must be between 1 and 500.";
+        } catch {
+            // Show the same feedback for a network failure.
+        }
+        let note = form.querySelector("[role=alert]");
+        if (!note) {
+            note = document.createElement("p");
+            note.setAttribute("role", "alert");
+            form.append(note);
+        }
+        note.textContent = message;
+        button.disabled = false;
+    });
+}

@@ -74,7 +74,7 @@ ${
 <button type="submit">Upload</button><progress max="100" hidden></progress></form>
 ${
     slot === "FACTORING"
-        ? `<form method="post" action="${base}/not-factoring"><input type="hidden" name="csrf" value="${csrf}">
+        ? `<form method="post" action="${base}/not-factoring" data-post><input type="hidden" name="csrf" value="${csrf}">
 <button class="secondary" type="submit">I don't use factoring</button></form>`
         : ""
 }</div>`
@@ -190,7 +190,7 @@ export function questionnairePage(
         `<p><a href="${base}">Back to onboarding</a></p><h1>About your operation</h1>
 <p>Share your preferences with Iron Wing. Every field is optional.</p>
 ${invalid ? '<p class="notice" role="alert">Check the values and try again. Truck count must be between 1 and 500.</p>' : ""}
-<form class="card questionnaire" method="post" action="${base}/questionnaire">
+<form class="card questionnaire" method="post" action="${base}/questionnaire" data-post data-questionnaire>
 <input type="hidden" name="csrf" value="${safe(csrf)}">
 <fieldset><legend>Equipment types</legend><div class="equipment">${EQUIPMENT_TYPES.map(
             (equipment) =>
@@ -205,6 +205,7 @@ ${area("excluded_freight", "Freight you do not haul", 500)}
 ${input("max_deadhead_miles", "Maximum deadhead (miles)", 'type="number" min="0" step="1"')}
 ${area("availability", "Availability", 300)}
 ${area("other_preferences", "Other preferences", 2000)}
-<button type="submit">Save preferences</button></form><p class="sr-only">${safe(row.terms.legal_name)}</p>`
+<button type="submit">Save preferences</button></form><p class="sr-only">${safe(row.terms.legal_name)}</p>`,
+        true
     );
 }
