@@ -391,3 +391,181 @@ model InterimBillingStripeEvent {
 
   @@map("interim_billing_stripe_event")
 }
+
+// ===========================================================================
+// Client onboarding (permanent). Owned by src/clients, src/onboarding and
+// src/payments. Never imported by or from interim billing code paths except
+// interim billing reading a Client through src/clients. Design §7–§8 of the
+// 2026-11-18 workflow modernization design.
+// ===========================================================================
+model Client {
+  id                  String   @id @default(uuid())
+  legal_name          String
+  dba_name            String?
+  mc_number           String?
+  usdot               String?  @unique
+  primary_email       String
+  status              String   @default("ONBOARDING") // ONBOARDING | ACTIVE | INACTIVE
+  stripe_customer_id  String?  @unique
+  payment_method_id   String?
+  payment_method_type String?
+  payment_last4       String?
+  payment_brand       String?
+  outreach_party_id   String?
+  kelevo_ref          String?
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  requests OnboardingRequest[]
+
+  @@map("client")
+}
+
+model OnboardingRequest {
+  id                  String    @id @default(uuid())
+  idempotency_key     String    @unique
+  source              String
+  source_refs         Json
+  actor               Json
+  terms               Json // immutable (database trigger)
+  terms_hash          String
+  confirmed_at        DateTime
+  client_id           String
+  bundle_version_id   String?
+  signature_state     String    @default("NOT_SENT")
+  signature_code      String?
+  signature_at        DateTime?
+  payment_state       String    @default("NOT_STARTED")
+  payment_code        String?
+  payment_method_type String?
+  payment_last4       String?
+  payment_at          DateTime?
+  provisioning_state  String    @default("NOT_STARTED")
+  provisioning_code   String?
+  kelevo_ref          String?
+  provisioning_at     DateTime?
+  operations          Json
+  version             Int       @default(1)
+  cancelled_at        DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  client    Client              @relation(fields: [client_id], references: [id])
+  envelopes SignatureEnvelope[]
+  payments  PaymentSetup[]
+  events    OnboardingEvent[]
+  accesses  DocumentAccessLog[]
+
+  @@index([client_id])
+  @@index([signature_state])
+  @@index([payment_state])
+  @@map("onboarding_request")
+}
+
+model DocumentBundleVersion {
+  id          String    @id @default(uuid())
+  name        String
+  version     Int
+  files       Json // [{ name, sha256, size, storage_key }]
+  layout      Json
+  status      String    @default("DRAFT") // DRAFT | APPROVED | RETIRED
+  approved_by String?
+  approved_at DateTime?
+  created_at  DateTime  @default(now())
+
+  @@unique([name, version])
+  @@map("document_bundle_version")
+}
+
+model SignatureEnvelope {
+  id                    String    @id @default(uuid())
+  request_id            String
+  provider              String
+  provider_document_id  String?   @unique
+  state                 String    @default("SENDING")
+  last_error_code       String?
+  filled_sha256         String?
+  filled_storage_key    String?
+  completed_sha256      String?
+  completed_storage_key String?
+  sent_at               DateTime?
+  completed_at          DateTime?
+  declined_at           DateTime?
+  expired_at            DateTime?
+  superseded_by         String?
+  created_at            DateTime  @default(now())
+  updated_at            DateTime  @updatedAt
+
+  request OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@index([request_id])
+  @@index([state])
+  @@map("signature_envelope")
+}
+
+model PaymentSetup {
+  id                  String    @id @default(uuid())
+  request_id          String
+  checkout_session_id String?   @unique
+  checkout_url        String?
+  expires_at          DateTime?
+  setup_intent_id     String?
+  state               String    @default("CREATING") // CREATING | OPEN | PENDING_VERIFICATION | SUCCEEDED | FAILED | EXPIRED | SUPERSEDED
+  last_error_code     String?
+  payment_method_id   String?
+  method_type         String?
+  last4               String?
+  brand               String?
+  emailed_at          DateTime?
+  completed_at        DateTime?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  request OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@index([request_id])
+  @@index([state])
+  @@map("payment_setup")
+}
+
+model OnboardingEvent {
+  id              String    @id @default(uuid())
+  event_id        String    @unique
+  request_id      String
+  type            String
+  version         Int
+  payload         Json
+  delivered_at    DateTime?
+  attempts        Int       @default(0)
+  next_attempt_at DateTime?
+  last_error_code String?
+  created_at      DateTime  @default(now())
+
+  request OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@index([request_id, version])
+  @@index([type, delivered_at, next_attempt_at])
+  @@map("onboarding_event")
+}
+
+model ProviderWebhookReceipt {
+  id          String   @id @default(uuid())
+  provider    String
+  receipt_key String   @unique
+  received_at DateTime @default(now())
+
+  @@map("provider_webhook_receipt")
+}
+
+model DocumentAccessLog {
+  id         String   @id @default(uuid())
+  request_id String
+  actor      Json
+  document   String
+  at         DateTime @default(now())
+
+  request OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@index([request_id])
+  @@map("document_access_log")
+}
