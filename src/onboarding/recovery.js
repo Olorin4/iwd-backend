@@ -29,7 +29,36 @@ export async function failStaleProvisioning(deps, requestId) {
 }
 
 /**
+ * A PaymentSetup stuck in CREATING (process stopped during the Stripe call)
+ * for more than 10 min is FAILED `payment_setup_stale`, and so is the payment
+ * facet unless payment already progressed; resend_payment_link then works.
+ */
+export async function failStalePaymentSetups(deps, requestId) {
+    const { count } = await deps.db.paymentSetup.updateMany({
+        where: {
+            request_id: requestId,
+            state: "CREATING",
+            created_at: { lt: cutoff(deps) },
+        },
+        data: { state: "FAILED", last_error_code: "payment_setup_stale" },
+    });
+    if (count === 0) return false;
+    deps.logger?.error?.({ code: "onboarding_payment_setup_stale" });
+    await transition(deps.db, requestId, (row) =>
+        ["NOT_STARTED", "LINK_SENT", "FAILED"].includes(row.payment_state)
+            ? {
+                  payment_state: "FAILED",
+                  payment_code: "payment_setup_stale",
+                  payment_at: deps.now(),
+              }
+            : null
+    );
+    return true;
+}
+
+/**
  * Restarts the steps after signature and payment for one request:
+ * (0) PaymentSetup CREATING > 10 min → FAILED `payment_setup_stale`;
  * (a) signature COMPLETED + payment NOT_STARTED → initial payment link;
  * (c) stale PENDING provisioning → FAILED `provisioning_stale`;
  * (b) payment READY + provisioning NOT_STARTED → start provisioning.
@@ -40,6 +69,10 @@ export async function recoverRequestSteps(deps, requestId) {
         where: { id: requestId },
     });
     if (!row) return;
+    if (await failStalePaymentSetups(deps, requestId))
+        row = await deps.db.onboardingRequest.findUnique({
+            where: { id: requestId },
+        });
     if (
         !row.cancelled_at &&
         row.signature_state === "COMPLETED" &&
@@ -83,7 +116,17 @@ export async function stalledRequestIds(deps) {
         select: { id: true },
         take: 200,
     });
-    return rows.map((r) => r.id);
+    const stuck = await deps.db.paymentSetup.findMany({
+        where: { state: "CREATING", created_at: { lt: cutoff(deps) } },
+        select: { request_id: true },
+        take: 200,
+    });
+    return [
+        ...new Set([
+            ...rows.map((r) => r.id),
+            ...stuck.map((s) => s.request_id),
+        ]),
+    ];
 }
 
 /**

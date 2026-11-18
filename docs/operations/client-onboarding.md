@@ -257,7 +257,8 @@ Owner steps in the SignWell dashboard and mail:
 | Outreach unreachable                           | event retried (≤20 attempts)                  | fix Outreach; 3xx/5xx/network retried from 30 s (cap 1 h); 401/403/404 from 15 min doubling (cap 6 h); other 4xx except 408/429 stop the event. Each delivery is signed with its own timestamp; redirects are never followed |
 
 Crash recovery (reconcile worker pass and the `reconcile` action): after-commit
-steps that never ran are restarted. Signature COMPLETED + payment NOT_STARTED →
+steps that never ran are restarted. A PaymentSetup stuck in CREATING for more than 10 minutes →
+FAILED `payment_setup_stale` (payment facet too) so `resend_payment_link` works. Signature COMPLETED + payment NOT_STARTED →
 initial payment link; payment READY + provisioning NOT_STARTED → provisioning;
 provisioning PENDING for more than 10 minutes → FAILED `provisioning_stale`;
 NOT_SENT requests (with a code, or older than 10 minutes in the worker; any age

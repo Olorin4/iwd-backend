@@ -146,6 +146,49 @@ describe.each([
         expect(signature.calls.send).toBe(1);
     });
 
+    it("(e) PaymentSetup CREATING > 10 min → FAILED payment_setup_stale, then resend works", async () => {
+        await sentRequest();
+        await setRow({ signature_state: "COMPLETED" });
+        const row = await request();
+        const young = await prisma.paymentSetup.create({
+            data: { request_id: row.id, state: "CREATING" },
+        });
+        await recover();
+        expect(
+            (await prisma.paymentSetup.findUnique({ where: { id: young.id } }))
+                .state
+        ).toBe("CREATING");
+        expect((await request()).payment_state).toBe("NOT_STARTED");
+        await prisma.paymentSetup.update({
+            where: { id: young.id },
+            data: { created_at: new Date(Date.now() - 11 * MIN) },
+        });
+        await recover();
+        expect(
+            await prisma.paymentSetup.findUnique({ where: { id: young.id } })
+        ).toMatchObject({
+            state: "FAILED",
+            last_error_code: "payment_setup_stale",
+        });
+        expect(await request()).toMatchObject({
+            payment_state: "FAILED",
+            payment_code: "payment_setup_stale",
+        });
+        const status = (await app.call("GET", `/requests/${KEY}`)).json;
+        expect(status.blocked).toEqual({
+            code: "payment_setup_stale",
+            action: "resend_payment_link",
+        });
+        const resent = await app.call(
+            "POST",
+            `/requests/${KEY}/actions/resend_payment_link`,
+            { actor: ACTOR }
+        );
+        expect(resent.status).toBe(200);
+        expect((await request()).payment_state).toBe("LINK_SENT");
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+    });
+
     it("leaves a cancelled request alone", async () => {
         await sentRequest();
         await setRow({
