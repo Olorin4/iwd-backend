@@ -107,9 +107,9 @@ revoke the other deployment key.
 
 ## Next approval boundary
 
-Billing remains disabled. Before enabling manual live operation, review
-restricted-key permissions and Dashboard settings,
-and use a separately approved deployment to set `ENABLED=true` while keeping
+Billing remains disabled. The owner confirmed the required write permissions
+and disabled card/ACH retries on 2026-11-18; see [Stripe readiness](STRIPE-READINESS.md).
+Use a separately approved deployment to set `ENABLED=true` while keeping
 `AUTO_RUN=false`. Real carrier setup emails require authorization to contact that
 carrier; each run's exact invoice count and total must be approved before any
 charge. No real or synthetic carrier, draft invoice, payment method or charge
