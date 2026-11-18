@@ -17,8 +17,9 @@ export function paymentLinkEmail({ terms, url }) {
             `The next step is to save ${methods} on Stripe's secure page:\n${url}`,
             "Saving the payment method does not charge you. Fees are charged only as described in your signed agreement and payment authorization.",
             "Stripe collects the card or bank details. We will never ask for card or bank account numbers by email or phone.",
+            // The shared email signature (src/assets/signature.js) signs with the
+            // legal name, Iron Wing Logistics L.L.C.; no second sign-off here.
             "If the link no longer works, reply to this email and we will send a new one.",
-            "Iron Wing Logistics L.L.C.",
         ].join("\n\n"),
     };
 }
