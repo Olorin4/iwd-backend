@@ -106,6 +106,19 @@ const denied = (res) =>
             )
         );
 
+// A POST must come from the portal itself. Under Referrer-Policy no-referrer
+// a plain form (no JavaScript) sends Origin: null, so the browser's own
+// Sec-Fetch-Site: same-origin is accepted instead. The CSRF field is checked
+// in every case.
+function sameOriginPost(req, baseUrl) {
+    const origin = req.get("Origin");
+    if (origin === baseUrl) return true;
+    return (
+        (origin === undefined || origin === "null") &&
+        req.get("Sec-Fetch-Site") === "same-origin"
+    );
+}
+
 export function createPortalRouter(
     getConfig,
     getDeps,
@@ -154,7 +167,7 @@ export function createPortalRouter(
             };
             if (
                 req.method === "POST" &&
-                req.get("Origin") !== config.portal.baseUrl
+                !sameOriginPost(req, config.portal.baseUrl)
             )
                 return denied(res);
             next();
