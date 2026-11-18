@@ -1,0 +1,21 @@
+{
+    "temporary": "Manual bridge until permanent onboarding; never commit filled client records.",
+    "date": "2026-11-18",
+    "sources": [
+        {
+            "source": "dispatch-service-agreement.md",
+            "sha256": "3d00f23955311401612aef347adc56199e5a295213544d537a833327d09cbb5e",
+            "changes": "Editorial draft/provenance blockquotes removed from customer copy. Contract body unchanged."
+        },
+        {
+            "source": "limited-power-of-attorney.md",
+            "sha256": "7b95f274a44b4e0a19b36815d0fd4f73f44d4c0d06812ebc0c4c094cebfec460",
+            "changes": "Editorial draft/provenance blockquotes removed from customer copy. Contract body unchanged."
+        },
+        {
+            "source": "payment-authorization-form.md",
+            "sha256": "6a8b3e98f2251cfd19119d134e2ac695fa33b39802bf54d15f22c9ab08c0def2",
+            "changes": "Editorial draft/provenance blockquotes removed from customer copy. Full-number collection fields removed; Stripe-only collection instruction added; handling blockquote removed. Requires owner approval."
+        }
+    ]
+}
