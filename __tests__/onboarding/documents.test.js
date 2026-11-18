@@ -272,6 +272,33 @@ describe("PDF inspection and filling", () => {
         }
     });
 
+    it("the v3 layout (POA table DISPATCH (Agent) | CARRIER) differs from v2 only in the page-5 table and fits", async () => {
+        const v2 = releaseLayout(2);
+        const v3 = releaseLayout(3);
+        expect(v3.bundle).toBe("Iron-Wing-Onboarding-Packet-v3.pdf");
+        expect(v3.fields).toHaveLength(v2.fields.length);
+        const changed = v3.fields
+            .map((f, i) => [f, v2.fields[i]])
+            .filter(([a, b]) => JSON.stringify(a) !== JSON.stringify(b));
+        expect(changed).toHaveLength(7);
+        for (const [a, b] of changed) {
+            expect(a.page).toBe(5);
+            // Same row, other column: only x moves, by one column width.
+            expect({ ...a, x: 0 }).toEqual({ ...b, x: 0 });
+            expect(Math.abs(a.x - b.x)).toBeCloseTo(259.4, 1);
+        }
+        const layout = layoutSchema.parse(v3);
+        const [filled] = await fillPacket(
+            [{ name: v3.bundle, bytes: await makeBlankPages(6) }],
+            layout,
+            terms,
+            countersigner
+        );
+        expect(
+            filled.fields.filter((f) => f.type.startsWith("signature")).length
+        ).toBe(5);
+    });
+
     it("the owner-approved v2 (legal name) layout differs from v1 only in the page-1 opening and fits", async () => {
         const v1 = releaseLayout(1);
         const v2 = releaseLayout(2);

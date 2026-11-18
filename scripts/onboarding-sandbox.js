@@ -10,8 +10,8 @@
 //   (or ONBOARDING_SANDBOX_CARRIER_RECIPIENT=… ONBOARDING_SANDBOX_DISPATCH_RECIPIENT=…) \
 //   ONBOARDING_SANDBOX_BUDGET_FILE=/private/onboarding-sandbox-budget.json \
 //   node -r dotenv/config scripts/onboarding-sandbox.js start \
-//       --pdf /path/Iron-Wing-Onboarding-Packet-v2.pdf --sha256 <expected hex> \
-//       --layout docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v2.layout.json
+//       --pdf /path/Iron-Wing-Onboarding-Packet-v3.pdf --sha256 <expected hex> \
+//       --layout docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v3.layout.json
 //   node -r dotenv/config scripts/onboarding-sandbox.js status --key <idempotency key>
 //   node -r dotenv/config scripts/onboarding-sandbox.js reconcile --key <idempotency key>
 //

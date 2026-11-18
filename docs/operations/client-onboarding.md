@@ -309,3 +309,11 @@ when naming the company. Lawyer confirmation of the v2 wording is pending.
   Stripe's setup page. Iron Wing's signer passing through it sees a neutral "packet now goes to
   the carrier" page. The payment-link email is still sent after both signatures as a backup.
   (An earlier carrier-first order sent only the countersigner to Stripe — fixed.)
+
+## Release v3 (2026-11-18)
+
+The power of attorney's signature table is `DISPATCH (Agent) | CARRIER` (was
+`CARRIER | Accepted by DISPATCH`), matching the agreement and the signing order. Every
+cell and blank keeps its position; `Iron-Wing-Onboarding-Packet-v3.layout.json` differs
+from layout v2 only in the seven page-5 table fields, which moved one column. Register v3
+with its own sha256 (3ae7aa7b…60de) once its layout is approved; v2 is superseded.
