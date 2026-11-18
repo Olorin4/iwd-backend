@@ -159,6 +159,15 @@ export async function applyFacetChange(tx, row, changes, now = new Date()) {
         expiry.setUTCFullYear(expiry.getUTCFullYear() + 3);
         if (expiry.getUTCMonth() !== month) expiry.setUTCDate(0);
         data.purge_after = expiry;
+    } else if (
+        row.ready_at &&
+        (readiness === "IN_PROGRESS" || readiness === "BLOCKED")
+    ) {
+        // Back to work after READY (undo verify, re-upload request): the
+        // carrier's link works again and the 3-year clock restarts at the next
+        // READY. A cancellation (CLOSED) keeps the completed-onboarding date.
+        data.ready_at = null;
+        data.purge_after = null;
     } else if (!row.ready_at && data.cancelled_at) {
         data.purge_after = new Date(
             data.cancelled_at.getTime() + 90 * 86400000

@@ -736,3 +736,27 @@ test("verify applies only to the document version the closer saw", async () => {
     await act(row, "verify_operation_item", { key: "CARRIER_PROFILE" });
     expect((await refreshed(row.id)).operations.find((i) => i.key === "CARRIER_PROFILE").state).toBe("VERIFIED");
 });
+
+test("a request that leaves READY reopens its link and drops the 3-year purge date", async () => {
+    const row = await createRequest({
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    });
+    let operations = row.operations;
+    for (const slot of OPERATION_SLOTS)
+        operations = verifyOperationItem(
+            operations,
+            slot === "FACTORING" ? "NOT_FACTORING" : slot,
+            { actor: ACTOR, at: DATE }
+        );
+    await db.$transaction(async (tx) =>
+        applyFacetChange(tx, await lockRequest(tx, row.id), { operations }, DATE)
+    );
+    const token = await issuePortalToken(deps, row.id);
+    const raw = pathname(token).slice(3);
+    now = new Date(DATE.getTime() + 40 * 86400000);
+    expect(await resolvePortalToken(deps, raw)).toEqual({ error: "inactive" });
+    await act(row, "unverify_operation_item", { key: "INSURANCE_COI" });
+    expect(await refreshed(row.id)).toMatchObject({ ready_at: null, purge_after: null });
+    expect(Boolean((await resolvePortalToken(deps, raw)).row)).toBe(true);
+});
