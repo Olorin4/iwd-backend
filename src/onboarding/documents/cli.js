@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { approveBundle, registerBundle, retireBundle } from "./bundles.js";
+import { sha256 } from "./store.js";
 
 const USAGE = `Usage:
-  onboarding-bundle register --name <name> --version <n> --pdf <file.pdf> [--pdf <file.pdf>] --layout <layout.json>
+  onboarding-bundle register --name <name> --version <n> --pdf <file.pdf> [--pdf <file.pdf>] --layout <layout.json> [--expect-sha256 <hex>]
   onboarding-bundle approve --id <bundle id> --by <approver>
   onboarding-bundle retire --id <bundle id>
   onboarding-bundle list [--name <name>]`;

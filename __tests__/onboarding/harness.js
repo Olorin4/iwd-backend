@@ -2,6 +2,7 @@
 // the onboarding router (never src/app.js), signed request helpers and table
 // cleanup. Not a test file itself.
 import express from "express";
+import pg from "pg";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -47,9 +48,38 @@ export const TABLES = [
 export async function cleanTables(db) {
     for (const table of TABLES)
         await db.$executeRawUnsafe(`DELETE FROM "${table}"`);
-    await db.$executeRawUnsafe(
-        `DELETE FROM "document_bundle_version" WHERE "status" = 'DRAFT'`
-    );
+}
+
+/**
+ * Onboarding integration files share tables and jest runs files in parallel,
+ * so each file holds a session advisory lock for its whole run.
+ */
+export function serializeSuite() {
+    let client;
+    beforeAll(async () => {
+        client = new pg.Client({ connectionString: process.env.DB_URL });
+        await client.connect();
+        await client.query("SELECT pg_advisory_lock(424242)");
+    }, 180000);
+    afterAll(async () => {
+        await client.query("SELECT pg_advisory_unlock(424242)");
+        await client.end();
+    });
+}
+
+/** Removes bundle rows by name prefix (approved rows need the guard off). */
+export async function deleteBundles(db, prefix) {
+    await db.$transaction([
+        db.$executeRawUnsafe(
+            `ALTER TABLE "document_bundle_version" DISABLE TRIGGER "document_bundle_version_guard"`
+        ),
+        db.documentBundleVersion.deleteMany({
+            where: { name: { startsWith: prefix } },
+        }),
+        db.$executeRawUnsafe(
+            `ALTER TABLE "document_bundle_version" ENABLE TRIGGER "document_bundle_version_guard"`
+        ),
+    ]);
 }
 
 export function tempDir() {
@@ -112,4 +142,79 @@ export async function startApp(getConfig, getDeps) {
         call,
         close: () => new Promise((r) => server.close(r)),
     };
+}
+
+export const BUNDLE = "test-onboarding-packet";
+export const WEBHOOK_ID = "signwell-webhook-id-for-tests";
+
+/** Full test configuration (fake providers; nothing reaches a network). */
+export function testConfig(dir, overrides = {}) {
+    return {
+        enabled: true,
+        serviceToken: TOKEN,
+        requestSigningSecret: SIGNING,
+        publicBaseUrl: "https://api.example.test",
+        continueSecret: "c".repeat(40),
+        continueTtlSeconds: 30 * 86400,
+        documents: {
+            dir: path.join(dir, "documents"),
+            key: Buffer.alloc(32, 5),
+        },
+        bundleName: BUNDLE,
+        signature: {
+            provider: "fake",
+            webhookId: WEBHOOK_ID,
+            countersigner: {
+                name: "Dispatch Lead",
+                email: "dispatch@example.test",
+            },
+        },
+        stripe: {
+            secretKey: "sk_test_onboarding_fake_key",
+            live: false,
+            webhookSecret: "whsec_onboarding_test_secret",
+            successUrl: "https://example.test/payment-saved",
+            cancelUrl: "https://example.test/payment-cancelled",
+        },
+        provisioning: { adapter: "manual" },
+        outbox: { enabled: false },
+        reconcile: { enabled: false },
+        email: { from: "onboarding@example.test" },
+        ...overrides,
+    };
+}
+
+/** A task queue standing in for setImmediate scheduling. */
+export function taskQueue() {
+    const tasks = [];
+    const schedule = (fn) => tasks.push(fn);
+    const drain = async () => {
+        while (tasks.length) await tasks.shift()();
+    };
+    return { schedule, drain, tasks };
+}
+
+export function captureLogger() {
+    const lines = [];
+    const push = (level) => (entry) => lines.push({ level, ...entry });
+    return {
+        lines,
+        error: push("error"),
+        info: push("info"),
+        warn: push("warn"),
+    };
+}
+
+export async function approveTestBundle(db, store, { makePacket, layout }) {
+    const { registerBundle, approveBundle } = await import(
+        "../../src/onboarding/documents/bundles.js"
+    );
+    await deleteBundles(db, BUNDLE);
+    const draft = await registerBundle(db, store, {
+        name: BUNDLE,
+        version: 1,
+        pdfs: [{ name: "packet.pdf", bytes: await makePacket() }],
+        layout,
+    });
+    return approveBundle(db, store, { id: draft.id, by: "Test Owner" });
 }

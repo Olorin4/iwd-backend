@@ -1,4 +1,19 @@
 import { recordReceipt } from "./store.js";
+import { createFileDocumentStore } from "./documents/store.js";
+import { createSignwellProvider } from "./signature/signwell.js";
+import { createFakeSignatureProvider } from "./signature/fake.js";
+import { sendPacket } from "./signatureFlow.js";
+
+function signatureFromConfig(config) {
+    if (config.signature.provider === "fake")
+        return createFakeSignatureProvider();
+    return createSignwellProvider({
+        apiKey: config.signature.apiKey,
+        testMode: config.signature.testMode,
+        expiresInDays: config.signature.expiresInDays,
+        timeoutMs: config.signature.timeoutMs,
+    });
+}
 
 /**
  * Builds the dependency bag used by routes, services and workers. Production
@@ -28,8 +43,12 @@ export function createOnboardingDeps(
                     )
             ),
         recordReceipt: (provider, key) => recordReceipt(db, provider, key),
-        onRequestCreated: async () => {},
+        onRequestCreated: (row) => sendPacket(deps, row.id),
+        onSignatureCompleted: async () => {},
         ...overrides,
     };
+    if (!deps.documentStore)
+        deps.documentStore = createFileDocumentStore(config.documents);
+    if (!deps.signature) deps.signature = signatureFromConfig(config);
     return deps;
 }

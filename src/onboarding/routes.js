@@ -1,6 +1,7 @@
 import express from "express";
 import { requireService } from "./auth.js";
 import { OnboardingError, getRequestStatus, putRequest } from "./requests.js";
+import { handleSignwellWebhook } from "./signatureFlow.js";
 
 /** Captures the raw JSON body for HMAC and webhook signature checks. */
 export function onboardingRawBody(req, res, buf) {
@@ -64,6 +65,18 @@ export function createOnboardingRouter(getConfig, getDeps) {
         wrap(async (req, res, d) =>
             res.json(await getRequestStatus(d, req.params.key))
         )
+    );
+
+    // Provider webhooks: authenticated by the provider's own scheme, then
+    // treated as hints (the owning record is re-fetched).
+    router.post(
+        "/webhooks/signwell",
+        wrap(async (req, res, d) => {
+            const status = await handleSignwellWebhook(d, req.body);
+            res.status(status).json(
+                status === 200 ? { received: true } : { error: "invalid_event" }
+            );
+        })
     );
 
     router.use((error, req, res, next) => {

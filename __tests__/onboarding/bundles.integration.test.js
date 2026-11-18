@@ -8,7 +8,9 @@ import {
     loadBundleFiles,
 } from "../../src/onboarding/documents/bundles";
 import { makeSyntheticPacket, syntheticLayout } from "./pdfFixtures";
-import { tempDir } from "./harness";
+import { deleteBundles, serializeSuite, tempDir } from "./harness";
+
+serializeSuite();
 
 const NAME = "test-bundle-cli";
 let dir, store, out;
