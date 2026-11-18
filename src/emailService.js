@@ -49,7 +49,9 @@ function textToHtml(text) {
 }
 
 // Sends `text` as a plain-text part and as HTML with the signature.
-async function sendEmail({ text, ...mailOptions }) {
+// `attachments` (optional) are added after the signature logo; callers that
+// pass none send exactly what they always did.
+async function sendEmail({ text, attachments = [], ...mailOptions }) {
     if (!validateEmail(mailOptions.to)) {
         throw new Error("Invalid recipient email address.");
     }
@@ -64,6 +66,7 @@ async function sendEmail({ text, ...mailOptions }) {
                 path: "src/assets/logo.jpg",
                 cid: "companyLogo",
             },
+            ...attachments,
         ],
     });
 }

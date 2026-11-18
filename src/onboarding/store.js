@@ -20,6 +20,7 @@ const FACET_FIELDS = [
     "kelevo_ref",
     "provisioning_at",
     "operations",
+    "documents_requested_at",
     "cancelled_at",
     "bundle_version_id",
 ];

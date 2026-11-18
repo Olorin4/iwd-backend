@@ -147,3 +147,53 @@ describe("signature", () => {
         );
     });
 });
+
+describe("sendEmail attachments", () => {
+    // The exact message interim billing and the forms send today (they never
+    // pass attachments). Must stay byte-identical.
+    const interimShaped = {
+        from: "support@example.com",
+        to: "admin@example.com",
+        subject: "Run summary",
+        text: "Line one\n\nLine two",
+    };
+
+    it("leaves callers without attachments unchanged", async () => {
+        const { service, sendMail } = load();
+        await service.sendEmail({ ...interimShaped });
+        const mail = sendMail.mock.calls[0][0];
+        expect(Object.keys(mail).sort()).toEqual(
+            ["attachments", "from", "html", "subject", "text", "to"].sort()
+        );
+        expect(mail.attachments).toEqual([
+            {
+                filename: "logo.jpg",
+                path: "src/assets/logo.jpg",
+                cid: "companyLogo",
+            },
+        ]);
+        expect(mail.from).toBe("support@example.com");
+        expect(mail.to).toBe("admin@example.com");
+        expect(mail.subject).toBe("Run summary");
+        expect(mail.text.startsWith("Line one\n\nLine two\n\nBest\n\n")).toBe(
+            true
+        );
+        expect(mail.html).toContain("<p>Line one</p>\n<p>Line two</p>");
+    });
+
+    it("adds extra attachments after the logo", async () => {
+        const { service, sendMail } = load();
+        const pdf = {
+            filename: "a.pdf",
+            content: Buffer.from("%PDF"),
+            contentType: "application/pdf",
+        };
+        await service.sendEmail({ ...interimShaped, attachments: [pdf] });
+        const { attachments } = sendMail.mock.calls[0][0];
+        expect(attachments.map((a) => a.cid ?? a.filename)).toEqual([
+            "companyLogo",
+            "a.pdf",
+        ]);
+        expect(attachments[1]).toBe(pdf);
+    });
+});

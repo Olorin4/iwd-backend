@@ -342,7 +342,17 @@ it("signed document download is authenticated, needs an actor and is logged", as
     expect(ok.headers.get("content-type")).toMatch(/application\/pdf/);
     expect(ok.headers.get("cache-control")).toBe("no-store");
     expect(ok.text.startsWith("%PDF-")).toBe(true);
-    let logs = await prisma.documentAccessLog.findMany();
+    // The R15 completion email's attachment is logged as its own disclosure.
+    const downloads = {
+        where: { document: { startsWith: "signed_packet:" } },
+        orderBy: { at: "asc" },
+    };
+    expect(
+        await prisma.documentAccessLog.count({
+            where: { document: { startsWith: "signed_packet_email:" } },
+        })
+    ).toBe(1);
+    let logs = await prisma.documentAccessLog.findMany(downloads);
     expect(logs).toHaveLength(1);
     expect(logs[0].actor).toEqual(ACTOR);
     // The log records the signed actor (canonical lower-case email).
@@ -352,9 +362,7 @@ it("signed document download is authenticated, needs an actor and is logged", as
             "X-IW-Actor-Email": ACTOR.email.toUpperCase(),
         },
     });
-    logs = await prisma.documentAccessLog.findMany({
-        orderBy: { at: "asc" },
-    });
+    logs = await prisma.documentAccessLog.findMany(downloads);
     expect(logs).toHaveLength(2);
     expect(logs[1].actor).toEqual(ACTOR);
 });

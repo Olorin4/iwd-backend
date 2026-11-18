@@ -1,6 +1,7 @@
 import { transition } from "./store.js";
 import { issuePaymentLink } from "./paymentFlow.js";
 import { startProvisioning } from "./provisioningFlow.js";
+import { sendCompletionEmail } from "./documentsFlow.js";
 
 // Crash recovery. Each step of the lifecycle is started by an after-commit
 // task (deps.schedule); a process stop between the commit and that task leaves
@@ -59,7 +60,9 @@ export async function failStalePaymentSetups(deps, requestId) {
 /**
  * Restarts the steps after signature and payment for one request:
  * (0) PaymentSetup CREATING > 10 min → FAILED `payment_setup_stale`;
- * (a) signature COMPLETED + payment NOT_STARTED → initial payment link;
+ * (a) signature COMPLETED + payment NOT_STARTED → initial payment link, and
+ *     signature COMPLETED + combined email not sent → that email (R15; sent
+ *     whatever the payment state, e.g. already READY);
  * (c) stale PENDING provisioning → FAILED `provisioning_stale`;
  * (b) payment READY + provisioning NOT_STARTED → start provisioning.
  * Every step re-checks its own preconditions under the request lock.
@@ -79,6 +82,14 @@ export async function recoverRequestSteps(deps, requestId) {
         row.payment_state === "NOT_STARTED"
     )
         await issuePaymentLink(deps, requestId, { mode: "initial" });
+    // R15: the combined completion email whatever the payment state (the
+    // carrier may already have saved a method); claimed once per request.
+    if (
+        !row.cancelled_at &&
+        row.signature_state === "COMPLETED" &&
+        !row.completion_emailed_at
+    )
+        await sendCompletionEmail(deps, requestId);
     if (row.provisioning_state === "PENDING")
         await failStaleProvisioning(deps, requestId);
     row = await deps.db.onboardingRequest.findUnique({
@@ -101,6 +112,11 @@ export async function stalledRequestIds(deps) {
                     cancelled_at: null,
                     signature_state: "COMPLETED",
                     payment_state: "NOT_STARTED",
+                },
+                {
+                    cancelled_at: null,
+                    signature_state: "COMPLETED",
+                    completion_emailed_at: null,
                 },
                 {
                     cancelled_at: null,

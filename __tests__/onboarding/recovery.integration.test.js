@@ -70,6 +70,22 @@ const setRow = (data) =>
 const reconcileAction = () =>
     app.call("POST", `/requests/${KEY}/actions/reconcile`, { actor: ACTOR });
 
+/**
+ * A request whose packet both parties signed; the after-commit completion
+ * step (payment link + combined email) never ran.
+ */
+async function completedRequest() {
+    await sentRequest();
+    const [envelope] = await prisma.signatureEnvelope.findMany();
+    signature.complete(envelope.provider_document_id);
+    await deps.reconcileSignature(envelope.request_id);
+    crash();
+    const row = await request();
+    expect(row.signature_state).toBe("COMPLETED");
+    expect(row.completion_emailed_at).toBeNull();
+    return row;
+}
+
 /** A request whose packet went out, before anything else ran. */
 async function sentRequest() {
     await app.call("PUT", `/requests/${KEY}`, requestBody());
@@ -82,14 +98,45 @@ describe.each([
     ["the reconcile action", () => reconcileAction()],
 ])("crash recovery via %s", (_, recover) => {
     it("(a) signature COMPLETED, payment NOT_STARTED → issues the initial payment link", async () => {
-        await sentRequest();
-        await setRow({ signature_state: "COMPLETED" });
+        await completedRequest();
         await recover();
         await queue.drain();
         const row = await request();
         expect(row.payment_state).toBe("LINK_SENT");
         expect(await prisma.paymentSetup.count()).toBe(1);
         expect(sendEmail).toHaveBeenCalledTimes(1);
+        expect(sendEmail.mock.calls[0][0].attachments).toHaveLength(1);
+        expect((await prisma.paymentSetup.findFirst()).emailed_at).not.toBe(
+            null
+        );
+        await recover();
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it("(a) R15: the combined email still goes out once when the carrier already saved a payment method", async () => {
+        const row = await completedRequest();
+        // The carrier went straight from SignWell to Stripe (continue link)
+        // and saved a card before the after-commit email ever ran.
+        const { issuePaymentLink } = await import(
+            "../../src/onboarding/paymentFlow"
+        );
+        await issuePaymentLink(deps, row.id, { mode: "continue" });
+        const setup = await prisma.paymentSetup.findFirst();
+        expect(setup.emailed_at).toBeNull();
+        stripe.complete(setup.checkout_session_id, { type: "card" });
+        const { reconcilePayment } = await import(
+            "../../src/onboarding/paymentFlow"
+        );
+        await reconcilePayment(deps, row.id);
+        crash();
+        expect((await request()).payment_state).toBe("READY");
+        expect(sendEmail).not.toHaveBeenCalled();
+        await recover();
+        await recover();
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+        const mail = sendEmail.mock.calls[0][0];
+        expect(mail.subject).toMatch(/^Your signed Iron Wing agreement/);
+        expect((await request()).completion_emailed_at).not.toBeNull();
     });
 
     it("(b) payment READY, provisioning NOT_STARTED → starts provisioning", async () => {

@@ -340,10 +340,15 @@ it("a Stripe failure while creating the session blocks with resend_payment_link"
         payment_state: "FAILED",
         payment_code: "stripe_session_failed",
     });
-    expect(sendEmail).not.toHaveBeenCalled();
+    // R15: the combined email (continue link, signed copy) still goes out.
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail.mock.calls[0][0].attachments).toHaveLength(1);
     await issuePaymentLink(deps, (await request()).id, { mode: "resend" });
     expect((await request()).payment_state).toBe("LINK_SENT");
-    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    expect(sendEmail.mock.calls[1][0].subject).toBe(
+        "Next step: save your payment method for Iron Wing"
+    );
 });
 
 it("a concurrent webhook and reconcile record READY once (one status event)", async () => {

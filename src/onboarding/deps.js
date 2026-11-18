@@ -4,6 +4,7 @@ import { createSignwellProvider } from "./signature/signwell.js";
 import { createFakeSignatureProvider } from "./signature/fake.js";
 import { reconcileSignature, sendPacket } from "./signatureFlow.js";
 import { issuePaymentLink } from "./paymentFlow.js";
+import { sendCompletionEmail } from "./documentsFlow.js";
 import { createPaymentsStripe } from "../payments/index.js";
 import { startProvisioning } from "./provisioningFlow.js";
 import { provisioningFromConfig } from "./provisioning/adapters.js";
@@ -49,8 +50,16 @@ export function createOnboardingDeps(
             ),
         recordReceipt: (provider, key) => recordReceipt(db, provider, key),
         onRequestCreated: (row) => sendPacket(deps, row.id),
-        onSignatureCompleted: (requestId) =>
-            issuePaymentLink(deps, requestId, { mode: "initial" }),
+        // R15: the combined completion email goes out even when the payment
+        // link is skipped (e.g. the carrier already saved a method via the
+        // SignWell redirect); it is claimed once per request.
+        onSignatureCompleted: async (requestId) => {
+            try {
+                await issuePaymentLink(deps, requestId, { mode: "initial" });
+            } finally {
+                await sendCompletionEmail(deps, requestId);
+            }
+        },
         onPaymentReady: (requestId) => startProvisioning(deps, requestId),
         reconcileSignature: (requestId) => reconcileSignature(deps, requestId),
         ...overrides,

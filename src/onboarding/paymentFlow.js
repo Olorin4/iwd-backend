@@ -8,6 +8,11 @@ import {
 import { continueUrl } from "./continueToken.js";
 import { paymentLinkEmail } from "./emails.js";
 import {
+    completionEmailClaimed,
+    replyToOf,
+    sendCompletionEmail,
+} from "./documentsFlow.js";
+import {
     getClient,
     setClientPaymentMethod,
     setStripeCustomerId,
@@ -27,7 +32,21 @@ const sessionUsable = (setup, now) =>
     setup.checkout_url &&
     (!setup.expires_at || setup.expires_at - now > 60000);
 
-async function emailOnce(deps, setup, row) {
+/**
+ * R15: the combined completion email (documentsFlow) is the payment-link
+ * email. A setup counts as emailed once that email has been claimed for its
+ * request, so the payment reconcile never sends another.
+ */
+async function markEmailedIfCompletionSent(deps, setup) {
+    if (await completionEmailClaimed(deps.db, setup.request_id))
+        await deps.db.paymentSetup.updateMany({
+            where: { id: setup.id, emailed_at: null },
+            data: { emailed_at: deps.now() },
+        });
+}
+
+/** The operator's resend: the plain payment-link email, once per setup. */
+async function emailResend(deps, setup, row) {
     const { count } = await deps.db.paymentSetup.updateMany({
         where: { id: setup.id, emailed_at: null },
         data: { emailed_at: deps.now() },
@@ -41,6 +60,7 @@ async function emailOnce(deps, setup, row) {
         await deps.sendEmail({
             from: deps.config.email.from,
             to: row.terms.recipient_email,
+            ...replyToOf(deps.config),
             subject,
             text,
         });
@@ -58,7 +78,8 @@ async function emailOnce(deps, setup, row) {
 
 /**
  * Issues a Checkout setup session after the signature is COMPLETED.
- * mode "initial": after signing (emails the link once).
+ * mode "initial": after signing (the link goes out in the R15 combined
+ * completion email, sent by the caller; see deps.onSignatureCompleted).
  * mode "resend": operator action; supersedes any open session, emails again.
  * mode "continue": the continue link needs a usable session (no email).
  * Returns { setup } or { skipped: code }.
@@ -87,7 +108,8 @@ export async function issuePaymentLink(
     const existing = await openSetup(db, requestId);
     if (existing && mode !== "resend") {
         if (sessionUsable(existing, now)) {
-            if (mode === "initial") await emailOnce(deps, existing, row);
+            if (mode === "initial")
+                await markEmailedIfCompletionSent(deps, existing);
             return { setup: existing };
         }
         if (existing.state === "CREATING") return { skipped: "in_progress" };
@@ -174,7 +196,8 @@ export async function issuePaymentLink(
                   payment_at: now,
               }
     );
-    if (mode !== "continue") await emailOnce(deps, setup, row);
+    if (mode === "resend") await emailResend(deps, setup, row);
+    else await markEmailedIfCompletionSent(deps, setup);
     return { setup };
 }
 
@@ -411,15 +434,25 @@ export async function reconcilePayment(deps, requestId) {
         : await applySession(deps, setup, setup.checkout_session_id);
     // A link whose email never went out (process stopped between creating the
     // session and emailing, or SMTP failed and released the claim) is emailed
-    // exactly once, and only while the refreshed session is still OPEN;
-    // emailOnce claims emailed_at atomically.
+    // only while the refreshed session is still OPEN. R15: that email is the
+    // combined completion email, claimed once per request, so this never
+    // sends a second one.
     const fresh = await find();
     if (fresh?.id === setup.id && fresh.state === "OPEN" && !fresh.emailed_at) {
         const row = await deps.db.onboardingRequest.findUnique({
             where: { id: requestId },
         });
-        if (row && !row.cancelled_at && row.signature_state === "COMPLETED")
-            await emailOnce(deps, fresh, row);
+        if (row && !row.cancelled_at && row.signature_state === "COMPLETED") {
+            // Every setup is marked emailed once the combined email is
+            // claimed, so an unmarked setup after that is a resend whose email
+            // failed: retry that. Otherwise the combined email is still due.
+            if (await completionEmailClaimed(deps.db, requestId))
+                await emailResend(deps, fresh, row);
+            else {
+                await sendCompletionEmail(deps, requestId);
+                await markEmailedIfCompletionSent(deps, fresh);
+            }
+        }
     }
     return result;
 }
