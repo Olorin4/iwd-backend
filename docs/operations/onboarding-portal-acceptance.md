@@ -22,7 +22,7 @@ Plan: `docs/superpowers/plans/2026-11-18-client-onboarding-portal.md` (Task 17).
 - **Tests:** iwd 631 unit + 156 integration; Outreach 1,088 web + 2,831 API unit + 543
   integration (disposable UTC PostgreSQL). Shared portal fixture identical in both repos.
 - **Look:** `onboarding-portal-acceptance/mobile.png` (390 px) and `desktop.png` (1280 px),
-  synthetic data. Owner approval of look and email texts pending.
+  synthetic data. Approved by the owner with the email texts (2026-11-18).
 
 ## Sandbox end-to-end run (2026-11-18)
 
