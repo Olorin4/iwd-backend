@@ -16,6 +16,7 @@ import { putRequest } from "../../src/onboarding/requests.js";
 import { createPortalRouter } from "../../src/onboarding/portal/routes.js";
 import {
     issuePortalToken,
+    activePortalUrl,
     resolvePortalToken,
 } from "../../src/onboarding/portal/tokens.js";
 import { csrfToken } from "../../src/onboarding/portal/csrf.js";
@@ -724,17 +725,33 @@ test("verify applies only to the document version the closer saw", async () => {
     const first = await recordUpload(deps, row.id, "W9", pdf, upload);
     const second = await recordUpload(deps, row.id, "W9", pdf, upload);
     await expect(
-        act(row, "verify_operation_item", { key: "W9", document_id: first.documentId })
+        act(row, "verify_operation_item", {
+            key: "W9",
+            document_id: first.documentId,
+        })
     ).rejects.toMatchObject({ extra: { code: "document_changed" } });
-    await expect(act(row, "verify_operation_item", { key: "W9" })).rejects.toMatchObject({
+    await expect(
+        act(row, "verify_operation_item", { key: "W9" })
+    ).rejects.toMatchObject({
         extra: { code: "document_changed" },
     });
-    expect((await refreshed(row.id)).operations.find((i) => i.key === "W9").state).toBe("RECEIVED");
-    await act(row, "verify_operation_item", { key: "W9", document_id: second.documentId });
-    expect((await refreshed(row.id)).operations.find((i) => i.key === "W9").state).toBe("VERIFIED");
+    expect(
+        (await refreshed(row.id)).operations.find((i) => i.key === "W9").state
+    ).toBe("RECEIVED");
+    await act(row, "verify_operation_item", {
+        key: "W9",
+        document_id: second.documentId,
+    });
+    expect(
+        (await refreshed(row.id)).operations.find((i) => i.key === "W9").state
+    ).toBe("VERIFIED");
     // Items with no stored file (carrier profile) verify without a document id.
     await act(row, "verify_operation_item", { key: "CARRIER_PROFILE" });
-    expect((await refreshed(row.id)).operations.find((i) => i.key === "CARRIER_PROFILE").state).toBe("VERIFIED");
+    expect(
+        (await refreshed(row.id)).operations.find(
+            (i) => i.key === "CARRIER_PROFILE"
+        ).state
+    ).toBe("VERIFIED");
 });
 
 test("a request that leaves READY reopens its link and drops the 3-year purge date", async () => {
@@ -750,13 +767,97 @@ test("a request that leaves READY reopens its link and drops the 3-year purge da
             { actor: ACTOR, at: DATE }
         );
     await db.$transaction(async (tx) =>
-        applyFacetChange(tx, await lockRequest(tx, row.id), { operations }, DATE)
+        applyFacetChange(
+            tx,
+            await lockRequest(tx, row.id),
+            { operations },
+            DATE
+        )
     );
     const token = await issuePortalToken(deps, row.id);
     const raw = pathname(token).slice(3);
+    const purgeAfter = (await refreshed(row.id)).purge_after;
     now = new Date(DATE.getTime() + 40 * 86400000);
     expect(await resolvePortalToken(deps, raw)).toEqual({ error: "inactive" });
     await act(row, "unverify_operation_item", { key: "INSURANCE_COI" });
-    expect(await refreshed(row.id)).toMatchObject({ ready_at: null, purge_after: null });
-    expect(Boolean((await resolvePortalToken(deps, raw)).row)).toBe(true);
+    // The 3-year date stays as a ceiling; the expired link stays dead and a
+    // fresh one (the one the next email uses) works.
+    expect(await refreshed(row.id)).toMatchObject({
+        ready_at: null,
+        purge_after: purgeAfter,
+    });
+    expect(await resolvePortalToken(deps, raw)).toEqual({ error: "inactive" });
+    const fresh = await activePortalUrl(deps, row.id);
+    expect(fresh).not.toBe(token.url);
+    expect(
+        Boolean(
+            (await resolvePortalToken(deps, new URL(fresh).pathname.slice(3)))
+                .row
+        )
+    ).toBe(true);
+});
+
+test("leaving READY inside the 30-day window keeps the carrier's current link", async () => {
+    const row = await createRequest({
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    });
+    let operations = row.operations;
+    for (const slot of OPERATION_SLOTS)
+        operations = verifyOperationItem(
+            operations,
+            slot === "FACTORING" ? "NOT_FACTORING" : slot,
+            { actor: ACTOR, at: DATE }
+        );
+    await db.$transaction(async (tx) =>
+        applyFacetChange(
+            tx,
+            await lockRequest(tx, row.id),
+            { operations },
+            DATE
+        )
+    );
+    const token = await issuePortalToken(deps, row.id);
+    now = new Date(DATE.getTime() + 10 * 86400000);
+    await act(row, "unverify_operation_item", { key: "INSURANCE_COI" });
+    expect(await activePortalUrl(deps, row.id)).toBe(token.url);
+});
+
+test("a form posted without JavaScript (Origin: null) passes only as a same-origin fetch", async () => {
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const base = pathname(token);
+    const body = "csrf=" + csrfToken(config.portal.tokenSecret, token.tokenId);
+    const post = (headers) =>
+        browser(base + "/not-factoring", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+                ...headers,
+            },
+            body,
+        });
+    expect((await post({ Origin: "null" })).status).toBe(403);
+    expect(
+        (await post({ Origin: "null", "Sec-Fetch-Site": "cross-site" })).status
+    ).toBe(403);
+    expect((await post({ "Sec-Fetch-Site": "same-site" })).status).toBe(403);
+    expect(
+        (
+            await post({
+                Origin: "https://evil.example",
+                "Sec-Fetch-Site": "same-origin",
+            })
+        ).status
+    ).toBe(403);
+    expect(
+        (await post({ Origin: "null", "Sec-Fetch-Site": "same-origin" })).status
+    ).toBe(303);
+    expect(
+        (await refreshed(row.id)).operations.find(
+            (item) => item.key === "NOT_FACTORING"
+        )?.state
+    ).toBe("RECEIVED");
 });

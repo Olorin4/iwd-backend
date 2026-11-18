@@ -1,6 +1,9 @@
 // Settings for the permanent onboarding module. Errors name the setting, never
 // its value. Everything is off unless ONBOARDING_ENABLED=1.
 
+// A carrier's link keeps working this long after READY or cancellation.
+export const PORTAL_LINK_GRACE_DAYS = 30;
+
 export const ONBOARDING_STRIPE_API_VERSION = "2026-10-28.endive";
 
 export class OnboardingConfigError extends Error {
@@ -154,7 +157,7 @@ function portalSettings(env) {
             tokenSecret: enabled
                 ? required(env, "ONBOARDING_PORTAL_TOKEN_SECRET", { min: 32 })
                 : null,
-            linkGraceDays: 30,
+            linkGraceDays: PORTAL_LINK_GRACE_DAYS,
         },
         files: {
             r2: enabled

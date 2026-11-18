@@ -73,8 +73,11 @@ const OPEN_ENVELOPE = ["SENDING", "UNKNOWN", "SENT", "VIEWED"];
 
 async function cancel(deps, row) {
     const now = deps.now();
-    const result = await transition(deps.db, row.id, (r) =>
-        r.cancelled_at ? null : { cancelled_at: now }
+    const result = await transition(
+        deps.db,
+        row.id,
+        (r) => (r.cancelled_at ? null : { cancelled_at: now }),
+        { now: deps.now }
     );
     if (!result.changed) return false;
     // Best effort: withdraw an open packet and an open Checkout session.
@@ -161,81 +164,115 @@ async function perform(deps, row, action, input) {
             return "provisioning_confirmed";
         case "verify_operation_item": {
             const now = deps.now();
-            await transition(deps.db, row.id, async (r, tx) => {
-                const current = await tx.onboardingDocument.findFirst({
-                    where: {
-                        request_id: r.id,
-                        item_key: input.key,
-                        state: "CURRENT",
-                    },
-                    select: { id: true },
-                });
-                if (current && input.document_id !== current.id)
-                    throw new OnboardingError("action_not_allowed", 409, {
-                        code: "document_changed",
+            await transition(
+                deps.db,
+                row.id,
+                async (r, tx) => {
+                    const current = await tx.onboardingDocument.findFirst({
+                        where: {
+                            request_id: r.id,
+                            item_key: input.key,
+                            state: "CURRENT",
+                        },
+                        select: { id: true },
                     });
-                return {
-                    operations: verifyOperationItem(r.operations, input.key, {
-                        actor: input.actor,
-                        note: input.note ?? null,
-                        at: now,
-                    }),
-                };
-            });
+                    if (current && input.document_id !== current.id)
+                        throw new OnboardingError("action_not_allowed", 409, {
+                            code: "document_changed",
+                        });
+                    return {
+                        operations: verifyOperationItem(
+                            r.operations,
+                            input.key,
+                            {
+                                actor: input.actor,
+                                note: input.note ?? null,
+                                at: now,
+                            }
+                        ),
+                    };
+                },
+                { now: deps.now }
+            );
             return "item_verified";
         }
         case "mark_operation_item_received": {
             const now = deps.now();
-            await transition(deps.db, row.id, (r) => {
-                const items = markOperationItemReceived(
-                    r.operations,
-                    input.key,
-                    { actor: input.actor, note: input.note ?? null, at: now }
-                );
-                if (!items)
-                    throw new OnboardingError("action_not_allowed", 409, {
-                        code: "item_already_verified",
-                    });
-                return { operations: items };
-            });
+            await transition(
+                deps.db,
+                row.id,
+                (r) => {
+                    const items = markOperationItemReceived(
+                        r.operations,
+                        input.key,
+                        {
+                            actor: input.actor,
+                            note: input.note ?? null,
+                            at: now,
+                        }
+                    );
+                    if (!items)
+                        throw new OnboardingError("action_not_allowed", 409, {
+                            code: "item_already_verified",
+                        });
+                    return { operations: items };
+                },
+                { now: deps.now }
+            );
             return "item_received";
         }
         case "request_reupload": {
             const now = deps.now();
-            await transition(deps.db, row.id, async (fresh, tx) => {
-                if (!fresh.portal_flow || fresh.cancelled_at || fresh.purged_at)
-                    notAllowed("portal_unavailable");
-                const operations = requestReupload(
-                    fresh.operations,
-                    input.key,
-                    {
-                        actor: input.actor,
-                        note: input.reason,
-                        at: now,
-                    }
-                );
-                if (!operations) notAllowed("item_not_received");
-                const documentKey =
-                    input.key === "NOT_FACTORING" ? "FACTORING_NOA" : input.key;
-                await rejectCurrent(tx, row.id, documentKey, input.reason);
-                return { operations };
-            });
+            await transition(
+                deps.db,
+                row.id,
+                async (fresh, tx) => {
+                    if (
+                        !fresh.portal_flow ||
+                        fresh.cancelled_at ||
+                        fresh.purged_at
+                    )
+                        notAllowed("portal_unavailable");
+                    const operations = requestReupload(
+                        fresh.operations,
+                        input.key,
+                        {
+                            actor: input.actor,
+                            note: input.reason,
+                            at: now,
+                        }
+                    );
+                    if (!operations) notAllowed("item_not_received");
+                    const documentKey =
+                        input.key === "NOT_FACTORING"
+                            ? "FACTORING_NOA"
+                            : input.key;
+                    await rejectCurrent(tx, row.id, documentKey, input.reason);
+                    return { operations };
+                },
+                { now: deps.now }
+            );
             await sendPortalReupload(deps, row.id, input.key, input.reason);
             return "reupload_requested";
         }
         case "unverify_operation_item": {
             const now = deps.now();
-            await transition(deps.db, row.id, (fresh) => {
-                if (fresh.cancelled_at || fresh.purged_at)
-                    notAllowed("request_closed");
-                const operations = unverifyOperationItem(
-                    fresh.operations,
-                    input.key,
-                    { actor: input.actor, at: now }
-                );
-                if (!operations) notAllowed("item_not_verified");
-                return { operations };
-            });
+            await transition(
+                deps.db,
+                row.id,
+                (fresh) => {
+                    if (fresh.cancelled_at || fresh.purged_at)
+                        notAllowed("request_closed");
+                    const operations = unverifyOperationItem(
+                        fresh.operations,
+                        input.key,
+                        { actor: input.actor, at: now }
+                    );
+                    if (!operations) notAllowed("item_not_verified");
+                    return { operations };
+                },
+                { now: deps.now }
+            );
             return "item_unverified";
         }
         case "resend_portal_link":
@@ -243,9 +280,14 @@ async function perform(deps, row, action, input) {
                 notAllowed("portal_link_unavailable");
             return "portal_link_resent";
         case "set_document_reminders":
-            await transition(deps.db, row.id, () => ({
-                reminders_paused: input.paused,
-            }));
+            await transition(
+                deps.db,
+                row.id,
+                () => ({
+                    reminders_paused: input.paused,
+                }),
+                { now: deps.now }
+            );
             return input.paused ? "reminders_paused" : "reminders_resumed";
         case "cancel":
             if (!(await cancel(deps, row))) notAllowed("already_cancelled");

@@ -1,4 +1,5 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
+import { PORTAL_LINK_GRACE_DAYS } from "./config.js";
 import { buildStatus, deriveReadiness, facetsOf } from "./readiness.js";
 import { setClientStatus } from "../clients/index.js";
 
@@ -163,11 +164,28 @@ export async function applyFacetChange(tx, row, changes, now = new Date()) {
         row.ready_at &&
         (readiness === "IN_PROGRESS" || readiness === "BLOCKED")
     ) {
-        // Back to work after READY (undo verify, re-upload request): the
-        // carrier's link works again and the 3-year clock restarts at the next
-        // READY. A cancellation (CLOSED) keeps the completed-onboarding date.
+        // Back to work after READY (undo verify, re-upload request). The
+        // 3-year purge date stays as a ceiling (a later READY moves it on). A
+        // link that already expired is never revived: it stays revoked and a
+        // fresh one, which the next carrier email uses, replaces it.
         data.ready_at = null;
-        data.purge_after = null;
+        if (
+            now.getTime() - row.ready_at.getTime() >
+            PORTAL_LINK_GRACE_DAYS * 86400000
+        ) {
+            await tx.portalToken.updateMany({
+                where: { request_id: row.id, revoked_at: null },
+                data: { revoked_at: now },
+            });
+            if (row.portal_flow)
+                await tx.portalToken.create({
+                    data: {
+                        id: randomBytes(16).toString("base64url"),
+                        request_id: row.id,
+                        created_at: now,
+                    },
+                });
+        }
     } else if (!row.ready_at && data.cancelled_at) {
         data.purge_after = new Date(
             data.cancelled_at.getTime() + 90 * 86400000
