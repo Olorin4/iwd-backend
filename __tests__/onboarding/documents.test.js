@@ -272,11 +272,45 @@ describe("PDF inspection and filling", () => {
         }
     });
 
+    it("the approved v4 layout replaces the typed page-6 date with one automatic date field and fits", async () => {
+        const v3 = releaseLayout(3);
+        const v4 = releaseLayout(4);
+        expect(v4.status).toBe("APPROVED");
+        expect(v4.bundle).toBe("Iron-Wing-Onboarding-Packet-v4.pdf");
+        const key = (f) => JSON.stringify(f);
+        const removed = v3.fields.filter(
+            (f) => !v4.fields.map(key).includes(key(f))
+        );
+        const added = v4.fields.filter(
+            (f) => !v3.fields.map(key).includes(key(f))
+        );
+        expect(removed).toHaveLength(3);
+        for (const f of removed)
+            expect([f.page, f.kind, f.type]).toEqual([6, "signwell", "text"]);
+        expect(added).toHaveLength(1);
+        expect(added[0]).toMatchObject({
+            page: 6,
+            kind: "signwell",
+            recipient: 1,
+            type: "date (lock_sign_date)",
+        });
+        const layout = layoutSchema.parse(v4);
+        const [filled] = await fillPacket(
+            [{ name: v4.bundle, bytes: await makeBlankPages(6) }],
+            layout,
+            terms,
+            countersigner
+        );
+        expect(
+            filled.fields.filter((f) => f.page === 6 && f.type === "text")
+        ).toHaveLength(0);
+    });
+
     it("the v3 layout (POA table DISPATCH (Agent) | CARRIER) differs from v2 only in the page-5 table and fits", async () => {
         const v2 = releaseLayout(2);
         const v3 = releaseLayout(3);
         expect(v3.bundle).toBe("Iron-Wing-Onboarding-Packet-v3.pdf");
-        expect(v3.status).toBe("APPROVED");
+        expect(v3.status).toBe("SUPERSEDED");
         expect(v3.owner_decisions).toContain(
             "layout_v3_approved_final 2026-11-18 by owner"
         );

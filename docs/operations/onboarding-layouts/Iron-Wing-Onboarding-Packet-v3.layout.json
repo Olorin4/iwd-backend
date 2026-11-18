@@ -1,7 +1,7 @@
 {
     "bundle": "Iron-Wing-Onboarding-Packet-v3.pdf",
     "sha256": "3ae7aa7b747185a1c99d40aa019ae3fc5b42bb0fede038504930f2ead71260de",
-    "status": "APPROVED",
+    "status": "SUPERSEDED",
     "units": "PDF points, origin top-left of a 612x792 page",
     "calibration": "calibrated 2026-11-18 against release v1; v3 only swaps the page-5 table columns, so the same 4/3 SignWell transform applies.",
     "owner_decisions": [
@@ -10,7 +10,8 @@
         "section4_plan_prestamped_carrier_confirms_by_signing 2026-11-18",
         "dispatch_named_by_legal_name_only 2026-11-18",
         "poa_table_dispatch_agent_first 2026-11-18",
-        "layout_v3_approved_final 2026-11-18 by owner"
+        "layout_v3_approved_final 2026-11-18 by owner",
+        "superseded_by_v4_automatic_page6_date 2026-11-18"
     ],
     "fields": [
         {

@@ -504,3 +504,10 @@ signing.)
 **Unverified:** real SMTP delivery of the PDF attachment size/type through Zoho; mail
 clients' handling of the link followed by a period in the payment line (owner text kept
 verbatim).
+
+## Release v4 (2026-11-18)
+
+Formatting only: the payment authorization form's `__ / __ / 20__` authorization-date blank is a
+plain line, and layout v4 (owner-approved) replaces the three typed MM/DD/YY fields with one
+automatic signing-date field (`lock_sign_date`) on it, so the carrier only signs. Register v4
+(sha256 64ebc63e…3ec5); v3 is superseded.
