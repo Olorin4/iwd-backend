@@ -225,8 +225,8 @@ it("actions require service auth and an actor, refuse replays and disallowed tra
             })
         ).status
     ).toBe(404);
-    // The signature covers only t and the body, so the replay store rejects a
-    // reused signature on any path; use a fresh timestamp here.
+    // Every accepted v2 signature is recorded; presenting it again inside the
+    // window is refused.
     const body = { actor: ACTOR };
     const t = Math.floor(Date.now() / 1000) - 5;
     expect(
@@ -243,8 +243,8 @@ it("actions require service auth and an actor, refuse replays and disallowed tra
         { nowSeconds: t }
     );
     expect(replay).toMatchObject({
-        status: 409,
-        json: { error: "replayed_request" },
+        status: 401,
+        json: { error: "replayed_signature" },
     });
     const refused = await action("resend_payment_link");
     expect(refused).toMatchObject({
@@ -341,9 +341,21 @@ it("signed document download is authenticated, needs an actor and is logged", as
     expect(ok.headers.get("content-type")).toMatch(/application\/pdf/);
     expect(ok.headers.get("cache-control")).toBe("no-store");
     expect(ok.text.startsWith("%PDF-")).toBe(true);
-    const logs = await prisma.documentAccessLog.findMany();
+    let logs = await prisma.documentAccessLog.findMany();
     expect(logs).toHaveLength(1);
     expect(logs[0].actor).toEqual(ACTOR);
+    // The log records the signed actor (canonical lower-case email).
+    await app.call("GET", `/requests/${KEY}/documents/signed`, undefined, {
+        headers: {
+            "X-IW-Actor-Id": ACTOR.user_id,
+            "X-IW-Actor-Email": ACTOR.email.toUpperCase(),
+        },
+    });
+    logs = await prisma.documentAccessLog.findMany({
+        orderBy: { at: "asc" },
+    });
+    expect(logs).toHaveLength(2);
+    expect(logs[1].actor).toEqual(ACTOR);
 });
 
 it("outbox delivers signed status events with backoff and stops on permanent errors", async () => {

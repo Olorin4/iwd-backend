@@ -38,20 +38,48 @@ call has been made.** The module is off by default.
 
 ## Endpoints (all 404 unless `ONBOARDING_ENABLED=1`)
 
-| Route                                            | Auth                                                      |
-| ------------------------------------------------ | --------------------------------------------------------- |
-| `PUT /onboarding/requests/:key`                  | bearer `IWD_ONBOARDING_TOKEN` + `X-IW-Signature`          |
-| `GET /onboarding/requests/:key`                  | same                                                      |
-| `POST /onboarding/requests/:key/actions/:action` | same + replay guard; body `{ actor: { user_id, email } }` |
-| `GET /onboarding/requests/:key/documents/signed` | same + `X-IW-Actor-Id`, `X-IW-Actor-Email`; logged        |
-| `POST /onboarding/webhooks/signwell`             | SignWell event hash (hint only; re-fetch)                 |
-| `POST /onboarding/webhooks/stripe`               | Stripe signature with `ONBOARDING_STRIPE_WEBHOOK_SECRET`  |
-| `GET /onboarding/continue/:token`                | signed, expiring token (SignWell redirect, payment email) |
+| Route                                            | Auth                                                                             |
+| ------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `PUT /onboarding/requests/:key`                  | bearer `IWD_ONBOARDING_TOKEN` + `X-IW-Signature` v2 + actor headers = body actor |
+| `GET /onboarding/requests/:key`                  | bearer + v2 (system call: no actor headers)                                      |
+| `POST /onboarding/requests/:key/actions/:action` | bearer + v2 + actor headers = body `{ actor: { user_id, email } }`               |
+| `GET /onboarding/requests/:key/documents/signed` | bearer + v2 + signed `X-IW-Actor-Id`, `X-IW-Actor-Email`; logged                 |
+| `POST /onboarding/webhooks/signwell`             | SignWell event hash (hint only; re-fetch)                                        |
+| `POST /onboarding/webhooks/stripe`               | Stripe signature with `ONBOARDING_STRIPE_WEBHOOK_SECRET`                         |
+| `GET /onboarding/continue/:token`                | signed, expiring token (SignWell redirect, payment email)                        |
 
-`X-IW-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`,
-±300 s. The signature covers only the timestamp and body; any reused
-signature is rejected on every action path. Invalid configuration while
-enabled → 503 `onboarding_config_invalid`.
+### Request signature v2 (Outreach → iwd-backend)
+
+Every Outreach call to `/onboarding/*` (PUT, GET, actions, signed-document GET)
+carries `X-IW-Signature: t=<unix seconds>,v2=<hex>` where
+
+```
+canonical = [t, METHOD, pathAndQuery, actorId ?? "", lower(actorEmail) ?? "",
+             sha256hex(rawBody)].join("\n")
+v2 = hex(HMAC_SHA256(ONBOARDING_REQUEST_SIGNING_SECRET, canonical))
+```
+
+`pathAndQuery` is the request target iwd sees (`req.originalUrl`, e.g.
+`/onboarding/requests/<key>/documents/signed`); `rawBody` is the exact body
+bytes (`""` for none). iwd checks ±300 s with a timing-safe compare and:
+
+- refuses v1 (`signature_v1_rejected`, 401);
+- refuses a request whose body `actor` (PUT, actions) differs from the signed
+  `X-IW-Actor-Id`/`X-IW-Actor-Email` headers, or a body actor without headers
+  (`actor_mismatch`, 401); emails compare case-insensitively;
+- records every accepted signature (all methods, GET included) in
+  `provider_webhook_receipt` (`outreach:v2:<hex>`) and refuses a repeat
+  (`replayed_signature`, 401). Outreach computes a fresh `t` per call;
+- logs signed-document reads with the signed actor (email lower-cased).
+
+Test vector (asserted in both repos): secret `"s".repeat(32)`, t=1700000000,
+`GET`, `/onboarding/requests/0b7e8f5a-1c2d-4e3f-8a9b-0c1d2e3f4a5b/documents/signed`,
+actor `55555555-5555-4555-8555-555555555555` / `closer@example.test`, empty body →
+`v2=977cc0d7d049974bfb323c24fab8a596ff19b36555e2f9f38024eff0ec8fd6b4`.
+
+The status outbox (iwd → Outreach) keeps v1:
+`t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`. Invalid configuration
+while enabled → 503 `onboarding_config_invalid`.
 
 Actions: `reconcile`, `resend_payment_link`, `reissue_packet` (only after
 DECLINED/EXPIRED/CANCELLED/ERROR), `retry_provisioning`,

@@ -33,27 +33,22 @@ export function createOnboardingRouter(getConfig, getDeps) {
     const depsOf = (res) => res.locals.onboardingDeps;
     const wrap = (fn) => (req, res, next) =>
         Promise.resolve(fn(req, res, depsOf(res))).catch(next);
-    const auth = (options) => (req, res, next) => {
+    // Signature v2 on every Outreach call; every accepted signature is
+    // recorded, so a replay inside the window is refused on any method.
+    const service = (req, res, next) => {
         const d = depsOf(res);
         return requireService(() => res.locals.onboardingConfig, {
             now: () => d.now().getTime(),
-            ...(options.replay
-                ? {
-                      replayStore: (signature) =>
-                          d.recordReceipt("outreach", signature),
-                  }
-                : {}),
+            replayStore: (key) => d.recordReceipt("outreach", key),
         })(req, res, next);
     };
-    const service = auth({ replay: true });
-    const serviceNoReplay = auth({ replay: false });
     router.param("key", (req, res, next, key) =>
         KEY.test(key) ? next() : res.status(404).json({ error: "not_found" })
     );
 
     router.put(
         "/requests/:key",
-        serviceNoReplay,
+        service,
         wrap(async (req, res, d) => {
             const result = await putRequest(d, req.params.key, req.body);
             if (result.created)
@@ -64,7 +59,7 @@ export function createOnboardingRouter(getConfig, getDeps) {
 
     router.get(
         "/requests/:key",
-        serviceNoReplay,
+        service,
         wrap(async (req, res, d) =>
             res.json(await getRequestStatus(d, req.params.key))
         )
@@ -83,12 +78,14 @@ export function createOnboardingRouter(getConfig, getDeps) {
     // Never public: service auth plus an actor, and every read is logged.
     router.get(
         "/requests/:key/documents/signed",
-        serviceNoReplay,
+        service,
         wrap(async (req, res, d) => {
-            const document = await readSignedDocument(d, req.params.key, {
-                user_id: req.headers["x-iw-actor-id"],
-                email: req.headers["x-iw-actor-email"],
-            });
+            // The actor comes from the signed headers (signature v2).
+            const document = await readSignedDocument(
+                d,
+                req.params.key,
+                res.locals.signedActor ?? {}
+            );
             res.set("Cache-Control", "no-store");
             res.set("X-Content-SHA256", document.sha256);
             res.set(

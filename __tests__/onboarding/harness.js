@@ -10,7 +10,7 @@ import {
     createOnboardingRouter,
     onboardingRawBody,
 } from "../../src/onboarding/routes.js";
-import { signBody } from "../../src/onboarding/signing.js";
+import { signRequestV2 } from "../../src/onboarding/signing.js";
 import { termsHash } from "../../src/onboarding/canonical.js";
 
 export const TOKEN = "t".repeat(40);
@@ -86,6 +86,43 @@ export function tempDir() {
     return fs.mkdtempSync(path.join(os.tmpdir(), "iwd-onboarding-"));
 }
 
+/**
+ * Outreach-side signing for tests (signature v2). Actor headers come from
+ * `headers` or, when absent, from the body's `actor`.
+ */
+export function signedHeaders({
+    secret = SIGNING,
+    method,
+    pathAndQuery,
+    raw = "",
+    t,
+    headers = {},
+    body,
+}) {
+    const actor =
+        body && typeof body === "object" && body.actor ? body.actor : null;
+    const actorId = headers["X-IW-Actor-Id"] ?? actor?.user_id ?? null;
+    const actorEmail = headers["X-IW-Actor-Email"] ?? actor?.email ?? null;
+    return {
+        Authorization: `Bearer ${TOKEN}`,
+        ...(actorId ? { "X-IW-Actor-Id": actorId } : {}),
+        ...(actorEmail ? { "X-IW-Actor-Email": actorEmail } : {}),
+        "X-IW-Signature": signRequestV2(secret, {
+            t,
+            method,
+            pathAndQuery,
+            actorId,
+            actorEmail,
+            rawBody: raw,
+        }),
+    };
+}
+
+// Every accepted signature is recorded, so two identical calls in one second
+// would be a replay; default timestamps step back through the 300 s window.
+let sequence = 0;
+const freshSeconds = () => Math.floor(Date.now() / 1000) - (sequence++ % 250);
+
 export async function startApp(getConfig, getDeps) {
     const app = express();
     app.use("/onboarding", express.json({ verify: onboardingRawBody }));
@@ -106,17 +143,21 @@ export async function startApp(getConfig, getDeps) {
                 : typeof body === "string"
                   ? body
                   : JSON.stringify(body);
-        const t = nowSeconds ?? Math.floor(Date.now() / 1000);
+        const t = nowSeconds ?? freshSeconds();
         const response = await fetch(`${base}/onboarding${urlPath}`, {
             method,
             redirect: "manual",
             headers: {
                 ...(raw ? { "Content-Type": "application/json" } : {}),
                 ...(auth
-                    ? {
-                          Authorization: `Bearer ${TOKEN}`,
-                          "X-IW-Signature": signBody(SIGNING, raw, t),
-                      }
+                    ? signedHeaders({
+                          method,
+                          pathAndQuery: `/onboarding${urlPath}`,
+                          raw,
+                          t,
+                          headers,
+                          body,
+                      })
                     : {}),
                 ...headers,
             },

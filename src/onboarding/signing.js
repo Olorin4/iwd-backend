@@ -58,6 +58,92 @@ export function verifySignature({ secret, header, rawBody, nowSeconds }) {
     return safeEqualHex(expected, parsed.v1) ? null : "signature_invalid";
 }
 
+// Outreach → iwd-backend request signature v2 (this link only; the status
+// outbox and other links keep v1). Binds method, request target, actor and
+// body hash:
+// X-IW-Signature: t=<unix seconds>,v2=<hex HMAC-SHA256(secret, canonical)>
+// canonical = [t, METHOD, pathAndQuery, actorId|"", lower(actorEmail)|"",
+//              sha256hex(rawBody)].join("\n")
+export function canonicalRequestV2({
+    t,
+    method,
+    pathAndQuery,
+    actorId,
+    actorEmail,
+    rawBody,
+}) {
+    return [
+        String(t),
+        String(method).toUpperCase(),
+        pathAndQuery,
+        actorId ?? "",
+        (actorEmail ?? "").toLowerCase(),
+        createHash("sha256")
+            .update(rawBody ?? "")
+            .digest("hex"),
+    ].join("\n");
+}
+
+export function signRequestV2(secret, input) {
+    const v2 = createHmac("sha256", secret)
+        .update(canonicalRequestV2(input))
+        .digest("hex");
+    return `t=${input.t},v2=${v2}`;
+}
+
+export function parseSignatureHeaderV2(header) {
+    if (typeof header !== "string" || header.length > 300) return null;
+    const parts = Object.fromEntries(
+        header.split(",").map((part) => {
+            const index = part.indexOf("=");
+            return [part.slice(0, index).trim(), part.slice(index + 1).trim()];
+        })
+    );
+    if (
+        !/^\d{1,12}$/.test(parts.t ?? "") ||
+        !/^[0-9a-f]{64}$/.test(parts.v2 ?? "")
+    )
+        return null;
+    return { t: Number(parts.t), v2: parts.v2 };
+}
+
+/**
+ * Verifies a v2 request signature. v1 headers are refused. Returns
+ * { error } or { v2 } (the verified signature, used as the replay key).
+ */
+export function verifyRequestV2({
+    secret,
+    header,
+    method,
+    pathAndQuery,
+    actorId,
+    actorEmail,
+    rawBody,
+    nowSeconds,
+}) {
+    const parsed = parseSignatureHeaderV2(header);
+    if (!parsed)
+        return {
+            error:
+                typeof header === "string" && /(^|,)\s*v1=/.test(header)
+                    ? "signature_v1_rejected"
+                    : "signature_missing",
+        };
+    if (Math.abs(nowSeconds - parsed.t) > SIGNATURE_TOLERANCE_SECONDS)
+        return { error: "signature_expired" };
+    const expected = signRequestV2(secret, {
+        t: parsed.t,
+        method,
+        pathAndQuery,
+        actorId,
+        actorEmail,
+        rawBody,
+    }).split("v2=")[1];
+    return safeEqualHex(expected, parsed.v2)
+        ? { v2: parsed.v2 }
+        : { error: "signature_invalid" };
+}
+
 /** Constant-time bearer comparison over SHA-256 digests (length-independent). */
 export function bearerMatches(header, expectedToken) {
     if (typeof header !== "string" || !expectedToken) return false;

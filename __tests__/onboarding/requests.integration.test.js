@@ -9,6 +9,8 @@ import {
     startApp,
 } from "./harness";
 import { signBody } from "../../src/onboarding/signing";
+import { recordReceipt } from "../../src/onboarding/store";
+import { signedHeaders } from "./harness";
 import { onboardingStatusV1 } from "../../src/onboarding/contracts";
 
 serializeSuite();
@@ -57,11 +59,14 @@ it("rejects a missing bearer, a bad signature and a stale timestamp", async () =
         auth: false,
         headers: {
             Authorization: `Bearer ${TOKEN}`,
-            "X-IW-Signature": signBody(
-                "wrong".repeat(10),
-                JSON.stringify(body),
-                Math.floor(Date.now() / 1000)
-            ),
+            ...signedHeaders({
+                secret: "wrong".repeat(10),
+                method: "PUT",
+                pathAndQuery: `/onboarding/requests/${KEY}`,
+                raw: JSON.stringify(body),
+                t: Math.floor(Date.now() / 1000),
+                body,
+            }),
         },
     });
     expect(bad.json).toEqual({ error: "signature_invalid" });
@@ -189,4 +194,148 @@ it("refuses to change confirmed terms at the database level", async () => {
             data: { terms: { changed: true } },
         })
     ).rejects.toThrow();
+});
+
+describe("signature v2 on the Outreach link", () => {
+    const now = () => Math.floor(Date.now() / 1000);
+
+    it("refuses a v1 signature", async () => {
+        const body = requestBody();
+        const raw = JSON.stringify(body);
+        const res = await app.call("PUT", `/requests/${KEY}`, body, {
+            auth: false,
+            headers: {
+                Authorization: `Bearer ${TOKEN}`,
+                "X-IW-Actor-Id": body.actor.user_id,
+                "X-IW-Actor-Email": body.actor.email,
+                "X-IW-Signature": signBody(SIGNING, raw, now()),
+            },
+        });
+        expect(res).toMatchObject({
+            status: 401,
+            json: { error: "signature_v1_rejected" },
+        });
+        expect(await prisma.onboardingRequest.count()).toBe(0);
+    });
+
+    it("binds method, path, actor headers and body", async () => {
+        const body = requestBody();
+        const raw = JSON.stringify(body);
+        const t = now();
+        const good = signedHeaders({
+            method: "PUT",
+            pathAndQuery: `/onboarding/requests/${KEY}`,
+            raw,
+            t,
+            body,
+        });
+        // Same signature presented on another path / with another actor.
+        const otherPath = await app.call("PUT", `/requests/${KEY}?x=1`, body, {
+            auth: false,
+            headers: good,
+        });
+        expect(otherPath.json).toEqual({ error: "signature_invalid" });
+        const otherActor = await app.call("PUT", `/requests/${KEY}`, body, {
+            auth: false,
+            headers: { ...good, "X-IW-Actor-Email": "intruder@example.test" },
+        });
+        expect(otherActor.json).toEqual({ error: "signature_invalid" });
+        const otherMethod = await app.call(
+            "GET",
+            `/requests/${KEY}`,
+            undefined,
+            {
+                auth: false,
+                headers: good,
+            }
+        );
+        expect(otherMethod.json).toEqual({ error: "signature_invalid" });
+        expect(await prisma.onboardingRequest.count()).toBe(0);
+    });
+
+    it("refuses a body actor that differs from the signed actor headers", async () => {
+        const body = requestBody();
+        const raw = JSON.stringify(body);
+        const signed = signedHeaders({
+            method: "PUT",
+            pathAndQuery: `/onboarding/requests/${KEY}`,
+            raw,
+            t: now(),
+            headers: {
+                "X-IW-Actor-Id": "66666666-6666-4666-8666-666666666666",
+                "X-IW-Actor-Email": body.actor.email,
+            },
+        });
+        const res = await app.call("PUT", `/requests/${KEY}`, body, {
+            auth: false,
+            headers: signed,
+        });
+        expect(res).toMatchObject({
+            status: 401,
+            json: { error: "actor_mismatch" },
+        });
+        // A body actor with no actor headers at all is refused too.
+        const bare = signedHeaders({
+            method: "PUT",
+            pathAndQuery: `/onboarding/requests/${KEY}`,
+            raw,
+            t: now() - 1,
+        });
+        delete bare["X-IW-Actor-Id"];
+        delete bare["X-IW-Actor-Email"];
+        const none = await app.call("PUT", `/requests/${KEY}`, body, {
+            auth: false,
+            headers: {
+                Authorization: bare.Authorization,
+                "X-IW-Signature": bare["X-IW-Signature"],
+            },
+        });
+        expect(none.json).toEqual({ error: "actor_mismatch" });
+        expect(await prisma.onboardingRequest.count()).toBe(0);
+    });
+
+    it("accepts an actor email that differs only in case", async () => {
+        const body = requestBody();
+        body.actor = { ...body.actor, email: body.actor.email.toUpperCase() };
+        const res = await app.call("PUT", `/requests/${KEY}`, body, {
+            headers: { "X-IW-Actor-Email": body.actor.email.toLowerCase() },
+        });
+        expect(res.status).toBe(201);
+    });
+
+    it("refuses a replayed signature on GET and PUT", async () => {
+        deps.recordReceipt = (provider, key) =>
+            recordReceipt(prisma, provider, key);
+        const body = requestBody();
+        const t = now() - 3;
+        expect(
+            (await app.call("PUT", `/requests/${KEY}`, body, { nowSeconds: t }))
+                .status
+        ).toBe(201);
+        expect(
+            await app.call("PUT", `/requests/${KEY}`, body, { nowSeconds: t })
+        ).toMatchObject({ status: 401, json: { error: "replayed_signature" } });
+        const g = now() - 4;
+        expect(
+            (
+                await app.call("GET", `/requests/${KEY}`, undefined, {
+                    nowSeconds: g,
+                })
+            ).status
+        ).toBe(200);
+        expect(
+            await app.call("GET", `/requests/${KEY}`, undefined, {
+                nowSeconds: g,
+            })
+        ).toMatchObject({ status: 401, json: { error: "replayed_signature" } });
+        const receipts = await prisma.providerWebhookReceipt.findMany({
+            where: { provider: "outreach" },
+        });
+        expect(receipts).toHaveLength(2);
+        expect(
+            receipts.every((r) =>
+                /^outreach:v2:[0-9a-f]{64}$/.test(r.receipt_key)
+            )
+        ).toBe(true);
+    });
 });
