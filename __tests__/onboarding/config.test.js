@@ -179,3 +179,44 @@ it("in production allows http for OUTREACH_STATUS_URL only on an internal Docker
         })
     ).toThrow(/ONBOARDING_PUBLIC_BASE_URL must use https/);
 });
+
+const portal = {
+    ...base,
+    ONBOARDING_PORTAL_ENABLED: "true",
+    ONBOARDING_PORTAL_BASE_URL: "https://onboarding.example.test",
+    ONBOARDING_PORTAL_TOKEN_SECRET: "p".repeat(32),
+    ONBOARDING_R2_ACCOUNT_ID: "test-account",
+    ONBOARDING_R2_BUCKET: "test-bucket",
+    ONBOARDING_R2_ACCESS_KEY_ID: "test-key",
+    ONBOARDING_R2_SECRET_ACCESS_KEY: "test-secret",
+    ONBOARDING_FILE_ENCRYPTION_KEY: "12".repeat(32),
+};
+
+it("leaves the portal off without portal settings and supplies reader and retention defaults", () => {
+    const config = getOnboardingConfig(base);
+    expect(config.portal.enabled).toBe(false);
+    expect(config.reader).toEqual({
+        enabled: false,
+        model: "claude-opus-5-5",
+        apiKey: null,
+    });
+    expect(config.retention).toEqual({ abandonedDays: 90, completedYears: 3 });
+});
+
+it("validates the enabled portal bucket, encryption key and reader credentials", () => {
+    expect(() =>
+        getOnboardingConfig({ ...portal, ONBOARDING_R2_BUCKET: "" })
+    ).toThrow(/ONBOARDING_R2_BUCKET/);
+    expect(() =>
+        getOnboardingConfig({
+            ...portal,
+            ONBOARDING_FILE_ENCRYPTION_KEY: "X".repeat(64),
+        })
+    ).toThrow(/64 hex/);
+    expect(() =>
+        getOnboardingConfig({ ...portal, ONBOARDING_DOC_READER_ENABLED: "1" })
+    ).toThrow(/ANTHROPIC_API_KEY/);
+    const config = getOnboardingConfig(portal);
+    expect(config.files.encryptionKey).toHaveLength(32);
+    expect(config.files.maxBytes).toBe(15728640);
+});

@@ -153,6 +153,17 @@ jobs:
                   echo "ONBOARDING_STRIPE_SUCCESS_URL=${{ secrets.ONBOARDING_STRIPE_SUCCESS_URL }}" >> .env
                   echo "ONBOARDING_STRIPE_WEBHOOK_SECRET=${{ secrets.ONBOARDING_STRIPE_WEBHOOK_SECRET }}" >> .env
                   echo "OUTREACH_STATUS_URL=${{ secrets.OUTREACH_STATUS_URL }}" >> .env
+                  echo "ONBOARDING_PORTAL_ENABLED=${{ secrets.ONBOARDING_PORTAL_ENABLED }}" >> .env
+                  echo "ONBOARDING_PORTAL_BASE_URL=${{ secrets.ONBOARDING_PORTAL_BASE_URL }}" >> .env
+                  echo "ONBOARDING_PORTAL_TOKEN_SECRET=${{ secrets.ONBOARDING_PORTAL_TOKEN_SECRET }}" >> .env
+                  echo "ONBOARDING_R2_ACCOUNT_ID=${{ secrets.ONBOARDING_R2_ACCOUNT_ID }}" >> .env
+                  echo "ONBOARDING_R2_BUCKET=${{ secrets.ONBOARDING_R2_BUCKET }}" >> .env
+                  echo "ONBOARDING_R2_ACCESS_KEY_ID=${{ secrets.ONBOARDING_R2_ACCESS_KEY_ID }}" >> .env
+                  echo "ONBOARDING_R2_SECRET_ACCESS_KEY=${{ secrets.ONBOARDING_R2_SECRET_ACCESS_KEY }}" >> .env
+                  echo "ONBOARDING_FILE_ENCRYPTION_KEY=${{ secrets.ONBOARDING_FILE_ENCRYPTION_KEY }}" >> .env
+                  echo "ONBOARDING_DOC_READER_ENABLED=${{ secrets.ONBOARDING_DOC_READER_ENABLED }}" >> .env
+                  echo "ONBOARDING_DOC_READER_MODEL=${{ secrets.ONBOARDING_DOC_READER_MODEL }}" >> .env
+                  echo "ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}" >> .env
                   echo "SIGNWELL_API_KEY=${{ secrets.SIGNWELL_API_KEY }}" >> .env
                   echo "SIGNWELL_WEBHOOK_ID=${{ secrets.SIGNWELL_WEBHOOK_ID }}" >> .env
 

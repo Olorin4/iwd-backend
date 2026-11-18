@@ -464,15 +464,28 @@ model OnboardingRequest {
   created_at                  DateTime  @default(now())
   updated_at                  DateTime  @updatedAt
 
-  client    Client              @relation(fields: [client_id], references: [id])
-  envelopes SignatureEnvelope[]
-  payments  PaymentSetup[]
-  events    OnboardingEvent[]
-  accesses  DocumentAccessLog[]
+  portal_flow              Boolean   @default(false)
+  portal_invited_at        DateTime?
+  portal_invite_claimed_at DateTime?
+  portal_invite_attempts   Int       @default(0)
+  portal_last_opened_at    DateTime?
+  ready_at                 DateTime?
+  purge_after              DateTime?
+  purged_at                DateTime?
+
+  client             Client                   @relation(fields: [client_id], references: [id])
+  envelopes          SignatureEnvelope[]
+  payments           PaymentSetup[]
+  events             OnboardingEvent[]
+  accesses           DocumentAccessLog[]
+  portal_tokens      PortalToken[]
+  uploaded_documents OnboardingDocument[]
+  questionnaire      OnboardingQuestionnaire?
 
   @@index([client_id])
   @@index([signature_state])
   @@index([payment_state])
+  @@index([purge_after, purged_at])
   @@map("onboarding_request")
 }
 
@@ -583,4 +596,52 @@ model DocumentAccessLog {
 
   @@index([request_id])
   @@map("document_access_log")
+}
+
+model PortalToken {
+  id         String            @id
+  request_id String
+  created_at DateTime          @default(now())
+  revoked_at DateTime?
+  request    OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@index([request_id])
+  @@map("portal_token")
+}
+
+model OnboardingDocument {
+  id                    String            @id @default(uuid())
+  request_id            String
+  item_key              String
+  version               Int
+  source                String
+  uploaded_by           Json?
+  storage_key           String?
+  sha256                String
+  size                  Int
+  media_type            String
+  state                 String
+  reject_reason         String?
+  extraction_status     String
+  extraction_attempts   Int               @default(0)
+  extraction_claimed_at DateTime?
+  extracted             Json?
+  flags                 Json?
+  created_at            DateTime          @default(now())
+  purged_at             DateTime?
+  request               OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@unique([request_id, item_key, version])
+  @@index([extraction_status, extraction_claimed_at])
+  @@map("onboarding_document")
+}
+
+model OnboardingQuestionnaire {
+  request_id   String            @id
+  answers      Json
+  submitted_at DateTime          @default(now())
+  updated_at   DateTime          @updatedAt
+  request      OnboardingRequest @relation(fields: [request_id], references: [id])
+
+  @@map("onboarding_questionnaire")
 }

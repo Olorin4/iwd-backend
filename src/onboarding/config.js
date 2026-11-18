@@ -124,6 +124,62 @@ export function stripeKeyMode(env) {
     );
 }
 
+export const PORTAL_BASE_URL = "https://onboarding.iron-wing-dispatching.com";
+export const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+
+function portalSettings(env) {
+    const enabled = ["1", "true"].includes(env.ONBOARDING_PORTAL_ENABLED);
+    const readerEnabled = ["1", "true"].includes(
+        env.ONBOARDING_DOC_READER_ENABLED
+    );
+    const baseUrl =
+        enabled || env.ONBOARDING_PORTAL_BASE_URL
+            ? httpsUrl(env, "ONBOARDING_PORTAL_BASE_URL")
+            : PORTAL_BASE_URL;
+    if (baseUrl !== new URL(baseUrl).origin)
+        throw new OnboardingConfigError(
+            "ONBOARDING_PORTAL_BASE_URL must be an HTTPS origin."
+        );
+    const hex = enabled
+        ? required(env, "ONBOARDING_FILE_ENCRYPTION_KEY")
+        : null;
+    if (hex && !/^[0-9a-f]{64}$/i.test(hex))
+        throw new OnboardingConfigError(
+            "ONBOARDING_FILE_ENCRYPTION_KEY must be 64 hex characters."
+        );
+    return {
+        portal: {
+            enabled,
+            baseUrl,
+            tokenSecret: enabled
+                ? required(env, "ONBOARDING_PORTAL_TOKEN_SECRET", { min: 32 })
+                : null,
+            linkGraceDays: 30,
+        },
+        files: {
+            r2: enabled
+                ? {
+                      accountId: required(env, "ONBOARDING_R2_ACCOUNT_ID"),
+                      bucket: required(env, "ONBOARDING_R2_BUCKET"),
+                      accessKeyId: required(env, "ONBOARDING_R2_ACCESS_KEY_ID"),
+                      secretAccessKey: required(
+                          env,
+                          "ONBOARDING_R2_SECRET_ACCESS_KEY"
+                      ),
+                  }
+                : null,
+            encryptionKey: hex ? Buffer.from(hex, "hex") : null,
+            maxBytes: MAX_UPLOAD_BYTES,
+        },
+        reader: {
+            enabled: readerEnabled,
+            model: env.ONBOARDING_DOC_READER_MODEL?.trim() || "claude-opus-5-5",
+            apiKey: readerEnabled ? required(env, "ANTHROPIC_API_KEY") : null,
+        },
+        retention: { abandonedDays: 90, completedYears: 3 },
+    };
+}
+
 export function getOnboardingConfig(env = process.env) {
     if (env.ONBOARDING_ENABLED !== "1") return { enabled: false };
 
@@ -162,6 +218,7 @@ export function getOnboardingConfig(env = process.env) {
 
     return {
         enabled: true,
+        ...portalSettings(env),
         serviceToken,
         requestSigningSecret,
         publicBaseUrl: httpsUrl(env, "ONBOARDING_PUBLIC_BASE_URL", {
