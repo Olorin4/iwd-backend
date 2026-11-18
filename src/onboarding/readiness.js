@@ -39,6 +39,46 @@ export function verifyOperationItem(items, key, { actor, note = null, at }) {
     );
 }
 
+/**
+ * Marks one item RECEIVED (R15): the document arrived but is not yet checked.
+ * Same slot rule as verify. Returns null when the slot is already VERIFIED
+ * (RECEIVED never downgrades a verified item).
+ */
+export function markOperationItemReceived(
+    items,
+    key,
+    { actor, note = null, at }
+) {
+    const slot = slotOf(key);
+    if (!OPERATION_SLOTS.includes(slot))
+        throw new Error("unknown_operation_item");
+    if (items.some((i) => slotOf(i.key) === slot && i.state === "VERIFIED"))
+        return null;
+    return items.map((item) =>
+        slotOf(item.key) === slot
+            ? { key, state: "RECEIVED", at: at.toISOString(), actor, note }
+            : item
+    );
+}
+
+/** Carrier-facing slots (FLEET_MAPPING is internal), in email order. */
+export const CARRIER_FACING_SLOTS = [
+    "W9",
+    "INSURANCE_COI",
+    "AUTHORITY_VERIFIED",
+    "FACTORING",
+    "CARRIER_PROFILE",
+];
+
+/** Carrier-facing slots still PENDING (RECEIVED and VERIFIED both count as in). */
+export const missingCarrierSlots = (items) =>
+    CARRIER_FACING_SLOTS.filter(
+        (slot) =>
+            !(items ?? []).some(
+                (i) => slotOf(i.key) === slot && i.state !== "PENDING"
+            )
+    );
+
 export const operationsState = (items) =>
     items.length === OPERATION_SLOTS.length &&
     items.every((i) => i.state === "VERIFIED")
@@ -153,6 +193,10 @@ export function buildStatus(row, { eventId, occurredAt, signedAvailable }) {
                 state: i.state,
                 at: i.at ?? null,
             })),
+            // R15 (additive): documents email and reminders.
+            documents_requested_at: iso(row.documents_requested_at),
+            reminders_sent: row.reminders_sent ?? 0,
+            reminders_paused: !!row.reminders_paused,
         },
         readiness,
         blocked,

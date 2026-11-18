@@ -450,6 +450,8 @@ model OnboardingRequest {
   // documents were requested (that email went out).
   completion_emailed_at  DateTime?
   documents_requested_at DateTime?
+  reminders_sent         Int       @default(0) // 0..2 (R15)
+  reminders_paused       Boolean   @default(false)
   version                Int       @default(1)
   cancelled_at           DateTime?
   created_at             DateTime  @default(now())

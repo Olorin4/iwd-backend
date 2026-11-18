@@ -114,3 +114,33 @@ it("status.v1 signature.waiting_for is optional and nullable (R14 amendment)", (
             false
         );
 });
+
+it("status.v1 R15 amendment: RECEIVED items and optional reminder fields", () => {
+    const base = read("onboarding.status.v1");
+    const withOps = (ops) => ({
+        ...base,
+        operations: { ...base.operations, ...ops },
+    });
+    const ok = (status) => onboardingStatusV1.safeParse(status).success;
+    // The unchanged shared fixture (no new fields) still parses.
+    expect(ok(base)).toBe(true);
+    expect(
+        ok(
+            withOps({
+                items: [{ key: "W9", state: "RECEIVED", at: null }],
+                documents_requested_at: "2026-11-18T16:00:00.000Z",
+                reminders_sent: 2,
+                reminders_paused: true,
+            })
+        )
+    ).toBe(true);
+    expect(ok(withOps({ documents_requested_at: null }))).toBe(true);
+    for (const bad of [
+        { items: [{ key: "W9", state: "IN", at: null }] },
+        { reminders_sent: 3 },
+        { reminders_sent: -1 },
+        { reminders_paused: "yes" },
+        { documents_requested_at: "monday" },
+    ])
+        expect(ok(withOps(bad))).toBe(false);
+});

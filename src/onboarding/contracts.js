@@ -161,6 +161,7 @@ export const OPERATION_KEYS = [
     "CARRIER_PROFILE",
     "FLEET_MAPPING",
 ];
+export const OPERATION_ITEM_STATES = ["PENDING", "RECEIVED", "VERIFIED"];
 export const ACTIONS = [
     "resend_payment_link",
     "retry_provisioning",
@@ -214,11 +215,17 @@ export const onboardingStatusV1 = z
                     z
                         .object({
                             key: z.enum(OPERATION_KEYS),
-                            state: z.enum(["PENDING", "VERIFIED"]),
+                            // R15 amendment: RECEIVED (document in, not yet
+                            // checked).
+                            state: z.enum(OPERATION_ITEM_STATES),
                             at: nullableIso,
                         })
                         .strict()
                 ),
+                // R15 amendment: optional; missing → null / 0 / false.
+                documents_requested_at: nullableIso.optional(),
+                reminders_sent: z.number().int().min(0).max(2).optional(),
+                reminders_paused: z.boolean().optional(),
             })
             .strict(),
         readiness: z.enum(["IN_PROGRESS", "BLOCKED", "READY", "CLOSED"]),

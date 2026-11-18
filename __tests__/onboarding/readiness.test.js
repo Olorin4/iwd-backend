@@ -2,6 +2,8 @@ import {
     buildStatus,
     deriveReadiness,
     initialOperations,
+    markOperationItemReceived,
+    missingCarrierSlots,
     operationsState,
     verifyOperationItem,
 } from "../../src/onboarding/readiness";
@@ -250,5 +252,126 @@ describe("signature.waiting_for (R14)", () => {
         const status = build(row(state, stored));
         expect(status.signature.waiting_for).toBe(expected);
         expect(onboardingStatusV1.parse(status)).toEqual(status);
+    });
+});
+
+describe("R15 checklist RECEIVED", () => {
+    const at = new Date("2026-11-20T10:00:00Z");
+    const actor = { user_id: "u1", email: "closer@example.test" };
+
+    it("PENDING → RECEIVED → VERIFIED, and RECEIVED never completes the checklist", () => {
+        let items = initialOperations();
+        items = markOperationItemReceived(items, "W9", { actor, at });
+        expect(items.find((i) => i.key === "W9")).toMatchObject({
+            state: "RECEIVED",
+            at: at.toISOString(),
+            actor,
+            note: null,
+        });
+        for (const key of [
+            "AUTHORITY_VERIFIED",
+            "INSURANCE_COI",
+            "FACTORING_NOA",
+            "CARRIER_PROFILE",
+            "FLEET_MAPPING",
+        ])
+            items = verifyOperationItem(items, key, { actor, at });
+        expect(operationsState(items)).toBe("PENDING");
+        items = verifyOperationItem(items, "W9", { actor, at });
+        expect(operationsState(items)).toBe("COMPLETE");
+    });
+
+    it("never downgrades a verified slot (either factoring key)", () => {
+        let items = verifyOperationItem(initialOperations(), "NOT_FACTORING", {
+            actor,
+            at,
+        });
+        expect(
+            markOperationItemReceived(items, "FACTORING_NOA", { actor, at })
+        ).toBeNull();
+        items = markOperationItemReceived(items, "W9", { actor, at });
+        expect(
+            markOperationItemReceived(items, "W9", { actor, at })
+        ).not.toBeNull();
+    });
+
+    it("a factoring key replaces the slot's key", () => {
+        const items = markOperationItemReceived(
+            initialOperations(),
+            "NOT_FACTORING",
+            { actor, at }
+        );
+        expect(items.map((i) => i.key)).toContain("NOT_FACTORING");
+        expect(items.map((i) => i.key)).not.toContain("FACTORING_NOA");
+        expect(items).toHaveLength(6);
+    });
+
+    it("missingCarrierSlots lists only PENDING carrier-facing slots, never FLEET_MAPPING", () => {
+        let items = initialOperations();
+        expect(missingCarrierSlots(items)).toEqual([
+            "W9",
+            "INSURANCE_COI",
+            "AUTHORITY_VERIFIED",
+            "FACTORING",
+            "CARRIER_PROFILE",
+        ]);
+        items = markOperationItemReceived(items, "W9", { actor, at });
+        items = verifyOperationItem(items, "NOT_FACTORING", { actor, at });
+        expect(missingCarrierSlots(items)).toEqual([
+            "INSURANCE_COI",
+            "AUTHORITY_VERIFIED",
+            "CARRIER_PROFILE",
+        ]);
+        expect(missingCarrierSlots(items)).not.toContain("FLEET_MAPPING");
+    });
+
+    it("buildStatus carries RECEIVED and the reminder fields (defaults when absent)", () => {
+        const row = {
+            id: "77777777-7777-4777-8777-777777777777",
+            idempotency_key: "0b7e8f5a-1c2d-4e3f-8a9b-0c1d2e3f4a5b",
+            client_id: "88888888-8888-4888-8888-888888888888",
+            version: 3,
+            signature_state: "COMPLETED",
+            signature_at: at,
+            payment_state: "LINK_SENT",
+            provisioning_state: "NOT_STARTED",
+            operations: markOperationItemReceived(initialOperations(), "W9", {
+                actor,
+                at,
+            }),
+        };
+        const opts = {
+            eventId: "66666666-6666-4666-8666-666666666666",
+            occurredAt: at,
+            signedAvailable: true,
+        };
+        const bare = buildStatus(row, opts);
+        expect(bare.operations).toMatchObject({
+            state: "PENDING",
+            documents_requested_at: null,
+            reminders_sent: 0,
+            reminders_paused: false,
+        });
+        expect(bare.operations.items[2]).toEqual({
+            key: "W9",
+            state: "RECEIVED",
+            at: at.toISOString(),
+        });
+        expect(onboardingStatusV1.parse(bare)).toEqual(bare);
+        const full = buildStatus(
+            {
+                ...row,
+                documents_requested_at: at,
+                reminders_sent: 2,
+                reminders_paused: true,
+            },
+            opts
+        );
+        expect(full.operations).toMatchObject({
+            documents_requested_at: at.toISOString(),
+            reminders_sent: 2,
+            reminders_paused: true,
+        });
+        expect(onboardingStatusV1.parse(full)).toEqual(full);
     });
 });

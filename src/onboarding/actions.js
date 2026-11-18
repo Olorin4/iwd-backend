@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { actorSchema } from "./contracts.js";
+import { OPERATION_KEYS, actorSchema } from "./contracts.js";
 import { OnboardingError, findRequestByKey } from "./requests.js";
 import { currentStatus, transition, writeAuditEvent } from "./store.js";
-import { verifyOperationItem } from "./readiness.js";
+import { markOperationItemReceived, verifyOperationItem } from "./readiness.js";
 import {
     REISSUABLE,
     reconcileSignature,
@@ -14,6 +14,13 @@ import { recoverRequestSteps } from "./recovery.js";
 import { SIGNER_ROLES } from "./signature/waitingFor.js";
 
 const base = { actor: actorSchema };
+const itemSchema = z
+    .object({
+        ...base,
+        key: z.enum(OPERATION_KEYS),
+        note: z.string().max(500).nullable().optional(),
+    })
+    .strict();
 const SCHEMAS = {
     reconcile: z.object(base).strict(),
     resend_payment_link: z.object(base).strict(),
@@ -25,21 +32,11 @@ const SCHEMAS = {
             kelevo_ref: z.string().regex(/^[A-Za-z0-9._:-]{1,100}$/),
         })
         .strict(),
-    verify_operation_item: z
-        .object({
-            ...base,
-            key: z.enum([
-                "AUTHORITY_VERIFIED",
-                "INSURANCE_COI",
-                "W9",
-                "FACTORING_NOA",
-                "NOT_FACTORING",
-                "CARRIER_PROFILE",
-                "FLEET_MAPPING",
-            ]),
-            note: z.string().max(500).nullable().optional(),
-        })
-        .strict(),
+    verify_operation_item: itemSchema,
+    // R15: the document arrived (PENDING → RECEIVED); verify still follows.
+    mark_operation_item_received: itemSchema,
+    // R15: pause or resume the documents reminders (OWNER only in Outreach).
+    set_document_reminders: z.object({ ...base, paused: z.boolean() }).strict(),
     cancel: z
         .object({ ...base, reason: z.string().max(500).nullable().optional() })
         .strict(),
@@ -144,6 +141,27 @@ async function perform(deps, row, action, input) {
             }));
             return "item_verified";
         }
+        case "mark_operation_item_received": {
+            const now = deps.now();
+            await transition(deps.db, row.id, (r) => {
+                const items = markOperationItemReceived(
+                    r.operations,
+                    input.key,
+                    { actor: input.actor, note: input.note ?? null, at: now }
+                );
+                if (!items)
+                    throw new OnboardingError("action_not_allowed", 409, {
+                        code: "item_already_verified",
+                    });
+                return { operations: items };
+            });
+            return "item_received";
+        }
+        case "set_document_reminders":
+            await transition(deps.db, row.id, () => ({
+                reminders_paused: input.paused,
+            }));
+            return input.paused ? "reminders_paused" : "reminders_resumed";
         case "cancel":
             if (!(await cancel(deps, row))) notAllowed("already_cancelled");
             return "cancelled";

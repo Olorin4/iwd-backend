@@ -21,6 +21,8 @@ const FACET_FIELDS = [
     "provisioning_at",
     "operations",
     "documents_requested_at",
+    "reminders_sent",
+    "reminders_paused",
     "cancelled_at",
     "bundle_version_id",
 ];

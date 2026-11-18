@@ -1,3 +1,5 @@
+import { CARRIER_FACING_SLOTS } from "./readiness.js";
+
 // Plain, readable transactional email text (no JSON, no internal ids). The
 // shared emailService adds the business signature.
 const METHOD_LABELS = {
@@ -35,13 +37,7 @@ const mcDigits = (mc) => (mc ? String(mc).replace(/^MC/i, "") : null);
  * (FACTORING = FACTORING_NOA or NOT_FACTORING). FLEET_MAPPING is internal and
  * never appears in an email.
  */
-export const DOCUMENT_SLOTS = [
-    "W9",
-    "INSURANCE_COI",
-    "AUTHORITY_VERIFIED",
-    "FACTORING",
-    "CARRIER_PROFILE",
-];
+export const DOCUMENT_SLOTS = CARRIER_FACING_SLOTS;
 
 function documentLine(slot, terms) {
     const mc = mcDigits(terms.mc_number);
