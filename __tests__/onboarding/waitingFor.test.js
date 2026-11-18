@@ -113,3 +113,12 @@ describe("deriveWaitingFor", () => {
         expect(findRecipient(recipients, "OTHER")).toBe(null);
     });
 });
+
+it("derives IRON_WING from the statuses SignWell actually returned in the sandbox (2026-11-18)", () => {
+    expect(
+        deriveWaitingFor("SENT", [
+            { id: "2", status: "sent", signing_order: 1 },
+            { id: "1", status: "waiting", signing_order: 2 },
+        ])
+    ).toBe("IRON_WING");
+});

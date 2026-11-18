@@ -14,7 +14,10 @@ export const WAITING_FOR = ["IRON_WING", "CARRIER"];
 // SignWell documents Recipients[].status only as a nullable string; its
 // examples show "created" and "draft". Values outside these lists are unknown.
 const SIGNED = ["completed", "signed"];
+// "sent" (the signer whose turn it is) and "waiting" (a later signer) were
+// observed live in the SignWell sandbox on 2026-11-18.
 const NOT_SIGNED = [
+    "waiting",
     "created",
     "draft",
     "sending",
