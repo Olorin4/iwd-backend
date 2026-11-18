@@ -17,6 +17,9 @@ export function onboardingRawBody(req, res, buf) {
 
 const KEY = /^[0-9a-fA-F-]{36}$/;
 
+export const PAYMENT_SAVED_TEXT =
+    "Your payment method is saved. Nothing has been charged. We've emailed you your signed agreement and a short list of documents we need. You can close this page.";
+
 export function createOnboardingRouter(getConfig, getDeps) {
     const router = express.Router();
 
@@ -164,6 +167,14 @@ export function createOnboardingRouter(getConfig, getDeps) {
                 .send(result.text);
         })
     );
+
+    // R15: Stripe Checkout's success page (ONBOARDING_STRIPE_SUCCESS_URL).
+    // Public and static: reads no request data and reveals nothing.
+    router.get("/payment-saved", (req, res) => {
+        res.set("Cache-Control", "no-store");
+        res.set("Referrer-Policy", "no-referrer");
+        res.status(200).type("text/plain").send(PAYMENT_SAVED_TEXT);
+    });
 
     // eslint-disable-next-line no-unused-vars -- Express needs four arguments here.
     router.use((error, req, res, next) => {

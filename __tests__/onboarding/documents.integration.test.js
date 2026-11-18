@@ -420,3 +420,15 @@ describe("documents reminders (reconcile worker pass)", () => {
         expect(reminders()).toHaveLength(2);
     });
 });
+
+it("GET /onboarding/payment-saved is a public plain-text page with no request data", async () => {
+    for (const path of ["/payment-saved", "/payment-saved?session_id=cs_x"]) {
+        const res = await app.call("GET", path, undefined, { auth: false });
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toMatch(/^text\/plain/);
+        expect(res.headers.get("cache-control")).toBe("no-store");
+        expect(res.text).toBe(
+            "Your payment method is saved. Nothing has been charged. We've emailed you your signed agreement and a short list of documents we need. You can close this page."
+        );
+    }
+});
