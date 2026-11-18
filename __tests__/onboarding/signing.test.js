@@ -84,8 +84,10 @@ describe("request signature v2 (Outreach → iwd-backend)", () => {
             actorId: "55555555-5555-4555-8555-555555555555",
             actorEmail: "closer@example.test",
             rawBody: "",
+            nonce: "00112233445566778899aabbccddeeff",
         },
-        header: "t=1700000000,v2=977cc0d7d049974bfb323c24fab8a596ff19b36555e2f9f38024eff0ec8fd6b4",
+        // Amendment 1 (nonce); the earlier vector without a nonce is void.
+        header: "t=1700000000,v2=fc02d0681f41e35df195d2c1c967c7b2e5e3f6d4e303419220e4725f84ba326f",
     };
 
     it("matches the shared test vector", async () => {
@@ -122,6 +124,7 @@ describe("request signature v2 (Outreach → iwd-backend)", () => {
             { actorEmail: null },
             { actorEmail: "other@example.test" },
             { rawBody: "{}" },
+            { nonce: "ffeeddccbbaa99887766554433221100" },
             { secret: "x".repeat(32) },
         ])
             expect(verifyRequestV2({ ...base, ...change }).error).toBe(
@@ -139,6 +142,21 @@ describe("request signature v2 (Outreach → iwd-backend)", () => {
             verifyRequestV2({ ...base, header: v1, nowSeconds: VECTOR.input.t })
                 .error
         ).toBe("signature_v1_rejected");
+        for (const nonce of [
+            undefined,
+            "",
+            "0011",
+            "G".repeat(32),
+            "A".repeat(32),
+        ])
+            expect(
+                verifyRequestV2({
+                    ...base,
+                    nonce,
+                    header: VECTOR.header,
+                    nowSeconds: VECTOR.input.t,
+                }).error
+            ).toBe("nonce_invalid");
         for (const header of [undefined, "garbage", "t=1,v2=zz"])
             expect(
                 verifyRequestV2({ ...base, header, nowSeconds: 1 }).error

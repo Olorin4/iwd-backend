@@ -63,7 +63,10 @@ export function verifySignature({ secret, header, rawBody, nowSeconds }) {
 // body hash:
 // X-IW-Signature: t=<unix seconds>,v2=<hex HMAC-SHA256(secret, canonical)>
 // canonical = [t, METHOD, pathAndQuery, actorId|"", lower(actorEmail)|"",
-//              sha256hex(rawBody)].join("\n")
+//              sha256hex(rawBody), nonce].join("\n")
+// X-IW-Nonce (amendment 1): 32 lowercase hex chars, fresh per request, so two
+// identical calls in one second sign differently.
+export const NONCE_PATTERN = /^[0-9a-f]{32}$/;
 export function canonicalRequestV2({
     t,
     method,
@@ -71,6 +74,7 @@ export function canonicalRequestV2({
     actorId,
     actorEmail,
     rawBody,
+    nonce,
 }) {
     return [
         String(t),
@@ -81,6 +85,7 @@ export function canonicalRequestV2({
         createHash("sha256")
             .update(rawBody ?? "")
             .digest("hex"),
+        nonce ?? "",
     ].join("\n");
 }
 
@@ -119,6 +124,7 @@ export function verifyRequestV2({
     actorId,
     actorEmail,
     rawBody,
+    nonce,
     nowSeconds,
 }) {
     const parsed = parseSignatureHeaderV2(header);
@@ -129,6 +135,8 @@ export function verifyRequestV2({
                     ? "signature_v1_rejected"
                     : "signature_missing",
         };
+    if (typeof nonce !== "string" || !NONCE_PATTERN.test(nonce))
+        return { error: "nonce_invalid" };
     if (Math.abs(nowSeconds - parsed.t) > SIGNATURE_TOLERANCE_SECONDS)
         return { error: "signature_expired" };
     const expected = signRequestV2(secret, {
@@ -138,6 +146,7 @@ export function verifyRequestV2({
         actorId,
         actorEmail,
         rawBody,
+        nonce,
     }).split("v2=")[1];
     return safeEqualHex(expected, parsed.v2)
         ? { v2: parsed.v2 }

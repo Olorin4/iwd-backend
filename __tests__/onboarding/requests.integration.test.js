@@ -199,6 +199,59 @@ it("refuses to change confirmed terms at the database level", async () => {
 describe("signature v2 on the Outreach link", () => {
     const now = () => Math.floor(Date.now() / 1000);
 
+    it("same second, different nonces: both accepted; same nonce: replay", async () => {
+        deps.recordReceipt = (provider, key) =>
+            recordReceipt(prisma, provider, key);
+        await app.call("PUT", `/requests/${KEY}`, requestBody());
+        const t = now();
+        const get = (nonce) =>
+            app.call("GET", `/requests/${KEY}`, undefined, {
+                nowSeconds: t,
+                nonce,
+            });
+        expect((await get("a".repeat(32))).status).toBe(200);
+        expect((await get("b".repeat(32))).status).toBe(200);
+        expect(await get("a".repeat(32))).toMatchObject({
+            status: 401,
+            json: { error: "replayed_signature" },
+        });
+    });
+
+    it("requires a well-formed nonce that is bound by the signature", async () => {
+        const signed = signedHeaders({
+            method: "GET",
+            pathAndQuery: `/onboarding/requests/${KEY}`,
+            t: now(),
+            nonce: "c".repeat(32),
+        });
+        const missing = { ...signed };
+        delete missing["X-IW-Nonce"];
+        expect(
+            (
+                await app.call("GET", `/requests/${KEY}`, undefined, {
+                    auth: false,
+                    headers: missing,
+                })
+            ).json
+        ).toEqual({ error: "nonce_invalid" });
+        expect(
+            (
+                await app.call("GET", `/requests/${KEY}`, undefined, {
+                    auth: false,
+                    headers: { ...signed, "X-IW-Nonce": "C".repeat(32) },
+                })
+            ).json
+        ).toEqual({ error: "nonce_invalid" });
+        expect(
+            (
+                await app.call("GET", `/requests/${KEY}`, undefined, {
+                    auth: false,
+                    headers: { ...signed, "X-IW-Nonce": "d".repeat(32) },
+                })
+            ).json
+        ).toEqual({ error: "signature_invalid" });
+    });
+
     it("refuses a v1 signature", async () => {
         const body = requestBody();
         const raw = JSON.stringify(body);
@@ -287,6 +340,7 @@ describe("signature v2 on the Outreach link", () => {
             auth: false,
             headers: {
                 Authorization: bare.Authorization,
+                "X-IW-Nonce": bare["X-IW-Nonce"],
                 "X-IW-Signature": bare["X-IW-Signature"],
             },
         });
@@ -303,29 +357,41 @@ describe("signature v2 on the Outreach link", () => {
         expect(res.status).toBe(201);
     });
 
+    const N1 = "0".repeat(31) + "1";
+    const N2 = "0".repeat(31) + "2";
+
     it("refuses a replayed signature on GET and PUT", async () => {
         deps.recordReceipt = (provider, key) =>
             recordReceipt(prisma, provider, key);
         const body = requestBody();
         const t = now() - 3;
         expect(
-            (await app.call("PUT", `/requests/${KEY}`, body, { nowSeconds: t }))
-                .status
+            (
+                await app.call("PUT", `/requests/${KEY}`, body, {
+                    nowSeconds: t,
+                    nonce: N1,
+                })
+            ).status
         ).toBe(201);
         expect(
-            await app.call("PUT", `/requests/${KEY}`, body, { nowSeconds: t })
+            await app.call("PUT", `/requests/${KEY}`, body, {
+                nowSeconds: t,
+                nonce: N1,
+            })
         ).toMatchObject({ status: 401, json: { error: "replayed_signature" } });
         const g = now() - 4;
         expect(
             (
                 await app.call("GET", `/requests/${KEY}`, undefined, {
                     nowSeconds: g,
+                    nonce: N2,
                 })
             ).status
         ).toBe(200);
         expect(
             await app.call("GET", `/requests/${KEY}`, undefined, {
                 nowSeconds: g,
+                nonce: N2,
             })
         ).toMatchObject({ status: 401, json: { error: "replayed_signature" } });
         const receipts = await prisma.providerWebhookReceipt.findMany({

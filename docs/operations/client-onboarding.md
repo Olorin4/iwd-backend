@@ -51,11 +51,12 @@ call has been made.** The module is off by default.
 ### Request signature v2 (Outreach → iwd-backend)
 
 Every Outreach call to `/onboarding/*` (PUT, GET, actions, signed-document GET)
-carries `X-IW-Signature: t=<unix seconds>,v2=<hex>` where
+carries `X-IW-Nonce: <32 lowercase hex, 16 random bytes, fresh per request>`
+and `X-IW-Signature: t=<unix seconds>,v2=<hex>` where
 
 ```
 canonical = [t, METHOD, pathAndQuery, actorId ?? "", lower(actorEmail) ?? "",
-             sha256hex(rawBody)].join("\n")
+             sha256hex(rawBody), nonce].join("\n")
 v2 = hex(HMAC_SHA256(ONBOARDING_REQUEST_SIGNING_SECRET, canonical))
 ```
 
@@ -63,19 +64,23 @@ v2 = hex(HMAC_SHA256(ONBOARDING_REQUEST_SIGNING_SECRET, canonical))
 `/onboarding/requests/<key>/documents/signed`); `rawBody` is the exact body
 bytes (`""` for none). iwd checks ±300 s with a timing-safe compare and:
 
-- refuses v1 (`signature_v1_rejected`, 401);
+- refuses v1 (`signature_v1_rejected`, 401) and a missing or malformed nonce
+  (`nonce_invalid`, 401);
 - refuses a request whose body `actor` (PUT, actions) differs from the signed
   `X-IW-Actor-Id`/`X-IW-Actor-Email` headers, or a body actor without headers
   (`actor_mismatch`, 401); emails compare case-insensitively;
 - records every accepted signature (all methods, GET included) in
   `provider_webhook_receipt` (`outreach:v2:<hex>`) and refuses a repeat
-  (`replayed_signature`, 401). Outreach computes a fresh `t` per call;
+  (`replayed_signature`, 401). The nonce makes two identical calls in one second
+  sign differently;
 - logs signed-document reads with the signed actor (email lower-cased).
 
 Test vector (asserted in both repos): secret `"s".repeat(32)`, t=1700000000,
 `GET`, `/onboarding/requests/0b7e8f5a-1c2d-4e3f-8a9b-0c1d2e3f4a5b/documents/signed`,
-actor `55555555-5555-4555-8555-555555555555` / `closer@example.test`, empty body →
-`v2=977cc0d7d049974bfb323c24fab8a596ff19b36555e2f9f38024eff0ec8fd6b4`.
+actor `55555555-5555-4555-8555-555555555555` / `closer@example.test`, empty body,
+nonce `00112233445566778899aabbccddeeff` →
+`v2=fc02d0681f41e35df195d2c1c967c7b2e5e3f6d4e303419220e4725f84ba326f`
+(amendment 1; the earlier vector without a nonce is void).
 
 The status outbox (iwd → Outreach) keeps v1:
 `t=<unix>,v1=<hex HMAC-SHA256(secret, "<t>.<raw body>")>`. Invalid configuration

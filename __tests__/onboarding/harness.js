@@ -4,6 +4,7 @@
 import express from "express";
 import pg from "pg";
 import fs from "node:fs";
+import { randomBytes } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -118,6 +119,7 @@ export function signedHeaders({
     t,
     headers = {},
     body,
+    nonce = randomBytes(16).toString("hex"),
 }) {
     const actor =
         body && typeof body === "object" && body.actor ? body.actor : null;
@@ -127,6 +129,7 @@ export function signedHeaders({
         Authorization: `Bearer ${TOKEN}`,
         ...(actorId ? { "X-IW-Actor-Id": actorId } : {}),
         ...(actorEmail ? { "X-IW-Actor-Email": actorEmail } : {}),
+        "X-IW-Nonce": nonce,
         "X-IW-Signature": signRequestV2(secret, {
             t,
             method,
@@ -134,21 +137,9 @@ export function signedHeaders({
             actorId,
             actorEmail,
             rawBody: raw,
+            nonce,
         }),
     };
-}
-
-// Every accepted signature is recorded, so two identical calls with one
-// timestamp would be a replay; default timestamps are never reused.
-const usedSeconds = new Set();
-function freshSeconds() {
-    const now = Math.floor(Date.now() / 1000);
-    for (let t = now; t > now - 250; t -= 1)
-        if (!usedSeconds.has(t)) {
-            usedSeconds.add(t);
-            return t;
-        }
-    throw new Error("harness: no unused signature timestamp left");
 }
 
 export async function startApp(getConfig, getDeps) {
@@ -163,7 +154,7 @@ export async function startApp(getConfig, getDeps) {
         method,
         urlPath,
         body,
-        { auth = true, headers = {}, nowSeconds } = {}
+        { auth = true, headers = {}, nowSeconds, nonce } = {}
     ) => {
         const raw =
             body === undefined
@@ -171,7 +162,7 @@ export async function startApp(getConfig, getDeps) {
                 : typeof body === "string"
                   ? body
                   : JSON.stringify(body);
-        const t = nowSeconds ?? freshSeconds();
+        const t = nowSeconds ?? Math.floor(Date.now() / 1000);
         const response = await fetch(`${base}/onboarding${urlPath}`, {
             method,
             redirect: "manual",
@@ -185,6 +176,7 @@ export async function startApp(getConfig, getDeps) {
                           t,
                           headers,
                           body,
+                          ...(nonce ? { nonce } : {}),
                       })
                     : {}),
                 ...headers,

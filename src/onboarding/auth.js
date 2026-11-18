@@ -8,7 +8,7 @@ const header = (req, name) => {
 /**
  * Service authentication for Outreach → iwd-backend calls: bearer
  * IWD_ONBOARDING_TOKEN AND an X-IW-Signature v2 over method, request target
- * (`req.originalUrl`), actor headers and raw body. v1 is refused on this link.
+ * (`req.originalUrl`), actor headers, raw body and the X-IW-Nonce header. v1 is refused on this link.
  *
  * - A body `actor` (PUT, actions) must equal the signed actor headers.
  * - `replayStore(key)` returns false when the signature was already used; it
@@ -39,6 +39,7 @@ export function requireService(
             actorId,
             actorEmail,
             rawBody: req.rawBody ?? Buffer.alloc(0),
+            nonce: req.headers["x-iw-nonce"],
             nowSeconds: Math.floor(now() / 1000),
         });
         if (verified.error)

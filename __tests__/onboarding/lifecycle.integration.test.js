@@ -233,6 +233,7 @@ it("actions require service auth and an actor, refuse replays and disallowed tra
         (
             await app.call("POST", `/requests/${KEY}/actions/reconcile`, body, {
                 nowSeconds: t,
+                nonce: "e".repeat(32),
             })
         ).status
     ).toBe(200);
@@ -240,7 +241,7 @@ it("actions require service auth and an actor, refuse replays and disallowed tra
         "POST",
         `/requests/${KEY}/actions/reconcile`,
         body,
-        { nowSeconds: t }
+        { nowSeconds: t, nonce: "e".repeat(32) }
     );
     expect(replay).toMatchObject({
         status: 401,
