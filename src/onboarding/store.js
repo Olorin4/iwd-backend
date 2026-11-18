@@ -23,6 +23,7 @@ const FACET_FIELDS = [
     "documents_requested_at",
     "reminders_sent",
     "reminders_paused",
+    "completion_email_code",
     "cancelled_at",
     "bundle_version_id",
 ];

@@ -7,11 +7,7 @@ import {
 } from "./store.js";
 import { continueUrl } from "./continueToken.js";
 import { paymentLinkEmail } from "./emails.js";
-import {
-    completionEmailClaimed,
-    replyToOf,
-    sendCompletionEmail,
-} from "./documentsFlow.js";
+import { completionEmailClaimed, replyToOf } from "./documentsFlow.js";
 import {
     getClient,
     setClientPaymentMethod,
@@ -434,9 +430,9 @@ export async function reconcilePayment(deps, requestId) {
         : await applySession(deps, setup, setup.checkout_session_id);
     // A link whose email never went out (process stopped between creating the
     // session and emailing, or SMTP failed and released the claim) is emailed
-    // only while the refreshed session is still OPEN. R15: that email is the
-    // combined completion email, claimed once per request, so this never
-    // sends a second one.
+    // only while the refreshed session is still OPEN. R15: the first such
+    // email is the combined completion email (recovery sweep, claimed once
+    // per request); only a failed resend is retried here.
     const fresh = await find();
     if (fresh?.id === setup.id && fresh.state === "OPEN" && !fresh.emailed_at) {
         const row = await deps.db.onboardingRequest.findUnique({
@@ -445,13 +441,10 @@ export async function reconcilePayment(deps, requestId) {
         if (row && !row.cancelled_at && row.signature_state === "COMPLETED") {
             // Every setup is marked emailed once the combined email is
             // claimed, so an unmarked setup after that is a resend whose email
-            // failed: retry that. Otherwise the combined email is still due.
+            // failed: retry that. Otherwise the combined email is still due;
+            // the recovery sweep sends it (one attempt per pass).
             if (await completionEmailClaimed(deps.db, requestId))
                 await emailResend(deps, fresh, row);
-            else {
-                await sendCompletionEmail(deps, requestId);
-                await markEmailedIfCompletionSent(deps, fresh);
-            }
         }
     }
     return result;

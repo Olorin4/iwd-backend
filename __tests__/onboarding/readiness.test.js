@@ -375,3 +375,21 @@ describe("R15 checklist RECEIVED", () => {
         expect(onboardingStatusV1.parse(full)).toEqual(full);
     });
 });
+
+it("R15: a failed completion email blocks with action reconcile", () => {
+    const f = {
+        cancelled: false,
+        signature: "COMPLETED",
+        payment: "LINK_SENT",
+        provisioning: "NOT_STARTED",
+        operations: "PENDING",
+        completionEmailCode: "completion_email_failed",
+    };
+    expect(deriveReadiness(f)).toEqual({
+        readiness: "BLOCKED",
+        blocked: { code: "completion_email_failed", action: "reconcile" },
+    });
+    expect(deriveReadiness({ ...f, completionEmailCode: null }).readiness).toBe(
+        "IN_PROGRESS"
+    );
+});

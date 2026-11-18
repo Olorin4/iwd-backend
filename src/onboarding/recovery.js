@@ -87,7 +87,8 @@ export async function recoverRequestSteps(deps, requestId) {
     if (
         !row.cancelled_at &&
         row.signature_state === "COMPLETED" &&
-        !row.completion_emailed_at
+        !row.completion_emailed_at &&
+        !row.completion_email_code
     )
         await sendCompletionEmail(deps, requestId);
     if (row.provisioning_state === "PENDING")
@@ -117,6 +118,7 @@ export async function stalledRequestIds(deps) {
                     cancelled_at: null,
                     signature_state: "COMPLETED",
                     completion_emailed_at: null,
+                    completion_email_code: null,
                 },
                 {
                     cancelled_at: null,

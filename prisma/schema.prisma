@@ -422,40 +422,47 @@ model Client {
 }
 
 model OnboardingRequest {
-  id                     String    @id @default(uuid())
-  idempotency_key        String    @unique
-  source                 String
-  source_refs            Json
-  actor                  Json
-  terms                  Json // immutable (database trigger)
-  terms_hash             String
-  confirmed_at           DateTime
-  client_id              String
-  bundle_version_id      String?
-  signature_state        String    @default("NOT_SENT")
-  signature_code         String?
-  signature_at           DateTime?
-  signature_waiting_for  String? // IRON_WING | CARRIER while SENT/VIEWED (R14)
-  payment_state          String    @default("NOT_STARTED")
-  payment_code           String?
-  payment_method_type    String?
-  payment_last4          String?
-  payment_at             DateTime?
-  provisioning_state     String    @default("NOT_STARTED")
-  provisioning_code      String?
-  kelevo_ref             String?
-  provisioning_at        DateTime?
-  operations             Json
-  // R15: exactly-once claim for the combined completion email, and when the
-  // documents were requested (that email went out).
-  completion_emailed_at  DateTime?
-  documents_requested_at DateTime?
-  reminders_sent         Int       @default(0) // 0..2 (R15)
-  reminders_paused       Boolean   @default(false)
-  version                Int       @default(1)
-  cancelled_at           DateTime?
-  created_at             DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
+  id                          String    @id @default(uuid())
+  idempotency_key             String    @unique
+  source                      String
+  source_refs                 Json
+  actor                       Json
+  terms                       Json // immutable (database trigger)
+  terms_hash                  String
+  confirmed_at                DateTime
+  client_id                   String
+  bundle_version_id           String?
+  signature_state             String    @default("NOT_SENT")
+  signature_code              String?
+  signature_at                DateTime?
+  signature_waiting_for       String? // IRON_WING | CARRIER while SENT/VIEWED (R14)
+  payment_state               String    @default("NOT_STARTED")
+  payment_code                String?
+  payment_method_type         String?
+  payment_last4               String?
+  payment_at                  DateTime?
+  provisioning_state          String    @default("NOT_STARTED")
+  provisioning_code           String?
+  kelevo_ref                  String?
+  provisioning_at             DateTime?
+  operations                  Json
+  // R15: when the combined completion email was accepted by SMTP, and when
+  // the documents were requested (the same moment).
+  completion_emailed_at       DateTime?
+  documents_requested_at      DateTime?
+  reminders_sent              Int       @default(0) // 0..2 (R15)
+  reminders_paused            Boolean   @default(false)
+  // R15 follow-up: claim/attempt state (sent = completion_emailed_at,
+  // reminders_sent); stale claims (> 30 min) are retried, max 3 attempts.
+  completion_email_claimed_at DateTime?
+  completion_email_attempts   Int       @default(0)
+  completion_email_code       String? // completion_email_failed after 3 attempts
+  reminder_claimed_at         DateTime?
+  reminder_attempts           Int       @default(0)
+  version                     Int       @default(1)
+  cancelled_at                DateTime?
+  created_at                  DateTime  @default(now())
+  updated_at                  DateTime  @updatedAt
 
   client    Client              @relation(fields: [client_id], references: [id])
   envelopes SignatureEnvelope[]

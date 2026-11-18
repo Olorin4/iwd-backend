@@ -193,7 +193,10 @@ a request whose payment-link email already went out gets
 retroactively, and with `documents_requested_at` left null it gets no
 reminders) and `20261118170000_onboarding_document_reminders`
 (`reminders_sent` INTEGER default 0 with CHECK 0–2, `reminders_paused`
-BOOLEAN default false). Checklist item states live in the existing
+BOOLEAN default false), then `20261118180000_onboarding_email_claims`
+(`completion_email_claimed_at`, `completion_email_attempts`, `completion_email_code`,
+`reminder_claimed_at`, `reminder_attempts`; rows already marked sent get
+claimed_at = emailed_at and 1 attempt). Checklist item states live in the existing
 `operations` JSON column.
 
 `prisma/migrations/20261118140000_onboarding_signature_waiting_for` (R14) adds
@@ -441,16 +444,22 @@ from the owner (tests assert them).
 - It **replaces the separate payment-link email**: it is the payment-link email for the
   PaymentSetup (`emailed_at` is set), so the payment reconcile never sends another.
   `resend_payment_link` still sends the plain payment-link email.
-- **Exactly once per request:** `onboarding_request.completion_emailed_at` is claimed
-  atomically (only while signature COMPLETED and not cancelled) by whichever of the
-  after-commit task, the reconcile pass, the recovery sweep or the `reconcile` action gets
-  there first. A missing document, a hash mismatch or an SMTP failure releases the claim
-  (logged `onboarding_completion_document_missing|_document_unavailable|_email_failed`) and
-  the next reconcile pass retries. A process stop between the claim and the SMTP call leaves
-  the claim set: that email is then not sent (never duplicated). Such a request shows
-  `completion_emailed_at` set but `documents_requested_at` null; the owner then downloads the
-  signed copy in Outreach and emails the carrier by hand (`resend_payment_link` sends only the
-  plain payment link).
+- **Once per request, never lost:** the state is split into a claim
+  (`completion_email_claimed_at`, plus `completion_email_attempts`) and the sent mark
+  (`completion_emailed_at`, set only after SMTP accepted). The claim is taken atomically
+  (only while signature COMPLETED, not cancelled, fewer than 3 attempts) by whichever of the
+  after-commit task, the recovery sweep (reconcile pass) or the `reconcile` action gets there
+  first; the payment reconcile never sends it. A missing document, a hash mismatch or an SMTP
+  failure releases the claim (logged
+  `onboarding_completion_document_missing|_document_unavailable|_email_failed`) and the next
+  reconcile pass retries. A claim left by a stopped process is re-claimed after 30 minutes.
+  After 3 attempts (failed or stale) the request logs `onboarding_completion_email_stuck` and
+  `onboarding.status.v1` shows `readiness: BLOCKED`,
+  `blocked: { code: "completion_email_failed", action: "reconcile" }`
+  (`onboarding_request.completion_email_code`); the `reconcile` action allows 3 more attempts
+  and sends at once; success clears the block. **Accepted by design:** a process stop after
+  SMTP accepted but before `completion_emailed_at` is written makes the retry send a second
+  copy (rare duplicate rather than a lost email).
 - It is sent even when the carrier already saved a payment method through the SignWell
   redirect before the after-commit step ran (recovery sweep).
 - On success `documents_requested_at` is set (status event).
@@ -472,9 +481,13 @@ line), CARRIER_PROFILE. FLEET_MAPPING is internal and never in an email.
   PENDING_VERIFICATION. Content lists only the PENDING carrier-facing documents (same
   wording, renumbered) and the payment line only when payment is not saved. Stops on
   cancel and while `reminders_paused` (`set_document_reminders`).
-- Exactly once per reminder number: claimed under the request lock
-  (`reminders_sent` n-1 → n, a status event); an SMTP failure gives the number back
-  (`onboarding_reminder_email_failed`) and the next pass retries.
+- Per reminder number the same split: a claim (`reminder_claimed_at`,
+  `reminder_attempts`, taken atomically against the current `reminders_sent`) and the sent
+  count `reminders_sent` (bumped only after SMTP accepted; status event). An SMTP failure
+  releases the claim (`onboarding_reminder_email_failed`) and the next pass retries; a claim
+  left by a stopped process is re-claimed after 30 minutes. After 3 attempts reminders stop
+  for that request (`onboarding_reminder_email_stuck`, logged once; no block). A stop after
+  SMTP accepted but before the count is bumped can send that reminder twice (accepted).
 
 **Contract amendment** (`onboarding.status.v1`, additive; the shared fixture is unchanged
 and still valid): `operations.items[].state` may be `RECEIVED`; optional

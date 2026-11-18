@@ -126,6 +126,8 @@ export function deriveReadiness(f) {
     // An open packet with a code (e.g. audit_page_missing) waits on reconcile.
     if (["SENT", "VIEWED"].includes(f.signature) && f.signatureCode)
         return block(f.signatureCode, "reconcile");
+    // R15: the combined completion email failed 3 times (or went stale).
+    if (f.completionEmailCode) return block(f.completionEmailCode, "reconcile");
     if (f.payment === "FAILED")
         return block(f.paymentCode || "payment_failed", "resend_payment_link");
     if (f.provisioning === "FAILED")
@@ -151,6 +153,7 @@ export const facetsOf = (row) => ({
     provisioning: row.provisioning_state,
     provisioningCode: row.provisioning_code,
     operations: operationsState(row.operations ?? []),
+    completionEmailCode: row.completion_email_code ?? null,
 });
 
 const iso = (date) => (date ? new Date(date).toISOString() : null);

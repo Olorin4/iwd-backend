@@ -34,13 +34,51 @@ async function completedPacket(deps, requestId) {
     return { envelope, bytes };
 }
 
+/** A claim older than this is presumed dead (process stopped) and re-claimed. */
+export const STALE_EMAIL_CLAIM_MS = 30 * 60 * 1000;
+/** Attempts per email (completion email; each reminder number). */
+export const MAX_EMAIL_ATTEMPTS = 3;
+export const COMPLETION_EMAIL_FAILED = "completion_email_failed";
+
+const staleBefore = (now) => new Date(now.getTime() - STALE_EMAIL_CLAIM_MS);
+const claimFree = (now, field) => ({
+    OR: [{ [field]: null }, { [field]: { lt: staleBefore(now) } }],
+});
+
 /**
- * Sends the combined completion email exactly once per request. The claim
- * (`completion_emailed_at`) is taken atomically, only while the signature is
- * COMPLETED and the request is not cancelled; webhook, reconcile and recovery
- * may all call this concurrently. A missing/corrupt document or a send failure
- * releases the claim, so the reconcile pass retries. A process stop between
- * the claim and the send leaves the claim set (never a duplicate email).
+ * After the last attempt failed or went stale: log and surface BLOCKED
+ * `completion_email_failed` (action `reconcile`) once.
+ */
+async function flagCompletionStuck(deps, requestId, now) {
+    const result = await transition(
+        deps.db,
+        requestId,
+        (r) =>
+            !r.cancelled_at &&
+            !r.completion_emailed_at &&
+            !r.completion_email_code &&
+            r.completion_email_attempts >= MAX_EMAIL_ATTEMPTS &&
+            (!r.completion_email_claimed_at ||
+                r.completion_email_claimed_at < staleBefore(now))
+                ? { completion_email_code: COMPLETION_EMAIL_FAILED }
+                : null,
+        { now: () => now }
+    );
+    if (result.changed) logError(deps, "onboarding_completion_email_stuck");
+    return result.changed;
+}
+
+/**
+ * Sends the combined completion email once per request. State: a claim
+ * (`completion_email_claimed_at`, taken atomically while the signature is
+ * COMPLETED, the request not cancelled and fewer than 3 attempts were made)
+ * and the sent mark (`completion_emailed_at`, set only after SMTP accepted).
+ * Webhook, reconcile and recovery may all call this concurrently. A missing or
+ * corrupt document or an SMTP failure releases the claim (the next pass
+ * retries); a claim left by a stopped process is re-claimed after 30 minutes.
+ * After 3 attempts the request is BLOCKED `completion_email_failed`; the
+ * `reconcile` action allows 3 more. A stop after SMTP accepted but before the
+ * sent mark can cause one duplicate email (accepted by design).
  * Returns true when this call sent the email.
  */
 export async function sendCompletionEmail(deps, requestId) {
@@ -52,16 +90,29 @@ export async function sendCompletionEmail(deps, requestId) {
             completion_emailed_at: null,
             cancelled_at: null,
             signature_state: "COMPLETED",
+            completion_email_attempts: { lt: MAX_EMAIL_ATTEMPTS },
+            ...claimFree(now, "completion_email_claimed_at"),
         },
-        data: { completion_emailed_at: now },
+        data: {
+            completion_email_claimed_at: now,
+            completion_email_attempts: { increment: 1 },
+        },
     });
-    if (count !== 1) return false;
+    if (count !== 1) {
+        await flagCompletionStuck(deps, requestId, now);
+        return false;
+    }
     const release = async (code, reason) => {
         await db.onboardingRequest.updateMany({
-            where: { id: requestId, documents_requested_at: null },
-            data: { completion_emailed_at: null },
+            where: {
+                id: requestId,
+                completion_emailed_at: null,
+                completion_email_claimed_at: now,
+            },
+            data: { completion_email_claimed_at: null },
         });
         logError(deps, code, reason);
+        await flagCompletionStuck(deps, requestId, now);
         return false;
     };
 
@@ -102,6 +153,11 @@ export async function sendCompletionEmail(deps, requestId) {
     } catch {
         return release("onboarding_completion_email_failed");
     }
+    const sentAt = deps.now();
+    await db.onboardingRequest.updateMany({
+        where: { id: requestId, completion_emailed_at: null },
+        data: { completion_emailed_at: sentAt },
+    });
     logInfo(deps, "onboarding_completion_emailed");
 
     await db.documentAccessLog.create({
@@ -119,25 +175,49 @@ export async function sendCompletionEmail(deps, requestId) {
             emailed_at: null,
             state: { in: ["CREATING", "OPEN"] },
         },
-        data: { emailed_at: now },
+        data: { emailed_at: sentAt },
     });
     await transition(
         db,
         row.id,
-        (r) =>
-            r.documents_requested_at ? null : { documents_requested_at: now },
-        { now: () => now }
+        (r) => ({
+            documents_requested_at: r.documents_requested_at ?? sentAt,
+            completion_email_code: null,
+        }),
+        { now: () => sentAt }
     );
     return true;
+}
+
+/**
+ * The `reconcile` action on a request BLOCKED `completion_email_failed`:
+ * allows another 3 attempts (the action then runs the recovery send).
+ */
+export async function resetStuckCompletionEmail(deps, requestId) {
+    const { count } = await deps.db.onboardingRequest.updateMany({
+        where: {
+            id: requestId,
+            completion_emailed_at: null,
+            completion_email_code: COMPLETION_EMAIL_FAILED,
+        },
+        data: {
+            completion_email_attempts: 0,
+            completion_email_claimed_at: null,
+        },
+    });
+    return count === 1;
 }
 
 /** True once the combined email has been claimed or sent for the request. */
 export async function completionEmailClaimed(db, requestId) {
     const row = await db.onboardingRequest.findUnique({
         where: { id: requestId },
-        select: { completion_emailed_at: true },
+        select: {
+            completion_emailed_at: true,
+            completion_email_claimed_at: true,
+        },
     });
-    return !!row?.completion_emailed_at;
+    return !!(row?.completion_emailed_at || row?.completion_email_claimed_at);
 }
 
 // ---------------------------------------------------------------------------
@@ -167,13 +247,19 @@ function reminderDue(row, now) {
     return { number, missing, paymentMissing };
 }
 
-/** Candidates for the reminder sweep (due-ness is checked under the lock). */
+/** Candidates for the reminder sweep (due-ness is re-checked on claim). */
 export async function reminderCandidateIds(deps) {
     const rows = await deps.db.onboardingRequest.findMany({
         where: {
             cancelled_at: null,
             reminders_paused: false,
             reminders_sent: { lt: MAX_REMINDERS },
+            // Exhausted numbers stay listed only while a claim is left over,
+            // so the stuck log is written once.
+            OR: [
+                { reminder_attempts: { lt: MAX_EMAIL_ATTEMPTS } },
+                { reminder_claimed_at: { not: null } },
+            ],
             // Business days are never shorter than calendar days.
             documents_requested_at: {
                 lte: new Date(
@@ -188,27 +274,56 @@ export async function reminderCandidateIds(deps) {
 }
 
 /**
- * Sends the next reminder for a request when it is due. The reminder number
- * is claimed under the request lock (reminders_sent n-1 → n, a status event),
- * so each number goes out at most once; a send failure gives the number back
- * and the next pass retries. Returns true when this call sent one.
+ * Sends the next reminder for a request when it is due. State per number: a
+ * claim (`reminder_claimed_at`, taken atomically against the current
+ * `reminders_sent`; at most 3 attempts) and the sent count `reminders_sent`
+ * (bumped only after SMTP accepted; status event). A send failure releases
+ * the claim (the next pass retries); a claim left by a stopped process is
+ * re-claimed after 30 minutes. After 3 attempts reminders stop for the
+ * request (`onboarding_reminder_email_stuck`, logged once). A
+ * stop after SMTP accepted but before the count is bumped can cause one
+ * duplicate (accepted by design). Returns true when this call sent one.
  */
 export async function sendDueReminder(deps, requestId) {
     const { db } = deps;
     const now = deps.now();
-    let claim = null;
-    await transition(
-        db,
-        requestId,
-        (row) => {
-            claim = reminderDue(row, now);
-            if (claim) claim.row = row;
-            return claim ? { reminders_sent: claim.number } : null;
+    const row = await db.onboardingRequest.findUnique({
+        where: { id: requestId },
+    });
+    if (!row) return false;
+    if (
+        row.reminder_attempts >= MAX_EMAIL_ATTEMPTS &&
+        row.reminder_claimed_at &&
+        row.reminder_claimed_at < staleBefore(now)
+    ) {
+        const { count } = await db.onboardingRequest.updateMany({
+            where: {
+                id: requestId,
+                reminder_claimed_at: row.reminder_claimed_at,
+            },
+            data: { reminder_claimed_at: null },
+        });
+        if (count === 1) logError(deps, "onboarding_reminder_email_stuck");
+        return false;
+    }
+    const due = reminderDue(row, now);
+    if (!due) return false;
+    const { number, missing, paymentMissing } = due;
+    const { count } = await db.onboardingRequest.updateMany({
+        where: {
+            id: requestId,
+            cancelled_at: null,
+            reminders_paused: false,
+            reminders_sent: row.reminders_sent,
+            reminder_attempts: { lt: MAX_EMAIL_ATTEMPTS },
+            ...claimFree(now, "reminder_claimed_at"),
         },
-        { now: () => now }
-    );
-    if (!claim) return false;
-    const { row, number, missing, paymentMissing } = claim;
+        data: {
+            reminder_claimed_at: now,
+            reminder_attempts: { increment: 1 },
+        },
+    });
+    if (count !== 1) return false;
     const { subject, text } = reminderEmail({
         terms: row.terms,
         requestId: row.id,
@@ -226,18 +341,28 @@ export async function sendDueReminder(deps, requestId) {
             text,
         });
     } catch {
-        await transition(
-            db,
-            requestId,
-            (r) =>
-                r.reminders_sent === number
-                    ? { reminders_sent: number - 1 }
-                    : null,
-            { now: () => deps.now() }
-        );
+        const exhausted = row.reminder_attempts + 1 >= MAX_EMAIL_ATTEMPTS;
+        await db.onboardingRequest.updateMany({
+            where: { id: requestId, reminder_claimed_at: now },
+            data: { reminder_claimed_at: null },
+        });
         logError(deps, "onboarding_reminder_email_failed");
+        if (exhausted) logError(deps, "onboarding_reminder_email_stuck");
         return false;
     }
+    const sentAt = deps.now();
+    await transition(
+        db,
+        requestId,
+        (r) =>
+            r.reminders_sent === number - 1 ? { reminders_sent: number } : null,
+        { now: () => sentAt }
+    );
+    // The next number starts with a fresh claim and attempt count.
+    await db.onboardingRequest.updateMany({
+        where: { id: requestId, reminders_sent: number },
+        data: { reminder_claimed_at: null, reminder_attempts: 0 },
+    });
     deps.logger?.info?.({ code: "onboarding_reminder_emailed", number });
     return true;
 }

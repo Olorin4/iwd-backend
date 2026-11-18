@@ -247,3 +247,101 @@ it("resend_payment_link still sends the plain payment-link email, with the reply
     expect(mail.replyTo).toBe("ops@example.test");
     expect(mail.attachments).toBeUndefined();
 });
+
+describe("stale claims and attempts", () => {
+    const MIN = 60 * 1000;
+    let clock;
+    const useClock = (start) => {
+        clock = start;
+        deps = makeDeps({ now: () => clock });
+    };
+    const completionEmails = () =>
+        sendEmail.mock.calls.filter((c) =>
+            c[0].subject.startsWith("Your signed Iron Wing agreement")
+        );
+
+    it("a crash after the claim is retried after 30 minutes and sent once", async () => {
+        const row = await completed();
+        queue.tasks.splice(0); // the after-commit task never ran
+        const t0 = new Date();
+        // The process stopped after claiming, before SMTP.
+        await prisma.onboardingRequest.update({
+            where: { id: row.id },
+            data: {
+                completion_email_claimed_at: t0,
+                completion_email_attempts: 1,
+            },
+        });
+        useClock(new Date(t0.getTime() + 29 * MIN));
+        await reconcileOnce(deps);
+        await sendCompletionEmail(deps, row.id);
+        expect(completionEmails()).toHaveLength(0);
+        useClock(new Date(t0.getTime() + 31 * MIN));
+        await Promise.all([reconcileOnce(deps), reconcileOnce(deps)]);
+        await reconcileOnce(deps);
+        expect(completionEmails()).toHaveLength(1);
+        const fresh = await request();
+        expect(fresh.completion_emailed_at).not.toBeNull();
+        expect(fresh.documents_requested_at).not.toBeNull();
+        expect(fresh.completion_email_attempts).toBe(2);
+    });
+
+    it("3 failed attempts → BLOCKED completion_email_failed (reconcile), then the action retries", async () => {
+        sendEmail.mockRejectedValue(new Error("smtp down"));
+        await completed();
+        await queue.drain(); // attempt 1
+        await reconcileOnce(deps); // attempt 2
+        expect(
+            (await app.call("GET", `/requests/${KEY}`)).json.blocked
+        ).toBeNull();
+        await reconcileOnce(deps); // attempt 3
+        await reconcileOnce(deps);
+        await reconcileOnce(deps);
+        expect(sendEmail).toHaveBeenCalledTimes(3);
+        expect(
+            logger.lines.filter(
+                (l) => l.code === "onboarding_completion_email_stuck"
+            )
+        ).toHaveLength(1);
+        let status = (await app.call("GET", `/requests/${KEY}`)).json;
+        expect(status.readiness).toBe("BLOCKED");
+        expect(status.blocked).toEqual({
+            code: "completion_email_failed",
+            action: "reconcile",
+        });
+        expect((await request()).completion_emailed_at).toBeNull();
+
+        sendEmail.mockResolvedValue({});
+        const res = await app.call(
+            "POST",
+            `/requests/${KEY}/actions/reconcile`,
+            { actor: ACTOR }
+        );
+        expect(res.status).toBe(200);
+        expect(sendEmail).toHaveBeenCalledTimes(4);
+        status = (await app.call("GET", `/requests/${KEY}`)).json;
+        expect(status.blocked).toBeNull();
+        expect((await request()).completion_emailed_at).not.toBeNull();
+        await reconcileOnce(deps);
+        expect(sendEmail).toHaveBeenCalledTimes(4);
+    });
+
+    it("a stale third attempt is not retried but BLOCKED", async () => {
+        const row = await completed();
+        queue.tasks.splice(0);
+        const t0 = new Date();
+        await prisma.onboardingRequest.update({
+            where: { id: row.id },
+            data: {
+                completion_email_claimed_at: t0,
+                completion_email_attempts: 3,
+            },
+        });
+        useClock(new Date(t0.getTime() + 31 * MIN));
+        await reconcileOnce(deps);
+        expect(sendEmail).not.toHaveBeenCalled();
+        expect((await request()).completion_email_code).toBe(
+            "completion_email_failed"
+        );
+    });
+});

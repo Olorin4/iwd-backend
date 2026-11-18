@@ -403,6 +403,42 @@ describe("documents reminders (reconcile worker pass)", () => {
         expect((await request()).reminders_sent).toBe(1);
     });
 
+    it("a reminder claim left by a crash is retried after 30 minutes, sent once", async () => {
+        await requested();
+        at(DUE_1);
+        await setRow({ reminder_claimed_at: DUE_1, reminder_attempts: 1 });
+        at(DUE_1.getTime() + 29 * 60 * 1000);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(0);
+        at(DUE_1.getTime() + 31 * 60 * 1000);
+        await Promise.all([reconcileOnce(deps), reconcileOnce(deps)]);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(1);
+        expect(await request()).toMatchObject({
+            reminders_sent: 1,
+            reminder_claimed_at: null,
+            reminder_attempts: 0,
+        });
+    });
+
+    it("3 failed attempts stop the reminders (logged once)", async () => {
+        await requested();
+        at(DUE_1);
+        sendEmail.mockRejectedValue(new Error("smtp down"));
+        for (let i = 0; i < 5; i += 1) await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(3);
+        expect(
+            logger.lines.filter(
+                (l) => l.code === "onboarding_reminder_email_stuck"
+            )
+        ).toHaveLength(1);
+        sendEmail.mockResolvedValue({});
+        at(DUE_2);
+        await reconcileOnce(deps);
+        expect(reminders()).toHaveLength(3);
+        expect((await request()).reminders_sent).toBe(0);
+    });
+
     it("a send failure gives the number back and the next pass retries", async () => {
         await requested();
         at(DUE_1);

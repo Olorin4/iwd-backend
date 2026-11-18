@@ -1,6 +1,7 @@
 import { prisma } from "../../src/prismaClient";
 import { continueUrl } from "../../src/onboarding/continueToken";
 import { createOnboardingDeps } from "../../src/onboarding/deps";
+import { recoverRequestSteps } from "../../src/onboarding/recovery";
 import { createFakeSignatureProvider } from "../../src/onboarding/signature/fake";
 import {
     reconcilePayment,
@@ -119,7 +120,11 @@ it("reconcile emails a link whose email never went out, exactly once", async () 
     expect(setup.emailed_at).toBeNull();
     expect(sendEmail).toHaveBeenCalledTimes(1);
 
+    // R15: the payment reconcile leaves the combined email to the recovery
+    // sweep (one attempt per reconcile pass).
     await reconcilePayment(deps, done.id);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    await recoverRequestSteps(deps, done.id);
     [setup] = await setups();
     expect(setup.emailed_at).not.toBeNull();
     expect(sendEmail).toHaveBeenCalledTimes(2);

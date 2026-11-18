@@ -11,6 +11,10 @@ import {
 import { issuePaymentLink, reconcilePayment } from "./paymentFlow.js";
 import { confirmProvisioning, startProvisioning } from "./provisioningFlow.js";
 import { recoverRequestSteps } from "./recovery.js";
+import {
+    resetStuckCompletionEmail,
+    sendCompletionEmail,
+} from "./documentsFlow.js";
 import { SIGNER_ROLES } from "./signature/waitingFor.js";
 
 const base = { actor: actorSchema };
@@ -97,6 +101,9 @@ async function perform(deps, row, action, input) {
         notAllowed("request_cancelled");
     switch (action) {
         case "reconcile":
+            // BLOCKED completion_email_failed: 3 more attempts, one now.
+            if (await resetStuckCompletionEmail(deps, row.id))
+                await sendCompletionEmail(deps, row.id);
             await reconcileSignature(deps, row.id);
             await reconcilePayment(deps, row.id);
             await recoverRequestSteps(deps, row.id);
