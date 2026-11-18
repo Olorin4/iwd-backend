@@ -48,9 +48,10 @@ async function emailResend(deps, setup, row) {
         data: { emailed_at: deps.now() },
     });
     if (count !== 1) return false;
-    const { subject, text } = paymentLinkEmail({
+    const { subject, text, html } = paymentLinkEmail({
         terms: row.terms,
         url: continueUrl(deps.config, row.id, deps.now()),
+        baseUrl: deps.config.publicBaseUrl,
     });
     try {
         await deps.sendEmail({
@@ -59,6 +60,7 @@ async function emailResend(deps, setup, row) {
             ...replyToOf(deps.config),
             subject,
             text,
+            html,
         });
         log(deps, "onboarding_payment_link_emailed");
         return true;

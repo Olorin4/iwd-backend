@@ -1,6 +1,7 @@
 import {
     agreementFilename,
     completionEmail,
+    paymentLinkEmail,
     refOf,
     reminderEmail,
 } from "../../src/onboarding/emails";
@@ -143,5 +144,150 @@ describe("R15 reminder email", () => {
                 "Your payment method: save it on Stripe's secure page here:\nhttps://x.test/c/t" +
                 ending
         );
+    });
+});
+
+describe("payment button (HTML part)", () => {
+    const URL_ = "https://api.example.test/onboarding/continue/a.b.c";
+    const BASE = "https://api.example.test";
+    const evil = {
+        ...terms,
+        legal_name: `Bad <b>&"' Co`,
+        signer: { name: `<img src=x onerror=1>` },
+        payment_methods: ["card"],
+    };
+    const buttons = (html) =>
+        [...html.matchAll(/<a [^>]*>Save your payment method<\/a>/g)].map(
+            (m) => m[0]
+        );
+    const mails = (t = terms) => ({
+        completion: completionEmail({
+            terms: t,
+            requestId: ID,
+            url: URL_,
+            baseUrl: BASE,
+        }),
+        reminderWithDocs: reminderEmail({
+            terms: t,
+            requestId: ID,
+            missingSlots: ["W9"],
+            paymentUrl: URL_,
+            baseUrl: BASE,
+        }),
+        reminderPaymentOnly: reminderEmail({
+            terms: t,
+            requestId: ID,
+            missingSlots: [],
+            paymentUrl: URL_,
+            baseUrl: BASE,
+        }),
+        resend: paymentLinkEmail({
+            terms: { ...t, payment_methods: ["card"] },
+            url: URL_,
+            baseUrl: BASE,
+        }),
+    });
+
+    it.each([
+        "completion",
+        "reminderWithDocs",
+        "reminderPaymentOnly",
+        "resend",
+    ])("%s: exactly one button anchor pointing at the continue URL", (kind) => {
+        const { html, text } = mails()[kind];
+        const found = buttons(html);
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain(`href="${URL_}"`);
+        expect(found[0]).toMatch(/style="[^"]*background-color:#0b3d91/);
+        expect(html).not.toMatch(/<table/i);
+        // the URL is visible only in the small fallback line
+        const visible = html.replace(/<[^>]+>/g, "");
+        expect(visible.split(URL_)).toHaveLength(2);
+        expect(visible).toContain(`or open this link: ${URL_}`);
+        // the text part keeps the link alone on its own line
+        expect(text).toContain(`\n${URL_}`);
+        expect(text).not.toContain("Save your payment method");
+        expect(text).not.toMatch(/<[a-z]/i);
+    });
+
+    it("text parts are unchanged by the HTML part", () => {
+        const m = mails();
+        expect(m.reminderPaymentOnly.text).toBe(
+            reminderEmail({
+                terms,
+                requestId: ID,
+                missingSlots: [],
+                paymentUrl: URL_,
+            }).text
+        );
+        expect(m.completion.text).toContain(
+            `use Stripe's secure page here:\n${URL_}\nNothing is charged`
+        );
+        expect(m.resend.text).toContain(
+            `save a card on Stripe's secure page:\n${URL_}\n\n`
+        );
+    });
+
+    it("a reminder without the payment line has no button", () => {
+        const { html } = reminderEmail({
+            terms,
+            requestId: ID,
+            missingSlots: ["W9"],
+            paymentUrl: null,
+            baseUrl: BASE,
+        });
+        expect(buttons(html)).toHaveLength(0);
+        expect(html).toContain("1. A signed W-9 form");
+    });
+
+    it("escapes the legal name and signer in every HTML part", () => {
+        for (const { html } of Object.values(mails(evil))) {
+            expect(html).not.toContain("<b>");
+            expect(html).not.toContain("<img");
+            expect(html).toContain("&lt;img src=x onerror=1&gt;");
+        }
+        const { html } = mails(evil).completion;
+        expect(html).toContain("Bad &lt;b&gt;&amp;&quot;&#39; Co");
+    });
+
+    it("never puts an unsafe URL into an href", () => {
+        for (const bad of [
+            "javascript:alert(1)",
+            "data:text/html,x",
+            "not a url",
+            "http://api.example.test/x",
+        ]) {
+            const { html } = completionEmail({
+                terms,
+                requestId: ID,
+                url: bad,
+                baseUrl: BASE,
+            });
+            expect(buttons(html)).toHaveLength(0);
+            expect(html).not.toContain("href=");
+        }
+    });
+
+    it("allows the configured public base URL scheme (local http sandbox)", () => {
+        const local = "http://localhost:3000/onboarding/continue/t";
+        const { html } = completionEmail({
+            terms,
+            requestId: ID,
+            url: local,
+            baseUrl: "http://localhost:3000",
+        });
+        expect(buttons(html)[0]).toContain(`href="${local}"`);
+    });
+
+    it("escapes quotes in the href", () => {
+        const odd = `https://x.test/a"onmouseover="x`;
+        const { html } = completionEmail({
+            terms,
+            requestId: ID,
+            url: odd,
+            baseUrl: BASE,
+        });
+        expect(html).not.toContain('"onmouseover="');
+        expect(html).toContain("&quot;onmouseover=&quot;");
     });
 });

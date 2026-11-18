@@ -354,6 +354,11 @@ it("a Stripe failure while creating the session blocks with resend_payment_link"
     expect(sendEmail.mock.calls[1][0].subject).toBe(
         "Next step: save your payment method for Iron Wing"
     );
+    const resent = sendEmail.mock.calls[1][0];
+    const link = resent.text.match(/^https:\/\/\S+$/m)[0];
+    expect(
+        resent.html.match(/<a [^>]*>Save your payment method<\/a>/g)
+    ).toEqual([expect.stringContaining(`href="${link}"`)]);
 });
 
 it("a concurrent webhook and reconcile record READY once (one status event)", async () => {

@@ -276,6 +276,10 @@ describe("documents reminders (reconcile worker pass)", () => {
         );
         expect(mail.text).not.toMatch(/[{}]|FLEET|fleet/);
         expect(mail.attachments).toBeUndefined();
+        const link = mail.text.match(/^https:\/\/\S+$/m)[0];
+        expect(
+            mail.html.match(/<a [^>]*>Save your payment method<\/a>/g)
+        ).toEqual([expect.stringContaining(`href="${link}"`)]);
         let fresh = await request();
         expect(fresh.reminders_sent).toBe(1);
         expect(fresh.version).toBe(v + 1);

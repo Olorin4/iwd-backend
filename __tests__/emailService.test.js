@@ -197,3 +197,41 @@ describe("sendEmail attachments", () => {
         expect(attachments[1]).toBe(pdf);
     });
 });
+
+describe("sendEmail html", () => {
+    const base = {
+        from: "support@example.com",
+        to: "admin@example.com",
+        subject: "Run summary",
+        text: "Line one\n\nLine two",
+    };
+
+    it("without html sends exactly what it always did", async () => {
+        const a = load();
+        await a.service.sendEmail({ ...base });
+        const b = load();
+        await b.service.sendEmail({ ...base, html: undefined });
+        const plain = a.sendMail.mock.calls[0][0];
+        expect(b.sendMail.mock.calls[0][0]).toEqual(plain);
+        expect(
+            plain.html.startsWith("<p>Line one</p>\n<p>Line two</p>\n")
+        ).toBe(true);
+        expect(Object.keys(plain)).not.toContain("htmlBody");
+    });
+
+    it("uses the given html body, then the signature and logo as before", async () => {
+        const { service, sendMail } = load();
+        await service.sendEmail({ ...base, html: "<p>Custom</p>" });
+        const mail = sendMail.mock.calls[0][0];
+        expect(mail.html.startsWith("<p>Custom</p>\n")).toBe(true);
+        expect(mail.html).not.toContain("Line one");
+        expect(mail.html).toContain('src="cid:companyLogo"');
+        expect(mail.text.startsWith("Line one\n\nLine two\n\nBest\n\n")).toBe(
+            true
+        );
+        expect(mail.attachments.map((x) => x.cid)).toEqual(["companyLogo"]);
+        expect(Object.keys(mail).sort()).toEqual(
+            ["attachments", "from", "html", "subject", "text", "to"].sort()
+        );
+    });
+});

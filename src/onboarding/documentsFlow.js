@@ -130,10 +130,11 @@ export async function sendCompletionEmail(deps, requestId) {
     }
     if (!packet) return release("onboarding_completion_document_missing");
 
-    const { subject, text } = completionEmail({
+    const { subject, text, html } = completionEmail({
         terms: row.terms,
         requestId: row.id,
         url: continueUrl(deps.config, row.id, now),
+        baseUrl: deps.config.publicBaseUrl,
     });
     try {
         await deps.sendEmail({
@@ -142,6 +143,7 @@ export async function sendCompletionEmail(deps, requestId) {
             ...replyToOf(deps.config),
             subject,
             text,
+            html,
             attachments: [
                 {
                     filename: agreementFilename(row.terms.legal_name),
@@ -324,13 +326,14 @@ export async function sendDueReminder(deps, requestId) {
         },
     });
     if (count !== 1) return false;
-    const { subject, text } = reminderEmail({
+    const { subject, text, html } = reminderEmail({
         terms: row.terms,
         requestId: row.id,
         missingSlots: missing,
         paymentUrl: paymentMissing
             ? continueUrl(deps.config, row.id, now)
             : null,
+        baseUrl: deps.config.publicBaseUrl,
     });
     try {
         await deps.sendEmail({
@@ -339,6 +342,7 @@ export async function sendDueReminder(deps, requestId) {
             ...replyToOf(deps.config),
             subject,
             text,
+            html,
         });
     } catch {
         const exhausted = row.reminder_attempts + 1 >= MAX_EMAIL_ATTEMPTS;

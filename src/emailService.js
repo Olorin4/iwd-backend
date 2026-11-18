@@ -49,9 +49,11 @@ function textToHtml(text) {
 }
 
 // Sends `text` as a plain-text part and as HTML with the signature.
-// `attachments` (optional) are added after the signature logo; callers that
-// pass none send exactly what they always did.
-async function sendEmail({ text, attachments = [], ...mailOptions }) {
+// `html` (optional) replaces the HTML converted from `text`; the caller must
+// have escaped everything in it. The signature and logo are added either way.
+// `attachments` (optional) are added after the signature logo. Callers that
+// pass neither send exactly what they always did.
+async function sendEmail({ text, html, attachments = [], ...mailOptions }) {
     if (!validateEmail(mailOptions.to)) {
         throw new Error("Invalid recipient email address.");
     }
@@ -59,7 +61,7 @@ async function sendEmail({ text, attachments = [], ...mailOptions }) {
     return transporter.sendMail({
         ...mailOptions,
         text: `${text}\n\n${textSignature}`,
-        html: `${textToHtml(text)}\n${signature}`,
+        html: `${html ?? textToHtml(text)}\n${signature}`,
         attachments: [
             {
                 filename: "logo.jpg",

@@ -122,6 +122,10 @@ it("sends one combined email with the signed copy, the payment link and the docu
     expect(mail.text).toBe(EXPECTED_TEXT(url));
     // The link stands alone on its line: no character follows it.
     expect(mail.text).toContain(`here:\n${url}\nNothing`);
+    // The HTML part carries one button-styled link to the same URL.
+    expect(mail.html.match(/<a [^>]*>Save your payment method<\/a>/g)).toEqual([
+        expect.stringContaining(`href="${url}"`),
+    ]);
     expect(mail.text).not.toMatch(/[{}]/);
     expect(mail.subject).not.toMatch(/[{}]/);
 
