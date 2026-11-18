@@ -30,7 +30,15 @@ export function parseSignatureHeader(header) {
 }
 
 export function safeEqualHex(a, b) {
-    if (typeof a !== "string" || typeof b !== "string") return false;
+    // Strict: Buffer.from(…, "hex") silently drops trailing junk.
+    const hex = /^(?:[0-9a-f]{2})+$/;
+    if (
+        typeof a !== "string" ||
+        typeof b !== "string" ||
+        !hex.test(a) ||
+        !hex.test(b)
+    )
+        return false;
     const left = Buffer.from(a, "hex");
     const right = Buffer.from(b, "hex");
     return (

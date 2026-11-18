@@ -63,3 +63,11 @@ it("matches bearer tokens in constant time regardless of length", () => {
     expect(bearerMatches(secret, secret)).toBe(false);
     expect(bearerMatches(undefined, secret)).toBe(false);
 });
+
+it("compares hex strictly (no trailing junk, no uppercase)", async () => {
+    const { safeEqualHex } = await import("../../src/onboarding/signing");
+    expect(safeEqualHex("abcd", "abcd")).toBe(true);
+    expect(safeEqualHex("abcd", "abcdx")).toBe(false);
+    expect(safeEqualHex("abcd", "ABCD")).toBe(false);
+    expect(safeEqualHex("", "")).toBe(false);
+});

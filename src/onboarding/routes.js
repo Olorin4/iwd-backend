@@ -2,6 +2,8 @@ import express from "express";
 import { requireService } from "./auth.js";
 import { OnboardingError, getRequestStatus, putRequest } from "./requests.js";
 import { handleSignwellWebhook } from "./signatureFlow.js";
+import { handleContinue, handleStripeWebhook } from "./paymentFlow.js";
+import { verifyContinueToken } from "./continueToken.js";
 
 /** Captures the raw JSON body for HMAC and webhook signature checks. */
 export function onboardingRawBody(req, res, buf) {
@@ -76,6 +78,41 @@ export function createOnboardingRouter(getConfig, getDeps) {
             res.status(status).json(
                 status === 200 ? { received: true } : { error: "invalid_event" }
             );
+        })
+    );
+
+    router.post(
+        "/webhooks/stripe",
+        wrap(async (req, res, d) => {
+            const status = await handleStripeWebhook(
+                d,
+                req.rawBody,
+                req.headers["stripe-signature"]
+            );
+            res.status(status).json(
+                status === 200 ? { received: true } : { error: "invalid_event" }
+            );
+        })
+    );
+
+    // Public, signed and expiring link; plain text pages, no internal detail.
+    router.get(
+        "/continue/:token",
+        wrap(async (req, res, d) => {
+            const result = await handleContinue(d, req.params.token, (token) =>
+                verifyContinueToken(
+                    d.config.continueSecret,
+                    token,
+                    Math.floor(d.now().getTime() / 1000)
+                )
+            );
+            res.set("Cache-Control", "no-store");
+            res.set("Referrer-Policy", "no-referrer");
+            if (result.location) return res.redirect(303, result.location);
+            return res
+                .status(result.status)
+                .type("text/plain")
+                .send(result.text);
         })
     );
 

@@ -2,7 +2,9 @@ import { recordReceipt } from "./store.js";
 import { createFileDocumentStore } from "./documents/store.js";
 import { createSignwellProvider } from "./signature/signwell.js";
 import { createFakeSignatureProvider } from "./signature/fake.js";
-import { sendPacket } from "./signatureFlow.js";
+import { reconcileSignature, sendPacket } from "./signatureFlow.js";
+import { issuePaymentLink } from "./paymentFlow.js";
+import { createPaymentsStripe } from "../payments/index.js";
 
 function signatureFromConfig(config) {
     if (config.signature.provider === "fake")
@@ -45,11 +47,15 @@ export function createOnboardingDeps(
             ),
         recordReceipt: (provider, key) => recordReceipt(db, provider, key),
         onRequestCreated: (row) => sendPacket(deps, row.id),
-        onSignatureCompleted: async () => {},
+        onSignatureCompleted: (requestId) =>
+            issuePaymentLink(deps, requestId, { mode: "initial" }),
+        onPaymentReady: async () => {},
+        reconcileSignature: (requestId) => reconcileSignature(deps, requestId),
         ...overrides,
     };
     if (!deps.documentStore)
         deps.documentStore = createFileDocumentStore(config.documents);
     if (!deps.signature) deps.signature = signatureFromConfig(config);
+    if (!deps.stripe) deps.stripe = createPaymentsStripe(config.stripe);
     return deps;
 }
