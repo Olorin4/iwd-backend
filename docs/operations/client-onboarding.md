@@ -72,7 +72,8 @@ bytes (`""` for none). iwd checks ±300 s with a timing-safe compare and:
 - records every accepted signature (all methods, GET included) in
   `provider_webhook_receipt` (`outreach:v2:<hex>`) and refuses a repeat
   (`replayed_signature`, 401). The nonce makes two identical calls in one second
-  sign differently;
+  sign differently. Replay rows older than 1 day are pruned (≤1000 per pass)
+  by the reconcile worker pass;
 - logs signed-document reads with the signed actor (email lower-cased).
 
 Test vector (asserted in both repos): secret `"s".repeat(32)`, t=1700000000,

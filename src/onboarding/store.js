@@ -156,3 +156,22 @@ export async function receiptExists(db, provider, key) {
     });
     return !!row;
 }
+
+export const REPLAY_RECEIPT_TTL_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Deletes Outreach replay receipts (`outreach:v2:*`) older than `before`, at
+ * most `limit` per call. Signatures are only valid for ±300 s, so a day is
+ * ample. Provider (Stripe/SignWell) receipts are kept. Returns the count.
+ */
+export function pruneReplayReceipts(db, before, limit = 1000) {
+    return db.$executeRaw`
+        DELETE FROM "provider_webhook_receipt"
+        WHERE "id" IN (
+            SELECT "id" FROM "provider_webhook_receipt"
+            WHERE "provider" = 'outreach'
+              AND "receipt_key" LIKE 'outreach:v2:%'
+              AND "received_at" < ${before}
+            LIMIT ${limit}
+        )`;
+}

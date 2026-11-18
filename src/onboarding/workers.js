@@ -1,4 +1,5 @@
 import { deliverPending } from "./outbox.js";
+import { REPLAY_RECEIPT_TTL_MS, pruneReplayReceipts } from "./store.js";
 import {
     openEnvelopeIds,
     reconcileEnvelope,
@@ -17,6 +18,10 @@ import {
  */
 export async function reconcileOnce(deps) {
     const log = (code) => deps.logger?.error?.({ code });
+    await pruneReplayReceipts(
+        deps.db,
+        new Date(deps.now().getTime() - REPLAY_RECEIPT_TTL_MS)
+    ).catch(() => log("onboarding_replay_prune_failed"));
     for (const id of await openEnvelopeIds(deps.db, deps.now().getTime()))
         await reconcileEnvelope(deps, id).catch(() =>
             log("onboarding_reconcile_envelope_failed")

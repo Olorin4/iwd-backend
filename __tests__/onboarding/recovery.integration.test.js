@@ -169,3 +169,39 @@ it("the worker does not send a fresh NOT_SENT request (< 10 min) itself", async 
     expect((await request()).signature_state).toBe("NOT_SENT");
     expect(signature.calls.createEnvelope).toBe(0);
 });
+
+it("the worker pass prunes Outreach replay receipts older than a day, bounded", async () => {
+    const { pruneReplayReceipts } = await import("../../src/onboarding/store");
+    const day = 24 * 60 * MIN;
+    const old = new Date(Date.now() - day - MIN);
+    await prisma.providerWebhookReceipt.createMany({
+        data: [
+            ...Array.from({ length: 3 }, (_, i) => ({
+                provider: "outreach",
+                receipt_key: `outreach:v2:${"a".repeat(63)}${i}`,
+                received_at: old,
+            })),
+            {
+                provider: "outreach",
+                receipt_key: `outreach:v2:${"b".repeat(64)}`,
+                received_at: new Date(Date.now() - day + MIN),
+            },
+            {
+                provider: "stripe",
+                receipt_key: "stripe:evt_old",
+                received_at: old,
+            },
+        ],
+    });
+    // Bounded: one call deletes at most `limit` rows.
+    expect(
+        await pruneReplayReceipts(prisma, new Date(Date.now() - day), 2)
+    ).toBe(2);
+    await reconcileOnce(deps);
+    const left = (await prisma.providerWebhookReceipt.findMany()).map(
+        (r) => r.receipt_key
+    );
+    expect(left.sort()).toEqual(
+        [`outreach:v2:${"b".repeat(64)}`, "stripe:evt_old"].sort()
+    );
+});
