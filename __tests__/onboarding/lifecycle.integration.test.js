@@ -512,13 +512,14 @@ it("workers start only when enabled and switched on", () => {
         ...deps,
         config: { ...config, outbox: { enabled: false } },
     });
-    expect(none.count).toBe(0);
+    // Only the daily retention pass, which runs whenever onboarding is on.
+    expect(none.count).toBe(1);
     none.stop();
     const both = startOnboardingWorkers({
         ...deps,
         config: { ...config, reconcile: { enabled: true, intervalMs: 900000 } },
     });
-    expect(both.count).toBe(2);
+    expect(both.count).toBe(3);
     both.stop();
 });
 

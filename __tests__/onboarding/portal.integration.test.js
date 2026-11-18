@@ -862,3 +862,47 @@ test("a form posted without JavaScript (Origin: null) passes only as a same-orig
         )?.state
     ).toBe("RECEIVED");
 });
+
+test("requests from before the portal get retention dates, and purging needs no portal switch", async () => {
+    const cancelled = await createRequest({
+        portal_flow: false,
+        cancelled_at: DATE,
+        purge_after: null,
+        ready_at: null,
+    });
+    const ready = await createRequest({
+        portal_flow: false,
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+        operations: OPERATION_SLOTS.reduce(
+            (items, slot) =>
+                verifyOperationItem(
+                    items,
+                    slot === "FACTORING" ? "NOT_FACTORING" : slot,
+                    {
+                        actor: ACTOR,
+                        at: DATE,
+                    }
+                ),
+            (await createRequest()).operations
+        ),
+        purge_after: null,
+        ready_at: null,
+    });
+    config = { ...config, portal: { ...config.portal, enabled: false } };
+    deps = { ...deps, config };
+    expect(
+        await purgeDue(deps, new Date(DATE.getTime() + 89 * 86400000))
+    ).toEqual({ purged: 0 });
+    expect((await refreshed(cancelled.id)).purge_after).toEqual(
+        new Date(DATE.getTime() + 90 * 86400000)
+    );
+    const readyRow = await refreshed(ready.id);
+    expect(readyRow.ready_at).not.toBeNull();
+    expect(readyRow.purge_after.getUTCFullYear()).toBe(
+        readyRow.ready_at.getUTCFullYear() + 3
+    );
+    expect(
+        await purgeDue(deps, new Date(DATE.getTime() + 90 * 86400000))
+    ).toEqual({ purged: 1 });
+});

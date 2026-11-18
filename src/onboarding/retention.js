@@ -1,5 +1,12 @@
 import { Prisma } from "@prisma/client";
-import { bumpStatus, lockRequest, writeAuditEvent } from "./store.js";
+import {
+    abandonedPurgeDate,
+    bumpStatus,
+    completedPurgeDate,
+    lockRequest,
+    writeAuditEvent,
+} from "./store.js";
+import { deriveReadiness, facetsOf } from "./readiness.js";
 
 const nyDate = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -41,8 +48,42 @@ async function deleteEnvelopeFiles(store, envelope) {
     return removed;
 }
 
+// Requests that ended before retention dates existed (or before the portal
+// release) get them on the first pass: cancelled → 90 days after
+// cancellation; READY → 3 years after its last change (the best record of
+// when it became READY).
+export async function backfillRetention(db) {
+    const rows = await db.onboardingRequest.findMany({
+        where: { purge_after: null, purged_at: null },
+    });
+    let dated = 0;
+    for (const row of rows) {
+        let data = null;
+        if (row.cancelled_at && !row.ready_at)
+            data = { purge_after: abandonedPurgeDate(row.cancelled_at) };
+        else if (
+            !row.cancelled_at &&
+            deriveReadiness(facetsOf(row)).readiness === "READY"
+        ) {
+            const readyAt = row.ready_at ?? row.updated_at;
+            data = {
+                ready_at: readyAt,
+                purge_after: completedPurgeDate(readyAt),
+            };
+        }
+        if (!data) continue;
+        const result = await db.onboardingRequest.updateMany({
+            where: { id: row.id, purge_after: null },
+            data,
+        });
+        dated += result.count;
+    }
+    return dated;
+}
+
 export async function purgeDue(deps, now = deps.now()) {
     const { db } = deps;
+    await backfillRetention(db);
     const due = await db.onboardingRequest.findMany({
         where: { purge_after: { lte: now }, purged_at: null },
         select: { id: true },

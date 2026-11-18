@@ -138,6 +138,19 @@ export async function lockRequest(tx, requestId) {
  * the full status event and marks the Client ACTIVE once readiness is READY.
  * Returns { row, changed, status }.
  */
+/** Retention (owner ruling): 3 calendar years after READY. */
+export function completedPurgeDate(readyAt) {
+    const expiry = new Date(readyAt);
+    const month = expiry.getUTCMonth();
+    expiry.setUTCFullYear(expiry.getUTCFullYear() + 3);
+    if (expiry.getUTCMonth() !== month) expiry.setUTCDate(0);
+    return expiry;
+}
+
+/** Retention (owner ruling): 90 days after an onboarding ends unfinished. */
+export const abandonedPurgeDate = (cancelledAt) =>
+    new Date(cancelledAt.getTime() + 90 * 86400000);
+
 export async function applyFacetChange(tx, row, changes, now = new Date()) {
     const data = {};
     const merged = { ...(changes ?? {}) };
@@ -155,11 +168,7 @@ export async function applyFacetChange(tx, row, changes, now = new Date()) {
     const readiness = deriveReadiness(facetsOf({ ...row, ...data })).readiness;
     if (!row.ready_at && readiness === "READY") {
         data.ready_at = now;
-        const expiry = new Date(now);
-        const month = expiry.getUTCMonth();
-        expiry.setUTCFullYear(expiry.getUTCFullYear() + 3);
-        if (expiry.getUTCMonth() !== month) expiry.setUTCDate(0);
-        data.purge_after = expiry;
+        data.purge_after = completedPurgeDate(now);
     } else if (
         row.ready_at &&
         (readiness === "IN_PROGRESS" || readiness === "BLOCKED")
@@ -187,9 +196,7 @@ export async function applyFacetChange(tx, row, changes, now = new Date()) {
                 });
         }
     } else if (!row.ready_at && data.cancelled_at) {
-        data.purge_after = new Date(
-            data.cancelled_at.getTime() + 90 * 86400000
-        );
+        data.purge_after = abandonedPurgeDate(data.cancelled_at);
     }
     const updated = await tx.onboardingRequest.update({
         where: { id: row.id },

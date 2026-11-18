@@ -102,21 +102,22 @@ export function startOnboardingWorkers(deps) {
                 )
             )
         );
+    // Retention applies to every onboarding request, with or without the
+    // portal switch (owner ruling: 90 days abandoned, 3 years completed).
     let lastPurgeDay;
-    if (config.portal?.enabled)
-        timers.push(
-            every(
-                60000,
-                guard("onboarding_retention_failed", async () => {
-                    const now = deps.now();
-                    const day = retentionDay(now);
-                    if (day && day !== lastPurgeDay) {
-                        await purgeDue(deps, now);
-                        lastPurgeDay = day;
-                    }
-                })
-            )
-        );
+    timers.push(
+        every(
+            60000,
+            guard("onboarding_retention_failed", async () => {
+                const now = deps.now();
+                const day = retentionDay(now);
+                if (day && day !== lastPurgeDay) {
+                    await purgeDue(deps, now);
+                    lastPurgeDay = day;
+                }
+            })
+        )
+    );
     deps.logger?.info?.({
         code: "onboarding_workers_started",
         outbox: !!config.outbox?.enabled,
