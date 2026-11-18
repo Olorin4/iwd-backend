@@ -66,8 +66,10 @@ export const DOCUMENT_SCHEMAS = {
     FACTORING_NOA: noaSchema,
 };
 
+// SSN 3-2-4 with the same separator (or none) twice, so a ZIP+4 such as
+// 75201-4567 never matches; EIN 2-7. Separators: space, dot, hyphens/dashes.
 const TIN_LIKE =
-    /(?<!\d)(?:\d{3}[\s‐‑‒–—-]?\d{2}[\s‐‑‒–—-]?\d{4}|\d{2}[\s‐‑‒–—-]?\d{7})(?!\d)/;
+    /(?<!\d)(?:\d{3}([\s.‐‑‒–—-]?)\d{2}\1\d{4}|\d{2}[\s.‐‑‒–—-]?\d{7})(?!\d)/;
 
 // Remove full tax-ID shapes in free text throughout the parsed object. Also
 // handle nine-digit JSON numbers and defensive sanitization of key names.

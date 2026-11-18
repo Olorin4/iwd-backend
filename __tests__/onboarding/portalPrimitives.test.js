@@ -190,6 +190,15 @@ test("removes full TIN-shaped strings and numbers from nested extraction", () =>
         nested: { tax: null, last: "7890" },
     });
     expect(w9Schema.shape.tin_last4.safeParse("123456789").success).toBe(false);
+    // Dotted and spaced TINs go; ZIP+4 codes and phone numbers stay.
+    expect(
+        stripTinLike({
+            dotted: "TIN 123.45.6789",
+            spaced: "12 3456789",
+            zip: "Dallas, TX 75201-4567",
+            phone: "(214) 555-0199",
+        })
+    ).toEqual({ dotted: null, spaced: null, zip: "Dallas, TX 75201-4567", phone: "(214) 555-0199" });
 });
 
 test("flags wrong type, insurance expiry and normalized carrier name", () => {
