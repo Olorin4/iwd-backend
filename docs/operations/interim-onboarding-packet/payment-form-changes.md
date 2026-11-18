@@ -13,11 +13,15 @@ Replacement instruction:
 
 > Payment method details are collected only through Stripe’s secure hosted setup page. Do not enter card numbers, bank account numbers or routing numbers on this form.
 
-Clarified ACH authorization:
+Clarified card and ACH authorization (wording confirmed by the owner):
 
-> If I select bank debit (ACH), I authorize DISPATCH to electronically debit the business bank account I provide through Stripe’s secure setup page and, if a debit is made in error, to credit that account to correct it.
+> I authorize DISPATCH to charge the debit or credit card and/or debit the business bank account that I provide through Stripe’s secure setup page, according to my selections on this form and the Dispatch Service Agreement. If both are provided, the selected primary method is used first and the backup only if the primary is declined or returned.
 
-This replaces “this account” with an explicit reference to the account supplied through Stripe and makes the authorization conditional on selecting ACH.
+ACH correction provision:
+
+> If a bank debit is made in error, I authorize DISPATCH to credit that account to correct it.
+
+The authorization now explicitly covers card and/or ACH details supplied through Stripe. The correction provision remains specific to bank debits.
 
 Kept: card/ACH choices, primary/backup choice, start date, signature, date and statement email. These choices must agree with what is actually set up in Stripe; signing this form does not save a payment method or complete any Stripe-required mandate/verification.
 
