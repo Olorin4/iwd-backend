@@ -2,21 +2,22 @@
 
 # Interim dispatcher onboarding packet
 
-Prepared November 18, 2026. **Local review assets only: nothing has been uploaded, sent, signed or provisioned.** This bridge does not change Jack, Outreach, billing code or Kelevo and is not a competing onboarding implementation.
+Prepared November 18, 2026. **Combined packet approved for local release preparation; nothing has been uploaded, sent, signed or provisioned.** This bridge does not change Jack, Outreach, billing code or Kelevo and is not a competing onboarding implementation.
 
 ## Contents and release status
 
-- `combined-packet.pdf`: all three documents for one reusable signature template. Separate PDFs and HTML previews are also provided.
+- `Iron-Wing-Onboarding-Packet-v1.pdf`: approved six-page combined packet, without review watermark or review footer, for configuring one reusable signature template. It still requires carrier-specific prefill and signature fields before sending.
+- `combined-packet.pdf`: retained watermarked review copy. Separate review PDFs and HTML previews are also provided.
 - Agreement and limited power of attorney: substantive source wording preserved. Editorial DRAFT/provenance blockquotes omitted from customer copies, based on the owner's report that lawyer review was completed November 17. The source folder's README and draft labels have not been updated.
-- Payment authorization: **proposed Stripe-only collection adaptation; owner approval required before release.** It removes full card/account/routing fields, replaces them with a Stripe-only instruction, and removes the old editorial handling note. The charge authorization, commercial terms and revocation text are preserved. See `payment-form-changes.md`.
-- All PDFs are marked **REVIEW COPY — NOT FOR SIGNING** until that adaptation and final field placement are reviewed. They are ordinary PDFs for signature-provider field overlays, not interactive AcroForms or configured SignWell templates.
+- Payment authorization: **Stripe-only collection adaptation approved by the owner November 18, 2026.** It removes full card/account/routing fields, replaces them with a Stripe-only instruction, and removes the old editorial handling note. The authorization explicitly covers card and/or ACH details provided through Stripe, with a separate bank-debit correction provision. The commercial terms and revocation text are preserved. See `payment-form-changes.md`.
+- The approved v1 PDF is unwatermarked; earlier review PDFs retain **REVIEW COPY — NOT FOR SIGNING**. These are ordinary PDFs for signature-provider field overlays, not interactive AcroForms or configured SignWell templates. Provider field placement still needs configuration and a controlled signing test.
 - `dispatcher-checklist.md`, `email-copy.md`, `signwell-setup.md` and `register-template.csv`: operating assets.
 - `source-manifest.json`: hashes of original Markdown files; the originals remain untouched.
 
 ## Fast manual path
 
 1. Confirm the closing details using the checklist. A Jack summary alone is insufficient.
-2. After owner approval of the payment-form adaptation, generate an unwatermarked release copy from the reviewed files. Retain a version/hash; do not overwrite a sent version.
+2. Use `Iron-Wing-Onboarding-Packet-v1.pdf`, whose approved source hashes and output hashes are recorded in `approved-release.json`. Retain the version/hash; do not overwrite a sent version.
 3. Upload the combined packet to a private SignWell template, configure Carrier and Dispatch fields, and test with an explicitly approved internal recipient. No account setup, provider upload or test send has been performed here.
 4. For each client, prefill and verify company/authority, fee, effective date and signer details. Send exactly one request after reviewing the actual PDF and recipient.
 5. Retrieve the fully executed PDF and audit evidence. Store them privately in the carrier folder; record the provider document ID and packet version.
@@ -42,3 +43,9 @@ No push, deployment, production access, live Stripe operation or email was perfo
 Run `python3 render-review-html.py` from this folder (or pass its full path), then `node build-review-pdfs.mjs /absolute/path/to/playwright/index.mjs` using an existing local Playwright installation and Chromium. No dependency installation is required by the scripts. HTML rendering has no external assets; PDF rendering blocks external requests. The PDF builder refuses an HTML copy without the review watermark. It does not produce released packets or submit anything to SignWell.
 
 Validation: source hashes matched; agreement and power-of-attorney bodies matched after removing editorial blockquotes; the payment copy contained no full-number entry fields. The combined PDF was rendered and text-extracted page by page, with signature layouts inspected. Provider field placement, account quota, signature delivery, recipient identity, PDF audit download and Stripe completion remain untested external steps.
+
+## Approved release
+
+Owner approval was received November 18, 2026 for the combined packet with the confirmed card and/or ACH wording. `build-approved-packet.mjs` verifies the approved source hashes before generating `Iron-Wing-Onboarding-Packet-v1.html` and `.pdf`; it removes only the visible review watermark and review title/footer. Run it with the same local Playwright path as the review builder. A source change requires review and a new release version rather than silently replacing an approved packet.
+
+This is approval of the packet content and combined format, not evidence of a configured provider template, completed signature test, customer-specific terms or sent request.

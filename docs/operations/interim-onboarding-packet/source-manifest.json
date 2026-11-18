@@ -15,7 +15,7 @@
         {
             "source": "payment-authorization-form.md",
             "sha256": "6a8b3e98f2251cfd19119d134e2ac695fa33b39802bf54d15f22c9ab08c0def2",
-            "changes": "Editorial draft/provenance blockquotes removed from customer copy. Full-number collection fields removed; Stripe-only collection instruction added; handling blockquote removed. Requires owner approval."
+            "changes": "Editorial draft/provenance blockquotes removed from customer copy. Full-number collection fields removed; Stripe-only collection instruction added; handling blockquote removed; Authorization explicitly covers card and/or ACH details provided through Stripe, with a separate bank-debit correction provision; card/ACH wording confirmed by the owner. Owner approved the adaptation and combined packet November 18, 2026."
         }
     ]
 }
