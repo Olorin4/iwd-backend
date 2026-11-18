@@ -272,7 +272,7 @@ describe("documents reminders (reconcile worker pass)", () => {
             `Reminder: still needed for your Iron Wing onboarding — Example Freight LLC (ref ${row.id.slice(0, 8)})`
         );
         expect(mail.text).toMatch(
-            /^Hello Sam Example,\n\nWe're still missing the following for Example Freight LLC:\n1\. A signed W-9 form\n2\. Your certificate of insurance\n3\. A copy of your operating authority \(MC 123456\)\n4\. .*\n5\. Your carrier profile: .*\nYour payment method: save it on Stripe's secure page here: https:\/\/api\.example\.test\/onboarding\/continue\/\S+\n\nPlease reply to this email\. If you have questions or need more time, just let us know\.$/
+            /^Hello Sam Example,\n\nWe're still missing the following for Example Freight LLC:\n1\. A signed W-9 form\n2\. Your certificate of insurance\n3\. A copy of your operating authority \(MC 123456\)\n4\. .*\n5\. Your carrier profile: .*\nYour payment method: save it on Stripe's secure page here:\nhttps:\/\/api\.example\.test\/onboarding\/continue\/\S+\n\nPlease reply to this email\. If you have questions or need more time, just let us know\.$/
         );
         expect(mail.text).not.toMatch(/[{}]|FLEET|fleet/);
         expect(mail.attachments).toBeUndefined();
@@ -329,7 +329,7 @@ describe("documents reminders (reconcile worker pass)", () => {
         await reconcileOnce(deps);
         expect(reminders()).toHaveLength(1);
         expect(reminders()[0].text).toMatch(
-            /following for Example Freight LLC:\nYour payment method: save it on Stripe's secure page here: https:\/\//
+            /following for Example Freight LLC:\nYour payment method: save it on Stripe's secure page here:\nhttps:\/\//
         );
     });
 

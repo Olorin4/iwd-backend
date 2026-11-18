@@ -80,7 +80,9 @@ export function completionEmail({ terms, requestId, url }) {
         text: [
             `Hello ${terms.signer.name},`,
             "Thank you. Your dispatch service agreement, limited power of attorney and payment authorization are now signed by both parties. Your signed copy is attached to this email.",
-            `Payment method: if you haven't finished saving it yet, use Stripe's secure page here: ${url}. Nothing is charged when you save it. Never send card or bank account numbers by email.`,
+            // The link stands on its own line with nothing after it: the token contains
+            // dots, and a trailing full stop can be swallowed into the link by mail apps.
+            `Payment method: if you haven't finished saving it yet, use Stripe's secure page here:\n${url}\nNothing is charged when you save it. Never send card or bank account numbers by email.`,
             `Documents we need before we start dispatching for ${name}. Please reply to this email with:\n${numbered(DOCUMENT_SLOTS, terms)}`,
         ].join("\n\n"),
     };
@@ -97,7 +99,7 @@ export function reminderEmail({ terms, requestId, missingSlots, paymentUrl }) {
     if (missingSlots.length) lines.push(numbered(missingSlots, terms));
     if (paymentUrl)
         lines.push(
-            `Your payment method: save it on Stripe's secure page here: ${paymentUrl}`
+            `Your payment method: save it on Stripe's secure page here:\n${paymentUrl}`
         );
     return {
         subject: `Reminder: still needed for your Iron Wing onboarding — ${name} (ref ${refOf(requestId)})`,

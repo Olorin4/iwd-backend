@@ -25,7 +25,7 @@ describe("R15 completion email", () => {
         expect(text).toBe(
             "Hello Sam Example,\n\n" +
                 "Thank you. Your dispatch service agreement, limited power of attorney and payment authorization are now signed by both parties. Your signed copy is attached to this email.\n\n" +
-                "Payment method: if you haven't finished saving it yet, use Stripe's secure page here: https://x.test/c/t. Nothing is charged when you save it. Never send card or bank account numbers by email.\n\n" +
+                "Payment method: if you haven't finished saving it yet, use Stripe's secure page here:\nhttps://x.test/c/t\nNothing is charged when you save it. Never send card or bank account numbers by email.\n\n" +
                 "Documents we need before we start dispatching for Example Freight LLC. Please reply to this email with:\n" +
                 "1. A signed W-9 form\n" +
                 "2. Your certificate of insurance\n" +
@@ -93,7 +93,7 @@ describe("R15 reminder email", () => {
                 "We're still missing the following for Example Freight LLC:\n" +
                 "1. Your certificate of insurance\n" +
                 "2. Your factoring company's notice of assignment, or reply \"no factoring\" if you don't use one\n" +
-                "Your payment method: save it on Stripe's secure page here: https://x.test/c/t" +
+                "Your payment method: save it on Stripe's secure page here:\nhttps://x.test/c/t" +
                 ending
         );
         expect(mail.text).not.toMatch(/[{}]/);
@@ -124,7 +124,7 @@ describe("R15 reminder email", () => {
         expect(text).toBe(
             "Hello Sam Example,\n\n" +
                 "We're still missing the following for Example Freight LLC:\n" +
-                "Your payment method: save it on Stripe's secure page here: https://x.test/c/t" +
+                "Your payment method: save it on Stripe's secure page here:\nhttps://x.test/c/t" +
                 ending
         );
     });

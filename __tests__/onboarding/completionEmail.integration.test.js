@@ -95,7 +95,7 @@ const EXPECTED_TEXT = (url) =>
         "",
         "Thank you. Your dispatch service agreement, limited power of attorney and payment authorization are now signed by both parties. Your signed copy is attached to this email.",
         "",
-        `Payment method: if you haven't finished saving it yet, use Stripe's secure page here: ${url}. Nothing is charged when you save it. Never send card or bank account numbers by email.`,
+        `Payment method: if you haven't finished saving it yet, use Stripe's secure page here:\n${url}\nNothing is charged when you save it. Never send card or bank account numbers by email.`,
         "",
         "Documents we need before we start dispatching for Example Freight LLC. Please reply to this email with:",
         "1. A signed W-9 form",
@@ -117,9 +117,11 @@ it("sends one combined email with the signed copy, the payment link and the docu
         `Your signed Iron Wing agreement and next steps — Example Freight LLC (ref ${row.id.slice(0, 8)})`
     );
     const url = mail.text.match(
-        /https:\/\/api\.example\.test\/onboarding\/continue\/[^\s]+?(?=\. Nothing)/
+        /https:\/\/api\.example\.test\/onboarding\/continue\/\S+(?=\nNothing)/
     )[0];
     expect(mail.text).toBe(EXPECTED_TEXT(url));
+    // The link stands alone on its line: no character follows it.
+    expect(mail.text).toContain(`here:\n${url}\nNothing`);
     expect(mail.text).not.toMatch(/[{}]/);
     expect(mail.subject).not.toMatch(/[{}]/);
 
