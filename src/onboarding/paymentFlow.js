@@ -391,6 +391,16 @@ export async function reconcilePayment(deps, requestId) {
         orderBy: { created_at: "desc" },
     });
     if (!setup?.checkout_session_id) return null;
+    // A link whose email never went out (process stopped between creating the
+    // session and emailing, or SMTP failed and released the claim) is emailed
+    // exactly once here; emailOnce claims emailed_at atomically.
+    if (setup.state === "OPEN" && !setup.emailed_at) {
+        const row = await deps.db.onboardingRequest.findUnique({
+            where: { id: requestId },
+        });
+        if (row && !row.cancelled_at && row.signature_state === "COMPLETED")
+            await emailOnce(deps, setup, row);
+    }
     if (setup.setup_intent_id)
         return applySetupIntent(
             deps,

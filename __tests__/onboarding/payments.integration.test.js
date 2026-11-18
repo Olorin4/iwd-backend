@@ -109,6 +109,28 @@ it("issues the payment link only after the signature completes, emailing once", 
     expect(client.stripe_customer_id).toMatch(/^cus_/);
 });
 
+it("reconcile emails a link whose email never went out, exactly once", async () => {
+    // SMTP fails on the first attempt: the claim is released (emailed_at null).
+    sendEmail.mockRejectedValueOnce(new Error("smtp down"));
+    const done = await signed();
+    expect(done.payment_state).toBe("LINK_SENT");
+    let [setup] = await setups();
+    expect(setup.emailed_at).toBeNull();
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+
+    await reconcilePayment(deps, done.id);
+    [setup] = await setups();
+    expect(setup.emailed_at).not.toBeNull();
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    expect(sendEmail.mock.calls[1][0].to).toBe("owner@example.test");
+
+    // Further reconciles never email again, and no new session is created.
+    await reconcilePayment(deps, done.id);
+    await reconcilePayment(deps, done.id);
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    expect(stripe.calls.createSetupSession).toBe(1);
+});
+
 it("allows exactly the payment methods in the terms", async () => {
     await signed({
         payment_methods: ["us_bank_account"],

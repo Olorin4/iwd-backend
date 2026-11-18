@@ -51,6 +51,8 @@ function args(argv) {
     return { command, options };
 }
 
+const pending = [];
+
 async function main() {
     const { carrier, dispatch } = assertSandboxEnvironment(process.env);
     const budget = createEmailBudget(
@@ -89,7 +91,13 @@ async function main() {
             budget.reserve(COST.email, "payment link email");
             return sendEmail(mail);
         },
-        schedule: async (fn) => fn(),
+        // Run scheduled work inline and keep its promise so the script waits
+        // for it (e.g. the payment-link email) before disconnecting.
+        schedule: (fn) => {
+            const job = Promise.resolve().then(fn);
+            pending.push(job);
+            return job;
+        },
     });
     const send = deps.signature.send.bind(deps.signature);
     const reserved = new Set();
@@ -216,6 +224,7 @@ async function main() {
 
 try {
     await main();
+    await Promise.allSettled(pending);
 } catch (error) {
     console.error(error.message);
     process.exitCode = 1;
