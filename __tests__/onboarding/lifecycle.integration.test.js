@@ -408,14 +408,14 @@ it("outbox delivers signed status events with backoff and stops on permanent err
     );
     // A permanent rejection is not retried.
     await action("verify_operation_item", { key: "W9" });
-    reply = 401;
+    reply = 422;
     await deliverPending(deps, { fetch });
     const dead = await prisma.onboardingEvent.findFirst({
         where: { type: "onboarding.status.v1", delivered_at: null },
     });
     expect(dead).toMatchObject({
         next_attempt_at: null,
-        last_error_code: "http_401",
+        last_error_code: "http_422",
     });
     // Disabled module or unconfigured outbox sends nothing.
     expect(
@@ -427,6 +427,74 @@ it("outbox delivers signed status events with backoff and stops on permanent err
         delivered: 0,
         failed: 0,
     });
+});
+
+it("outbox signs each delivery with its own timestamp and never follows redirects", async () => {
+    await app.call("PUT", `/requests/${KEY}`, requestBody());
+    await queue.drain();
+    let clock = Date.now();
+    deps.now = () => new Date((clock += 7000));
+    const seen = [];
+    const fetch = jest.fn(async (url, init) => {
+        seen.push(init);
+        return { status: 200 };
+    });
+    expect((await deliverPending(deps, { fetch })).delivered).toBe(3);
+    const stamps = seen.map((init) =>
+        Number(/^t=(\d+),/.exec(init.headers["X-IW-Signature"])[1])
+    );
+    expect(new Set(stamps).size).toBe(3);
+    expect(stamps[2] - stamps[0]).toBeGreaterThanOrEqual(14);
+    expect(seen.every((init) => init.redirect === "manual")).toBe(true);
+});
+
+it("outbox retries 3xx normally and 401/403/404 with a long, capped backoff", async () => {
+    const { MAX_ATTEMPTS, slowBackoffMs } = await import(
+        "../../src/onboarding/outbox"
+    );
+    expect(slowBackoffMs(1)).toBe(15 * 60000);
+    expect(slowBackoffMs(2)).toBe(30 * 60000);
+    expect(slowBackoffMs(30)).toBe(6 * 3600000);
+    await app.call("PUT", `/requests/${KEY}`, requestBody());
+    await queue.drain();
+    await prisma.onboardingEvent.deleteMany({
+        where: { type: "onboarding.status.v1", version: { gt: 1 } },
+    });
+    const due = () =>
+        prisma.onboardingEvent.updateMany({
+            where: { delivered_at: null },
+            data: { next_attempt_at: new Date(Date.now() - 1000) },
+        });
+    const event = () =>
+        prisma.onboardingEvent.findFirst({
+            where: { type: "onboarding.status.v1" },
+        });
+    let reply = 302;
+    const fetch = async () => ({ status: reply });
+    await deliverPending(deps, { fetch });
+    let row = await event();
+    expect(row.last_error_code).toBe("http_302");
+    expect(row.next_attempt_at.getTime() - Date.now()).toBeLessThan(60000);
+    for (const status of [401, 403, 404]) {
+        reply = status;
+        await due();
+        const before = Date.now();
+        await deliverPending(deps, { fetch });
+        row = await event();
+        expect(row.last_error_code).toBe(`http_${status}`);
+        expect(row.next_attempt_at).not.toBeNull();
+        expect(row.next_attempt_at.getTime() - before).toBeGreaterThanOrEqual(
+            15 * 60000
+        );
+    }
+    // Still bounded by MAX_ATTEMPTS.
+    await prisma.onboardingEvent.updateMany({
+        where: { delivered_at: null },
+        data: { attempts: MAX_ATTEMPTS - 1 },
+    });
+    await due();
+    await deliverPending(deps, { fetch });
+    expect((await event()).next_attempt_at).toBeNull();
 });
 
 it("workers start only when enabled and switched on", () => {

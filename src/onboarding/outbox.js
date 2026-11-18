@@ -8,8 +8,17 @@ import { STATUS_EVENT } from "./store.js";
 export const MAX_ATTEMPTS = 20;
 export const backoffMs = (attempts) =>
     Math.min(30000 * 2 ** Math.max(0, attempts - 1), 3600000);
+// 401/403/404 usually mean Outreach is misconfigured or mid-deploy (token
+// rotation, route not yet live): retried, but slowly.
+const SLOW_RETRY = [401, 403, 404];
+export const slowBackoffMs = (attempts) =>
+    Math.min(15 * 60000 * 2 ** Math.max(0, attempts - 1), 6 * 3600000);
 const PERMANENT = (status) =>
-    status >= 400 && status < 500 && status !== 408 && status !== 429;
+    status >= 400 &&
+    status < 500 &&
+    status !== 408 &&
+    status !== 429 &&
+    !SLOW_RETRY.includes(status);
 
 export async function deliverPending(
     deps,
@@ -32,6 +41,8 @@ export async function deliverPending(
         failed = 0;
     for (const event of events) {
         const body = JSON.stringify(event.payload);
+        // Signed per delivery: a slow batch must not age later signatures.
+        const sentAt = deps.now();
         let status = null;
         try {
             const response = await fetchImpl(config.outbox.url, {
@@ -42,10 +53,12 @@ export async function deliverPending(
                     "X-IW-Signature": signBody(
                         config.outbox.signingSecret,
                         body,
-                        Math.floor(now.getTime() / 1000)
+                        Math.floor(sentAt.getTime() / 1000)
                     ),
                 },
                 body,
+                // A redirect is a failure (retried), never followed.
+                redirect: "manual",
                 signal: AbortSignal.timeout(10000),
             });
             status = response.status;
@@ -56,7 +69,7 @@ export async function deliverPending(
             await db.onboardingEvent.update({
                 where: { id: event.id },
                 data: {
-                    delivered_at: now,
+                    delivered_at: sentAt,
                     attempts: { increment: 1 },
                     last_error_code: null,
                 },
@@ -76,7 +89,12 @@ export async function deliverPending(
                     status === null ? "network_error" : `http_${status}`,
                 next_attempt_at: dead
                     ? null
-                    : new Date(now.getTime() + backoffMs(attempts)),
+                    : new Date(
+                          sentAt.getTime() +
+                              (SLOW_RETRY.includes(status)
+                                  ? slowBackoffMs(attempts)
+                                  : backoffMs(attempts))
+                      ),
             },
         });
         deps.logger?.warn?.({
