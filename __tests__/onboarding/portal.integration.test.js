@@ -906,3 +906,31 @@ test("requests from before the portal get retention dates, and purging needs no 
         await purgeDue(deps, new Date(DATE.getTime() + 90 * 86400000))
     ).toEqual({ purged: 1 });
 });
+
+test("a portal failure is logged with a code and a redacted path, never the token", async () => {
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const raw = pathname(token).slice(3);
+    const spy = jest
+        .spyOn(db.onboardingQuestionnaire, "findUnique")
+        .mockRejectedValueOnce(
+            Object.assign(new Error("db down"), { code: "P1001" })
+        );
+    try {
+        const response = await browser(pathname(token));
+        expect(response.status).toBe(503);
+    } finally {
+        spy.mockRestore();
+    }
+    const entry = deps.logger.lines.find(
+        (line) => line.code === "portal_request_failed"
+    );
+    expect(entry).toMatchObject({
+        level: "error",
+        path: "/p/[token]",
+        error: "P1001",
+    });
+    expect(JSON.stringify(deps.logger.lines)).not.toContain(raw);
+});

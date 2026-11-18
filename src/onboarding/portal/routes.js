@@ -457,6 +457,28 @@ export function createPortalRouter(
                     )
                 );
         if (error?.status >= 400 && error.status < 500) return denied(res);
+        // Leave a trace without the private link: a safe code and the path
+        // with the token replaced.
+        let logger = res.locals.portal?.deps?.logger;
+        if (!logger)
+            try {
+                logger = getDeps(getConfig()).logger;
+            } catch {
+                logger = null;
+            }
+        const code =
+            typeof error?.code === "string" &&
+            /^[A-Za-z0-9_.-]{1,60}$/.test(error.code)
+                ? error.code
+                : (error?.name ?? "Error");
+        logger?.error?.({
+            code: "portal_request_failed",
+            method: req.method,
+            path: req.originalUrl
+                .split("?")[0]
+                .replace(/^\/p\/[^/]+/, "/p/[token]"),
+            error: code,
+        });
         return unavailable(res);
     });
     return router;
