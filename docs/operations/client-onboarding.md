@@ -196,9 +196,9 @@ checks may report them.
    `node -r dotenv/config scripts/onboarding-bundle.js register --name iron-wing-carrier-client --version 2 --pdf Iron-Wing-Onboarding-Packet-v2.pdf --expect-sha256 <release sha256> --layout <reviewed layout.json>`,
    then `... approve --id <id> --by "<owner>"`. The shipped layout
    `docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v2.layout.json`
-   for release v2 (legal name only, sha256 ef482714…6225), approved as final by the
-   owner on 2026-11-18. The v1 layout is marked SUPERSEDED with its release and must
-   not be used for sending.
+   for release v2 (legal name only, sha256 ef482714…6225), approved by the owner on
+   2026-11-18 but now SUPERSEDED by v3 (`Iron-Wing-Onboarding-Packet-v3.layout.json`, approved
+   2026-11-18); register v3. v1 and v2 must not be used for sending.
 4. Sandbox acceptance (`scripts/onboarding-sandbox.js`, test mode, ≤10 emails
    to one owner address) on a `_test`/`_sandbox` database.
 5. Configure the SignWell webhook and the Stripe webhook endpoint
@@ -315,5 +315,5 @@ when naming the company. Lawyer confirmation of the v2 wording is pending.
 The power of attorney's signature table is `DISPATCH (Agent) | CARRIER` (was
 `CARRIER | Accepted by DISPATCH`), matching the agreement and the signing order. Every
 cell and blank keeps its position; `Iron-Wing-Onboarding-Packet-v3.layout.json` differs
-from layout v2 only in the seven page-5 table fields, which moved one column. Register v3
-with its own sha256 (3ae7aa7b…60de) once its layout is approved; v2 is superseded.
+from layout v2 only in the seven page-5 table fields, which moved one column. The owner approved layout v3 as final on 2026-11-18; register v3 with its own sha256
+(3ae7aa7b…60de). Layout v2 is marked SUPERSEDED and must not be used for sending.

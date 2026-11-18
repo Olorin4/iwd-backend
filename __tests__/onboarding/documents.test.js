@@ -276,6 +276,10 @@ describe("PDF inspection and filling", () => {
         const v2 = releaseLayout(2);
         const v3 = releaseLayout(3);
         expect(v3.bundle).toBe("Iron-Wing-Onboarding-Packet-v3.pdf");
+        expect(v3.status).toBe("APPROVED");
+        expect(v3.owner_decisions).toContain(
+            "layout_v3_approved_final 2026-11-18 by owner"
+        );
         expect(v3.fields).toHaveLength(v2.fields.length);
         const changed = v3.fields
             .map((f, i) => [f, v2.fields[i]])
@@ -302,7 +306,7 @@ describe("PDF inspection and filling", () => {
     it("the owner-approved v2 (legal name) layout differs from v1 only in the page-1 opening and fits", async () => {
         const v1 = releaseLayout(1);
         const v2 = releaseLayout(2);
-        expect(v2.status).toBe("APPROVED");
+        expect(v2.status).toBe("SUPERSEDED");
         expect(v2.owner_decisions).toContain(
             "layout_v2_approved_final 2026-11-18 by owner"
         );
