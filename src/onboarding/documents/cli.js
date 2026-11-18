@@ -55,6 +55,17 @@ export async function runBundleCommand(argv, { db, store, out = console.log }) {
                 name: path.basename(file),
                 bytes: await fs.readFile(file),
             });
+        // Guard against registering anything but the approved release copy.
+        if (options["expect-sha256"]) {
+            if (pdfs.length !== 1)
+                throw new Error("--expect-sha256 needs exactly one --pdf.");
+            if (
+                sha256(pdfs[0].bytes) !== options["expect-sha256"].toLowerCase()
+            )
+                throw Object.assign(new Error("sha256_mismatch"), {
+                    code: "sha256_mismatch",
+                });
+        }
         const layout = JSON.parse(await fs.readFile(options.layout, "utf8"));
         const row = await registerBundle(db, store, {
             name: options.name,

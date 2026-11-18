@@ -143,7 +143,7 @@ it("refuses PDFs it would have to alter and layouts outside the pages", async ()
     ).rejects.toMatchObject({ code: "pdf_has_form_fields" });
     fs.writeFileSync(formPdf, await makeSyntheticPacket());
     const bad = syntheticLayout();
-    bad.files[0].stamps[0].page = 9;
+    bad.fields[0].page = 9;
     fs.writeFileSync(layout, JSON.stringify(bad));
     await expect(
         runBundleCommand(
@@ -165,4 +165,48 @@ it("refuses PDFs it would have to alter and layouts outside the pages", async ()
             }
         )
     ).rejects.toMatchObject({ code: "layout_page_out_of_range" });
+});
+
+it("refuses a layout bound to another PDF and an unexpected release hash", async () => {
+    const { pdf, layout } = await files();
+    const bound = { ...syntheticLayout(), sha256: "0".repeat(64) };
+    fs.writeFileSync(layout, JSON.stringify(bound));
+    await expect(
+        runBundleCommand(
+            [
+                "register",
+                "--name",
+                NAME,
+                "--version",
+                "3",
+                "--pdf",
+                pdf,
+                "--layout",
+                layout,
+            ],
+            { db: prisma, store, out }
+        )
+    ).rejects.toMatchObject({ code: "layout_sha256_mismatch" });
+    fs.writeFileSync(layout, JSON.stringify(syntheticLayout()));
+    await expect(
+        runBundleCommand(
+            [
+                "register",
+                "--name",
+                NAME,
+                "--version",
+                "3",
+                "--pdf",
+                pdf,
+                "--layout",
+                layout,
+                "--expect-sha256",
+                "f".repeat(64),
+            ],
+            { db: prisma, store, out }
+        )
+    ).rejects.toMatchObject({ code: "sha256_mismatch" });
+    expect(
+        await prisma.documentBundleVersion.count({ where: { name: NAME } })
+    ).toBe(0);
 });

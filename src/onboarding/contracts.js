@@ -53,7 +53,9 @@ export const termsSchema = z
                 email: z.string().email().max(254),
             })
             .strict(),
-        plan: z.enum(["ESSENTIAL", "FULL_SERVICE", "CUSTOM"]),
+        plan: z.enum(["ESSENTIAL", "FULL_SERVICE", "FLEET"]),
+        fleet_service_plan: z.enum(["ESSENTIAL", "FULL_SERVICE"]).nullable(),
+        truck_count: z.number().int().min(1).max(10000),
         fee_bp: z.number().int().min(1).max(3000),
         effective_date: z
             .string()
@@ -66,13 +68,35 @@ export const termsSchema = z
             .refine((list) => new Set(list).size === list.length, {
                 message: "duplicate payment method",
             }),
+        primary_payment_method: z.enum(PAYMENT_METHODS).nullable(),
+        statement_email: z.string().email().max(254).nullable(),
         notes_for_packet: z.string().max(2000).nullable(),
     })
     .strict()
-    .refine((t) => t.plan === "CUSTOM" || PLAN_FEES[t.plan] === t.fee_bp, {
+    .refine((t) => t.plan === "FLEET" || PLAN_FEES[t.plan] === t.fee_bp, {
         message: "fee_bp does not match the plan",
         path: ["fee_bp"],
-    });
+    })
+    .refine((t) => (t.plan === "FLEET") === (t.fleet_service_plan !== null), {
+        message: "fleet_service_plan is required for FLEET and only for FLEET",
+        path: ["fleet_service_plan"],
+    })
+    .refine((t) => t.plan !== "FLEET" || t.truck_count >= 3, {
+        message: "fleet pricing needs 3 or more trucks",
+        path: ["truck_count"],
+    })
+    .refine(
+        (t) =>
+            t.payment_methods.length === 2
+                ? t.primary_payment_method !== null &&
+                  t.payment_methods.includes(t.primary_payment_method)
+                : t.primary_payment_method === null,
+        {
+            message:
+                "primary_payment_method is required (and one of payment_methods) only when both are chosen",
+            path: ["primary_payment_method"],
+        }
+    );
 
 export const onboardingRequestV1 = z
     .object({

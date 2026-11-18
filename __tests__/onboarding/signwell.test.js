@@ -3,6 +3,8 @@ import {
     createSignwellProvider,
     signSignwellEvent,
     verifySignwellEvent,
+    toSignwellBox,
+    DEFAULT_CALIBRATION,
 } from "../../src/onboarding/signature/signwell";
 import { normalizeProviderStatus } from "../../src/onboarding/signature/errors";
 
@@ -39,20 +41,24 @@ const filled = {
             bytes: Buffer.from("%PDF-1.7 filled"),
             fields: [
                 {
+                    kind: "signwell",
+                    recipient: 1,
                     type: "signature",
-                    recipient: "carrier",
                     page: 1,
                     x: 10,
                     y: 20,
-                    required: true,
+                    w: 100,
+                    h: 20,
                 },
                 {
-                    type: "name",
-                    recipient: "dispatch",
+                    kind: "signwell",
+                    recipient: 2,
+                    type: "date (lock_sign_date)",
                     page: 2,
                     x: 30,
                     y: 40,
-                    required: true,
+                    w: 50,
+                    h: 10,
                 },
             ],
         },
@@ -105,20 +111,52 @@ it("creates a draft document with uploaded files, ordered signers and safe defau
     });
     expect(call.body.fields).toEqual([
         [
-            expect.objectContaining({
+            {
                 type: "signature",
-                recipient_id: "1",
+                required: true,
                 page: 1,
                 x: 10,
                 y: 20,
-            }),
-            expect.objectContaining({
-                type: "text",
+                width: 100,
+                height: 20,
+                recipient_id: "1",
+                api_id: "r1_signature_1",
+            },
+            {
+                type: "date",
+                required: true,
+                page: 2,
+                x: 30,
+                y: 40,
+                width: 50,
+                height: 10,
                 recipient_id: "2",
-                label: "Name",
-            }),
+                api_id: "r2_date_2",
+                lock_sign_date: true,
+            },
         ],
     ]);
+});
+
+it("converts boxes through one calibration function (identity by default)", () => {
+    const field = { page: 3, x: 100, y: 50, w: 20, h: 10 };
+    expect(toSignwellBox(field)).toEqual({
+        page: 3,
+        x: 100,
+        y: 50,
+        width: 20,
+        height: 10,
+    });
+    expect(
+        toSignwellBox(field, { scale: 1.5, offsetX: 2, offsetY: -1 })
+    ).toEqual({
+        page: 3,
+        x: 152,
+        y: 74,
+        width: 30,
+        height: 15,
+    });
+    expect(DEFAULT_CALIBRATION.calibrated).toBe(false);
 });
 
 it("sends with the test-mode flag and maps timeouts and errors to safe codes", async () => {

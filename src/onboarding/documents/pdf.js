@@ -34,12 +34,7 @@ export async function inspectPdf(bytes) {
     return { pages: doc.getPages().map((p) => p.getSize()) };
 }
 
-const PLAN_LABELS = {
-    ESSENTIAL: "Essential",
-    FULL_SERVICE: "Full-Service",
-    CUSTOM: "Custom fleet",
-};
-const METHOD_LABELS = { card: "Card", us_bank_account: "ACH bank account" };
+const PLAN_LABELS = { ESSENTIAL: "Essential", FULL_SERVICE: "Full-Service" };
 
 const formatDate = (ymd) =>
     new Date(`${ymd}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -49,73 +44,114 @@ const formatDate = (ymd) =>
         day: "numeric",
     });
 
-export const feePercent = (bp) =>
-    `${(bp / 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+/** Basis points as a percentage number without the sign ("7.5"). */
+export const feeNumber = (bp) => (bp / 100).toFixed(2).replace(/\.?0+$/, "");
 
-/** The confirmed values a layout may stamp, derived only from the terms. */
-export function stampValues(terms) {
+/**
+ * Text for each stamp key, derived only from the confirmed terms and the
+ * configured countersigner. null means "leave the blank empty".
+ */
+export function stampValues(terms, countersigner) {
+    const [year, month, day] = terms.effective_date.split("-");
+    const fleet = terms.plan === "FLEET";
     return {
         effective_date: formatDate(terms.effective_date),
         legal_name: terms.legal_name,
-        dba_name: terms.dba_name ?? "",
-        mc_number: terms.mc_number ?? "",
+        dba_name: terms.dba_name,
+        mc_number: terms.mc_number,
         usdot: terms.usdot,
-        plan_label: PLAN_LABELS[terms.plan],
-        fee_percent: feePercent(terms.fee_bp),
-        plan_and_fee: `${PLAN_LABELS[terms.plan]} (${feePercent(terms.fee_bp)})`,
-        payment_choice: terms.payment_methods
-            .map((m) => METHOD_LABELS[m])
-            .join(" and "),
-        signer_name: terms.signer.name,
-        signer_title: terms.signer.title,
-        signer_name_title: `${terms.signer.name}, ${terms.signer.title}`,
-        mark: "X",
+        fleet_fee_percent: fleet ? feeNumber(terms.fee_bp) : null,
+        fleet_service_plan: fleet
+            ? PLAN_LABELS[terms.fleet_service_plan]
+            : null,
+        dispatch_contact_name: `${countersigner.name}, ${countersigner.title}`,
+        carrier_contact_name: `${terms.signer.name}, ${terms.signer.title}`,
+        carrier_signer_name: terms.signer.name,
+        start_month: month,
+        start_day: day,
+        start_year2: year.slice(2),
+        statement_email: terms.statement_email ?? terms.recipient_email,
     };
 }
 
-const matches = (when, terms) =>
-    !when ||
-    ((!when.plan || when.plan.includes(terms.plan)) &&
-        (!when.payment_method ||
-            terms.payment_methods.includes(when.payment_method)));
+export function checkMatches(field, terms) {
+    if (field.key === "plan") return terms.plan === field.when;
+    if (field.key === "payment_methods")
+        return terms.payment_methods.includes(field.when);
+    if (field.key === "primary_payment_method")
+        return terms.primary_payment_method === field.when;
+    return false;
+}
 
 /**
- * Stamps confirmed values into each file at the layout's coordinates (text
- * only). Returns [{ name, bytes, sha256, fields }].
+ * Baseline for text in a top-left box: the bottom of the box in pdf-lib's
+ * bottom-left space, raised by the descender (0.2 em) plus half of any spare
+ * box height. y_pdf = pageHeight - top - height + offset.
  */
-export async function fillPacket(files, layout, terms) {
-    const values = stampValues(terms);
+export const baselineY = (pageHeight, f, size) =>
+    pageHeight - f.y - f.h + size * 0.2 + Math.max(0, (f.h - size) / 2);
+
+/** Largest size from `size` down to `min_size` (0.5 pt steps) that fits, else null. */
+export function fitSize(font, text, f) {
+    for (let size = f.size; size >= f.min_size; size -= 0.5)
+        if (font.widthOfTextAtSize(text, size) <= f.w) return size;
+    return null;
+}
+
+/**
+ * Stamps confirmed values into each file at the layout's boxes (text only;
+ * nothing existing changes). Fails closed: text that does not fit at
+ * min_size raises field_overflow; nothing is shrunk below 7 pt or clipped.
+ * Returns [{ name, bytes, sha256, fields }] where fields are the signwell boxes.
+ */
+export async function fillPacket(files, layouts, terms, countersigner) {
+    const values = stampValues(terms, countersigner);
     const result = [];
-    for (const fileLayout of layout.files) {
-        const source = files.find((f) => f.name === fileLayout.name);
+    for (const layout of layouts) {
+        const source = files.find((f) => f.name === layout.bundle);
         if (!source) throw new PdfError("bundle_file_missing");
         const doc = await PDFDocument.load(source.bytes, {
             updateMetadata: false,
         });
         const font = await doc.embedFont(StandardFonts.Helvetica);
         const pages = doc.getPages();
-        for (const stamp of fileLayout.stamps) {
-            if (!matches(stamp.when, terms)) continue;
-            const text = values[stamp.value];
-            if (!text) continue;
-            const page = pages[stamp.page - 1];
+        for (const field of layout.fields) {
+            if (field.kind === "signwell") continue;
+            const page = pages[field.page - 1];
             if (!page) throw new PdfError("layout_page_missing");
-            let size = stamp.size ?? 10;
+            const { height } = page.getSize();
             try {
-                while (
-                    stamp.max_width &&
-                    size > 5 &&
-                    font.widthOfTextAtSize(text, size) > stamp.max_width
-                )
-                    size -= 0.5;
+                if (field.kind === "stamp_check") {
+                    if (!checkMatches(field, terms)) continue;
+                    const size = Math.min(10, field.h);
+                    const glyph = field.glyph ?? "X";
+                    const x =
+                        field.x +
+                        (field.w - font.widthOfTextAtSize(glyph, size)) / 2;
+                    page.drawText(glyph, {
+                        x,
+                        y: baselineY(height, field, size),
+                        size,
+                        font,
+                        color: rgb(0, 0, 0),
+                    });
+                    continue;
+                }
+                const text = values[field.key];
+                if (text === null || text === undefined || text === "")
+                    continue;
+                font.encodeText(text);
+                const size = fitSize(font, text, field);
+                if (size === null) throw new PdfError("field_overflow");
                 page.drawText(text, {
-                    x: stamp.x,
-                    y: stamp.y,
+                    x: field.x,
+                    y: baselineY(height, field, size),
                     size,
                     font,
                     color: rgb(0, 0, 0),
                 });
-            } catch {
+            } catch (error) {
+                if (error instanceof PdfError) throw error;
                 throw new PdfError("unencodable_value");
             }
         }
@@ -123,10 +159,10 @@ export async function fillPacket(files, layout, terms) {
             await doc.save({ updateFieldAppearances: false })
         );
         result.push({
-            name: fileLayout.name,
+            name: layout.bundle,
             bytes,
             sha256: sha256(bytes),
-            fields: fileLayout.fields,
+            fields: layout.fields.filter((f) => f.kind === "signwell"),
         });
     }
     return result;

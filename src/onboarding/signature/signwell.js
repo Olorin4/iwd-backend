@@ -7,33 +7,48 @@ import { SignatureError } from "./errors.js";
 // only as the X-Api-Key header and never appears in errors or logs.
 export const SIGNWELL_BASE_URL = "https://www.signwell.com/api/v1";
 
-const FIELD_TYPES = {
-    signature: "signature",
-    initials: "initials",
-    date: "date",
-    text: "text",
-    name: "text",
+/**
+ * SignWell's pixel origin and scale are not documented. Every layout box
+ * (PDF points, top-left origin) goes through this one function; the default
+ * is identity with a top-left origin and is UNCALIBRATED until a draft
+ * calibration document confirms or corrects it.
+ */
+export const DEFAULT_CALIBRATION = {
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+    calibrated: false,
 };
-const RECIPIENT_IDS = { carrier: "1", dispatch: "2" };
 
-export function signwellFields(files) {
+export function toSignwellBox(field, calibration = DEFAULT_CALIBRATION) {
+    const { scale, offsetX, offsetY } = calibration;
+    const round = (v) => Math.round(v * 100) / 100;
+    return {
+        page: field.page,
+        x: round(field.x * scale + offsetX),
+        y: round(field.y * scale + offsetY),
+        width: round(field.w * scale),
+        height: round(field.h * scale),
+    };
+}
+
+const fieldType = (type) => type.match(/^(signature|initials|date|text)/)[1];
+
+export function signwellFields(files, calibration = DEFAULT_CALIBRATION) {
     return files.map((file) =>
-        file.fields.map((field, index) => ({
-            type: FIELD_TYPES[field.type],
-            required: field.required !== false,
-            x: field.x,
-            y: field.y,
-            page: field.page,
-            recipient_id: RECIPIENT_IDS[field.recipient],
-            api_id: `${field.recipient}_${field.type}_${index + 1}`,
-            ...(field.width ? { width: field.width } : {}),
-            ...(field.height ? { height: field.height } : {}),
-            ...(field.type === "name"
-                ? { label: field.label ?? "Name" }
-                : field.label
-                  ? { label: field.label }
-                  : {}),
-        }))
+        file.fields.map((field, index) => {
+            const type = fieldType(field.type);
+            return {
+                type,
+                required: true,
+                ...toSignwellBox(field, calibration),
+                recipient_id: String(field.recipient),
+                api_id: `r${field.recipient}_${type}_${index + 1}`,
+                ...(type === "date" && /lock_sign_date/.test(field.type)
+                    ? { lock_sign_date: true }
+                    : {}),
+            };
+        })
     );
 }
 
@@ -42,6 +57,7 @@ export function createSignwellProvider({
     testMode = true,
     expiresInDays = 14,
     timeoutMs = 15000,
+    calibration = DEFAULT_CALIBRATION,
     baseUrl = SIGNWELL_BASE_URL,
     fetch: fetchImpl = globalThis.fetch,
 }) {
@@ -84,6 +100,7 @@ export function createSignwellProvider({
 
     return {
         name: "signwell",
+        calibrated: !!calibration.calibrated,
         async createEnvelope(filled, signers, metadata) {
             const document = await call("POST", "/documents/", {
                 test_mode: testMode,
@@ -100,7 +117,7 @@ export function createSignwellProvider({
                     name: s.name,
                     email: s.email,
                 })),
-                fields: signwellFields(filled.files),
+                fields: signwellFields(filled.files, calibration),
                 apply_signing_order: true,
                 reminders: false,
                 allow_decline: true,

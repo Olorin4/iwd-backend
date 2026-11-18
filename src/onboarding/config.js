@@ -44,6 +44,14 @@ function positiveInt(env, name, fallback, max) {
     return value;
 }
 
+function finiteNumber(env, name, fallback) {
+    const raw = env[name];
+    const value = raw === undefined || raw === "" ? fallback : Number(raw);
+    if (!Number.isFinite(value) || Math.abs(value) > 10000)
+        throw new OnboardingConfigError(`${name} must be a number.`);
+    return value;
+}
+
 export function parseDocumentKey(value) {
     const key = Buffer.from(String(value || ""), "base64");
     if (key.length !== 32)
@@ -148,7 +156,22 @@ export function getOnboardingConfig(env = process.env) {
             ),
             countersigner: {
                 name: required(env, "ONBOARDING_COUNTERSIGNER_NAME"),
+                title: required(env, "ONBOARDING_COUNTERSIGNER_TITLE"),
                 email: required(env, "ONBOARDING_COUNTERSIGNER_EMAIL"),
+            },
+            calibration: {
+                scale: finiteNumber(env, "ONBOARDING_SIGNWELL_COORD_SCALE", 1),
+                offsetX: finiteNumber(
+                    env,
+                    "ONBOARDING_SIGNWELL_COORD_OFFSET_X",
+                    0
+                ),
+                offsetY: finiteNumber(
+                    env,
+                    "ONBOARDING_SIGNWELL_COORD_OFFSET_Y",
+                    0
+                ),
+                calibrated: env.ONBOARDING_SIGNWELL_COORDS_CALIBRATED === "1",
             },
         },
         stripe: {

@@ -7,7 +7,8 @@ import {
     sha256,
 } from "../../src/onboarding/documents/store";
 import {
-    feePercent,
+    baselineY,
+    feeNumber,
     fillPacket,
     inspectPdf,
     stampValues,
@@ -15,6 +16,7 @@ import {
 import { layoutSchema } from "../../src/onboarding/documents/layout";
 import {
     hexOf,
+    makeBlankPages,
     makeSyntheticPacket,
     pdfStreamsText,
     syntheticLayout,
@@ -36,6 +38,11 @@ const terms = {
     fee_bp: 1000,
     effective_date: "2026-11-30",
     payment_methods: ["card", "us_bank_account"],
+    primary_payment_method: "card",
+    fleet_service_plan: null,
+    truck_count: 2,
+    statement_email: null,
+    recipient_email: "owner@example.test",
 };
 
 describe("encrypted filesystem document store", () => {
@@ -93,6 +100,22 @@ describe("encrypted filesystem document store", () => {
     });
 });
 
+const countersigner = {
+    name: "Dispatch Lead",
+    title: "Dispatch Manager",
+    email: "d@example.test",
+};
+const releaseLayout = () =>
+    JSON.parse(
+        fs.readFileSync(
+            path.resolve(
+                __dirname,
+                "../../docs/operations/onboarding-layouts/Iron-Wing-Onboarding-Packet-v1.layout.draft.json"
+            ),
+            "utf8"
+        )
+    );
+
 describe("PDF inspection and filling", () => {
     it("refuses non-PDFs and PDFs with interactive form fields", async () => {
         await expect(inspectPdf(Buffer.from("hello"))).rejects.toMatchObject({
@@ -108,24 +131,53 @@ describe("PDF inspection and filling", () => {
         ).toHaveLength(2);
     });
 
-    it("derives stamp values from the confirmed terms only", () => {
-        expect(stampValues(terms)).toMatchObject({
+    it("derives stamp values from the confirmed terms and countersigner only", () => {
+        expect(stampValues(terms, countersigner)).toMatchObject({
             effective_date: "November 30, 2026",
-            plan_and_fee: "Full-Service (10%)",
-            payment_choice: "Card and ACH bank account",
-            signer_name_title: "Sam Example, Owner",
+            fleet_fee_percent: null,
+            fleet_service_plan: null,
+            dispatch_contact_name: "Dispatch Lead, Dispatch Manager",
+            carrier_contact_name: "Sam Example, Owner",
+            carrier_signer_name: "Sam Example",
+            start_month: "11",
+            start_day: "30",
+            start_year2: "26",
+            statement_email: "owner@example.test",
         });
-        expect(feePercent(750)).toBe("7.5%");
-        expect(feePercent(1234)).toBe("12.34%");
+        const fleet = stampValues(
+            {
+                ...terms,
+                plan: "FLEET",
+                fee_bp: 750,
+                fleet_service_plan: "ESSENTIAL",
+                statement_email: "b@example.test",
+            },
+            countersigner
+        );
+        expect(fleet).toMatchObject({
+            fleet_fee_percent: "7.5",
+            fleet_service_plan: "Essential",
+            statement_email: "b@example.test",
+        });
+        expect(feeNumber(1234)).toBe("12.34");
+        expect(feeNumber(1000)).toBe("10");
     });
 
-    it("stamps the values as text at the layout coordinates without changing page count", async () => {
+    it("converts top-left boxes to pdf-lib baselines", () => {
+        expect(baselineY(792, { y: 92.2, h: 10.5 }, 10)).toBeCloseTo(
+            792 - 102.7 + 2 + 0.25,
+            5
+        );
+    });
+
+    it("stamps values and checks as text without changing page count or existing text", async () => {
         const original = await makeSyntheticPacket();
         const layout = layoutSchema.parse(syntheticLayout());
         const [filled] = await fillPacket(
             [{ name: "packet.pdf", bytes: original }],
             layout,
-            terms
+            terms,
+            countersigner
         );
         expect(filled.sha256).toBe(sha256(filled.bytes));
         expect(filled.fields).toHaveLength(4);
@@ -135,15 +187,37 @@ describe("PDF inspection and filling", () => {
             "MC123456",
             "1234567",
             "November 30, 2026",
-            "Full-Service (10%)",
+            "Sam Example, Owner",
+            "Dispatch Lead, Dispatch Manager",
+            "owner@example.test",
         ])
             expect(text).toContain(hexOf(value));
-        // The plan mark is drawn for FULL_SERVICE only.
-        expect(text.split(hexOf("X")).length - 1).toBe(1);
+        // FULL_SERVICE plan check and card primary check: two X marks.
+        expect(text.split(hexOf("X")).length - 1).toBe(2);
+        // No fleet percentage outside FLEET.
+        expect(text).not.toContain(hexOf("10"));
         const doc = await PDFDocument.load(filled.bytes);
         expect(doc.getPageCount()).toBe(2);
-        // The original text is still there, unchanged.
         expect(text).toContain(hexOf("Dispatch Service Agreement"));
+    });
+
+    it("fails closed with field_overflow instead of shrinking below min_size or clipping", async () => {
+        const layout = layoutSchema.parse(syntheticLayout());
+        await expect(
+            fillPacket(
+                [{ name: "packet.pdf", bytes: await makeSyntheticPacket() }],
+                layout,
+                {
+                    ...terms,
+                    legal_name:
+                        "An Extremely Long Carrier Legal Name That Cannot Fit Holdings LLC",
+                },
+                countersigner
+            )
+        ).rejects.toMatchObject({ code: "field_overflow" });
+        const tooSmall = syntheticLayout();
+        tooSmall.fields[0].min_size = 6;
+        expect(layoutSchema.safeParse(tooSmall).success).toBe(false);
     });
 
     it("fails clearly for values the standard font cannot encode", async () => {
@@ -155,16 +229,46 @@ describe("PDF inspection and filling", () => {
                 {
                     ...terms,
                     legal_name: "Перевозчик LLC",
-                }
+                },
+                countersigner
             )
         ).rejects.toMatchObject({ code: "unencodable_value" });
     });
 
     it("requires Carrier and Dispatch signature fields in a layout", () => {
         const layout = syntheticLayout();
-        layout.files[0].fields = layout.files[0].fields.filter(
-            (f) => f.recipient === "carrier"
+        layout.fields = layout.fields.filter(
+            (f) => !(f.kind === "signwell" && f.recipient === 2)
         );
         expect(layoutSchema.safeParse(layout).success).toBe(false);
+    });
+
+    it("the reviewed draft release layout parses, stays DRAFT and fits the fixture terms", async () => {
+        const raw = releaseLayout();
+        expect(raw.status).toBe("DRAFT");
+        const layout = layoutSchema.parse(raw);
+        expect(layout[0].fields.length).toBeGreaterThan(30);
+        const blank = await makeBlankPages(6);
+        for (const t of [
+            terms,
+            {
+                ...terms,
+                plan: "FLEET",
+                fee_bp: 750,
+                fleet_service_plan: "FULL_SERVICE",
+                truck_count: 4,
+            },
+        ]) {
+            const [filled] = await fillPacket(
+                [{ name: raw.bundle, bytes: blank }],
+                layout,
+                t,
+                countersigner
+            );
+            expect(
+                filled.fields.filter((f) => f.type.startsWith("signature"))
+                    .length
+            ).toBe(5);
+        }
     });
 });

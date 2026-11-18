@@ -12,6 +12,7 @@ const base = {
     SIGNWELL_WEBHOOK_ID: "sw-hook",
     ONBOARDING_COUNTERSIGNER_NAME: "Dispatch Lead",
     ONBOARDING_COUNTERSIGNER_EMAIL: "dispatch@example.test",
+    ONBOARDING_COUNTERSIGNER_TITLE: "Dispatch Manager",
     ONBOARDING_STRIPE_SECRET_KEY: "sk_test_abc",
     ONBOARDING_STRIPE_WEBHOOK_SECRET: "whsec_x",
     ONBOARDING_STRIPE_SUCCESS_URL: "https://example.test/done",
@@ -34,6 +35,12 @@ it("parses a full configuration with safe defaults", () => {
     expect(config.stripe.live).toBe(false);
     expect(config.provisioning.adapter).toBe("manual");
     expect(config.documents.key).toHaveLength(32);
+    expect(config.signature.calibration).toEqual({
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        calibrated: false,
+    });
 });
 
 it("refuses live Stripe keys without explicit confirmation", () => {

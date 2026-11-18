@@ -9,7 +9,10 @@
         "party_id": "33333333-3333-4333-8333-333333333333",
         "request_id": "44444444-4444-4444-8444-444444444444"
     },
-    "actor": { "user_id": "55555555-5555-4555-8555-555555555555", "email": "closer@example.test" },
+    "actor": {
+        "user_id": "55555555-5555-4555-8555-555555555555",
+        "email": "closer@example.test"
+    },
     "terms": {
         "path": "IRON_WING_CARRIER_CLIENT",
         "legal_name": "Example Freight LLC",
@@ -17,11 +20,19 @@
         "mc_number": "MC123456",
         "usdot": "1234567",
         "recipient_email": "owner@example.test",
-        "signer": { "name": "Sam Example", "title": "Owner", "email": "owner@example.test" },
+        "signer": {
+            "name": "Sam Example",
+            "title": "Owner",
+            "email": "owner@example.test"
+        },
         "plan": "FULL_SERVICE",
+        "fleet_service_plan": null,
+        "truck_count": 2,
         "fee_bp": 1000,
         "effective_date": "2026-11-30",
         "payment_methods": ["card", "us_bank_account"],
+        "primary_payment_method": "card",
+        "statement_email": null,
         "notes_for_packet": null
     },
     "terms_hash": "sha256-of-canonical-terms-json-computed-by-the-sender",

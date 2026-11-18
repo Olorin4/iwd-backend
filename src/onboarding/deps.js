@@ -12,6 +12,7 @@ function signatureFromConfig(config) {
         testMode: config.signature.testMode,
         expiresInDays: config.signature.expiresInDays,
         timeoutMs: config.signature.timeoutMs,
+        calibration: config.signature.calibration,
     });
 }
 

@@ -51,18 +51,39 @@ it("canonical JSON sorts keys recursively and keeps array order", () => {
     expect(termsHash({ y: [1, 3] })).not.toBe(termsHash({ y: [3, 1] }));
 });
 
-it("rejects plan/fee mismatches, unknown keys and untrimmed text", () => {
+it("enforces the amended plan, fleet and payment rules", () => {
     const body = read("onboarding.request.v1");
-    const bad = (terms) =>
+    const ok = (terms) =>
         onboardingRequestV1.safeParse({
             ...body,
             terms: { ...body.terms, ...terms },
         }).success;
-    expect(bad({})).toBe(true);
-    expect(bad({ plan: "ESSENTIAL" })).toBe(false);
-    expect(bad({ plan: "CUSTOM", fee_bp: 750 })).toBe(true);
-    expect(bad({ extra: 1 })).toBe(false);
-    expect(bad({ legal_name: " Example " })).toBe(false);
-    expect(bad({ effective_date: "2026-02-30" })).toBe(false);
-    expect(bad({ payment_methods: ["card", "card"] })).toBe(false);
+    expect(ok({})).toBe(true);
+    expect(ok({ plan: "ESSENTIAL" })).toBe(false);
+    expect(ok({ plan: "ESSENTIAL", fee_bp: 500 })).toBe(true);
+    expect(ok({ plan: "CUSTOM" })).toBe(false);
+    const fleet = {
+        plan: "FLEET",
+        fee_bp: 750,
+        fleet_service_plan: "FULL_SERVICE",
+        truck_count: 3,
+    };
+    expect(ok(fleet)).toBe(true);
+    expect(ok({ ...fleet, truck_count: 2 })).toBe(false);
+    expect(ok({ ...fleet, fleet_service_plan: null })).toBe(false);
+    expect(ok({ fleet_service_plan: "ESSENTIAL" })).toBe(false);
+    expect(ok({ primary_payment_method: null })).toBe(false);
+    expect(ok({ primary_payment_method: "us_bank_account" })).toBe(true);
+    expect(
+        ok({ payment_methods: ["card"], primary_payment_method: null })
+    ).toBe(true);
+    expect(
+        ok({ payment_methods: ["card"], primary_payment_method: "card" })
+    ).toBe(false);
+    expect(ok({ statement_email: "billing@example.test" })).toBe(true);
+    expect(ok({ statement_email: "nope" })).toBe(false);
+    expect(ok({ extra: 1 })).toBe(false);
+    expect(ok({ legal_name: " Example " })).toBe(false);
+    expect(ok({ effective_date: "2026-02-30" })).toBe(false);
+    expect(ok({ payment_methods: ["card", "card"] })).toBe(false);
 });

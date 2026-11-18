@@ -1,5 +1,6 @@
 import { layoutSchema } from "./layout.js";
 import { PdfError, inspectPdf } from "./pdf.js";
+import { sha256 } from "./store.js";
 
 export class BundleError extends Error {
     constructor(code, detail) {
@@ -9,26 +10,28 @@ export class BundleError extends Error {
     }
 }
 
-function checkLayout(layout, inspected) {
-    for (const file of layout.files) {
-        const info = inspected[file.name];
-        if (!info) throw new BundleError("layout_file_unknown", file.name);
-        for (const item of [...file.stamps, ...file.fields]) {
-            const page = info.pages[item.page - 1];
+function checkLayout(layouts, inspected) {
+    for (const layout of layouts) {
+        const info = inspected[layout.bundle];
+        if (!info) throw new BundleError("layout_file_unknown", layout.bundle);
+        if (layout.sha256 && layout.sha256 !== info.sha256)
+            throw new BundleError("layout_sha256_mismatch", layout.bundle);
+        for (const f of layout.fields) {
+            const page = info.pages[f.page - 1];
             if (!page)
                 throw new BundleError(
                     "layout_page_out_of_range",
-                    `${file.name} page ${item.page}`
+                    `${layout.bundle} page ${f.page}`
                 );
-            if (item.x > page.width || item.y > page.height)
+            if (f.x + f.w > page.width || f.y + f.h > page.height)
                 throw new BundleError(
                     "layout_outside_page",
-                    `${file.name} page ${item.page}`
+                    `${layout.bundle} page ${f.page}`
                 );
         }
     }
     for (const name of Object.keys(inspected))
-        if (!layout.files.some((f) => f.name === name))
+        if (!layouts.some((l) => l.bundle === name))
             throw new BundleError("file_without_layout", name);
 }
 
@@ -56,7 +59,10 @@ export async function registerBundle(
         if (inspected[pdf.name])
             throw new BundleError("duplicate_file", pdf.name);
         try {
-            inspected[pdf.name] = await inspectPdf(pdf.bytes);
+            inspected[pdf.name] = {
+                ...(await inspectPdf(pdf.bytes)),
+                sha256: sha256(pdf.bytes),
+            };
         } catch (error) {
             if (error instanceof PdfError)
                 throw new BundleError(error.code, pdf.name);

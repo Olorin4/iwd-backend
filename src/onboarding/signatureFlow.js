@@ -179,7 +179,12 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
     let filled;
     try {
         const files = await loadBundleFiles(deps.documentStore, bundle);
-        filled = await fillPacket(files, bundle.layout, row.terms);
+        filled = await fillPacket(
+            files,
+            bundle.layout,
+            row.terms,
+            deps.config.signature.countersigner
+        );
     } catch (error) {
         log(deps, "onboarding_packet_fill_failed", {
             reason: error?.code ?? "error",
@@ -192,6 +197,8 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
         data: hashes,
     });
 
+    if (deps.signature.calibrated === false)
+        deps.logger?.warn?.({ code: "signwell_coordinates_uncalibrated" });
     const terms = row.terms;
     const signers = [
         {
@@ -200,7 +207,12 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
             name: terms.signer.name,
             email: terms.signer.email,
         },
-        { id: "2", role: "Dispatch", ...deps.config.signature.countersigner },
+        {
+            id: "2",
+            role: "Dispatch",
+            name: deps.config.signature.countersigner.name,
+            email: deps.config.signature.countersigner.email,
+        },
     ];
     let created;
     try {
