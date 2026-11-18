@@ -42,9 +42,9 @@ the Dispatch Service Agreement.
 IN WITNESS WHEREOF, CARRIER has executed this Limited Power of Attorney on the
 date below.
 
-| CARRIER | Accepted by DISPATCH |
+| DISPATCH (Agent) | CARRIER |
 | --- | --- |
-| Company: | Company: Iron Wing Logistics L.L.C. |
+| Company: Iron Wing Logistics L.L.C. | Company: |
 | Name and title: | Name and title: |
 | Signature: | Signature: |
 | Date: | Date: |
