@@ -21,6 +21,18 @@ function required(env, name, { min = 1 } = {}) {
     return value;
 }
 
+/** One email address or null when unset (never a list). */
+function optionalEmail(env, name) {
+    const value = typeof env[name] === "string" ? env[name].trim() : "";
+    if (!value) return null;
+    if (
+        value.length > 254 ||
+        !/^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>"]+$/.test(value)
+    )
+        throw new OnboardingConfigError(`${name} must be one email address.`);
+    return value;
+}
+
 function httpsUrl(env, name, { allowHttp = false } = {}) {
     const value = required(env, name);
     let url;
@@ -154,6 +166,7 @@ export function getOnboardingConfig(env = process.env) {
                 15000,
                 120000
             ),
+            requesterEmail: optionalEmail(env, "ONBOARDING_REQUESTER_EMAIL"),
             countersigner: {
                 name: required(env, "ONBOARDING_COUNTERSIGNER_NAME"),
                 title: required(env, "ONBOARDING_COUNTERSIGNER_TITLE"),

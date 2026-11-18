@@ -405,3 +405,39 @@ describe("page-6 typed authorization date (owner decision 2026-11-18)", () => {
         expect(parse({ ...base, type: "date", label: "MM" })).toBe(false);
     });
 });
+
+it("sends the requester identity and per-recipient subject/message", async () => {
+    const { calls, p } = provider([
+        json(201, { id: "doc_2", status: "Draft" }),
+        json(201, { id: "doc_3", status: "Draft" }),
+    ]);
+    const withCopy = signers.map((s) => ({
+        ...s,
+        subject: `Subject ${s.id}`,
+        message: `Message ${s.id}`,
+    }));
+    await p.createEnvelope(filled, withCopy, {
+        ...metadata,
+        requester_name: "Iron Wing Logistics L.L.C.",
+        requester_email: "onboarding@example.test",
+    });
+    expect(calls[0].body).toMatchObject({
+        custom_requester_name: "Iron Wing Logistics L.L.C.",
+        custom_requester_email: "onboarding@example.test",
+        reminders: false,
+        recipients: [
+            { id: "1", subject: "Subject 1", message: "Message 1" },
+            { id: "2", subject: "Subject 2", message: "Message 2" },
+        ],
+    });
+    // No requester email configured: the field is omitted, not null.
+    await p.createEnvelope(filled, withCopy, {
+        ...metadata,
+        requester_name: "Iron Wing Logistics L.L.C.",
+        requester_email: null,
+    });
+    expect(calls[1].body).not.toHaveProperty("custom_requester_email");
+    expect(calls[1].body.custom_requester_name).toBe(
+        "Iron Wing Logistics L.L.C."
+    );
+});

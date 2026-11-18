@@ -680,3 +680,31 @@ describe("completed PDF audit page", () => {
         expect((await request()).signature_state).toBe("COMPLETED");
     });
 });
+
+it("the packet carries the requester name and per-recipient copy without braces", async () => {
+    await put();
+    const [document] = [...signature.documents.values()];
+    expect(document.metadata).toMatchObject({
+        name: "Iron Wing dispatch agreement — Example Freight LLC",
+        requester_name: "Iron Wing Logistics L.L.C.",
+        requester_email: null,
+    });
+    const [carrier, dispatch] = document.signers;
+    expect(carrier.subject).toMatch(/^Iron Wing: your dispatch agreement for /);
+    expect(dispatch.subject).toMatch(/^INTERNAL — countersign: /);
+    const [envelope] = await envelopes();
+    const request = await prisma.onboardingRequest.findUnique({
+        where: { id: envelope.request_id },
+    });
+    expect(dispatch.message).toContain(request.id.slice(0, 8));
+    expect(dispatch.message).not.toContain(request.id);
+    expect(dispatch.message).not.toContain(envelope.provider_document_id);
+    for (const text of [
+        document.metadata.name,
+        carrier.subject,
+        carrier.message,
+        dispatch.subject,
+        dispatch.message,
+    ])
+        expect(text).not.toMatch(/[{}]/);
+});

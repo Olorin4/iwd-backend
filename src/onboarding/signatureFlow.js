@@ -11,6 +11,7 @@ import { canonicalJson, sha256Hex } from "./canonical.js";
 import { continueUrl } from "./continueToken.js";
 import { normalizeProviderStatus } from "./signature/errors.js";
 import { verifySignwellEvent } from "./signature/signwell.js";
+import { REQUESTER_NAME, packetMessages } from "./signature/messages.js";
 
 // ERROR is not terminal: a verified re-fetch may show the provider did send the
 // document (found in the 2026-11-18 sandbox run), and a DRAFT in ERROR is sent
@@ -347,18 +348,21 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
     });
 
     const terms = row.terms;
+    const copy = packetMessages(terms, { requestId: row.id });
     const signers = [
         {
             id: "1",
             role: "Carrier",
             name: terms.signer.name,
             email: terms.signer.email,
+            ...copy.carrier,
         },
         {
             id: "2",
             role: "Dispatch",
             name: deps.config.signature.countersigner.name,
             email: deps.config.signature.countersigner.email,
+            ...copy.dispatch,
         },
     ];
     if (await cancelledNow(deps, row.id)) return stopForCancel(deps, envelope);
@@ -370,13 +374,11 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
             {
                 onboarding_request_id: row.id,
                 envelope_id: envelope.id,
-                name: `Iron Wing dispatch agreement - ${terms.legal_name}`.slice(
-                    0,
-                    200
-                ),
-                subject: "Your Iron Wing dispatch agreement",
-                message:
-                    "Please review and sign your Iron Wing Logistics L.L.C. dispatch service agreement, limited power of attorney and payment authorization.",
+                name: copy.name,
+                subject: copy.carrier.subject,
+                message: copy.carrier.message,
+                requester_name: REQUESTER_NAME,
+                requester_email: deps.config.signature.requesterEmail ?? null,
                 redirect_url: continueUrl(deps.config, row.id, deps.now()),
             }
         );

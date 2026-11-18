@@ -111,31 +111,32 @@ SignWell for manual deletion (the log shows `packet_create_failed`).
 
 ## Configuration
 
-| Setting                                                                              | Notes                                                                                      |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `ONBOARDING_ENABLED`                                                                 | `1` to enable. Anything else: routes 404, no workers.                                      |
-| `IWD_ONBOARDING_TOKEN`                                                               | ≥32 chars; bearer from Outreach                                                            |
-| `ONBOARDING_REQUEST_SIGNING_SECRET`                                                  | ≥32 chars; HMAC from Outreach; must differ from the token                                  |
-| `ONBOARDING_PUBLIC_BASE_URL`                                                         | public https base of this API (continue links)                                             |
-| `ONBOARDING_CONTINUE_TOKEN_SECRET`                                                   | ≥32 chars                                                                                  |
-| `ONBOARDING_CONTINUE_TTL_DAYS`                                                       | default 30                                                                                 |
-| `ONBOARDING_DOCUMENT_DIR`                                                            | private volume, not web-served                                                             |
-| `ONBOARDING_DOCUMENT_KEY`                                                            | 32 random bytes, base64 (`openssl rand -base64 32`). Losing it loses the documents.        |
-| `ONBOARDING_BUNDLE_NAME`                                                             | default `iron-wing-carrier-client`                                                         |
-| `ONBOARDING_SIGNATURE_PROVIDER`                                                      | `signwell` (default) or `fake` (refused in production)                                     |
-| `SIGNWELL_API_KEY`, `SIGNWELL_WEBHOOK_ID`                                            | SignWell API key and webhook id (the webhook HMAC key)                                     |
-| `ONBOARDING_SIGNWELL_TEST_MODE`                                                      | default true; only `false`/`0`/`no` turns it off                                           |
-| `ONBOARDING_SIGNWELL_EXPIRES_IN_DAYS`                                                | default 14                                                                                 |
-| `ONBOARDING_SIGNWELL_TIMEOUT_MS`                                                     | default 15000                                                                              |
-| `ONBOARDING_SIGNWELL_COORD_SCALE`, `_OFFSET_X`, `_OFFSET_Y`                          | layout points → SignWell coordinates; default scale 4/3, offsets 0 (calibrated; see below) |
-| `ONBOARDING_COUNTERSIGNER_NAME`, `_TITLE`, `_EMAIL`                                  | Iron Wing countersigner (recipient 2, Dispatch)                                            |
-| `ONBOARDING_STRIPE_SECRET_KEY`                                                       | `sk_test_`/`rk_test_` unless `ONBOARDING_STRIPE_LIVE_CONFIRM=yes`                          |
-| `ONBOARDING_STRIPE_WEBHOOK_SECRET`                                                   | own endpoint secret (not the interim one)                                                  |
-| `ONBOARDING_STRIPE_SUCCESS_URL`, `_CANCEL_URL`                                       | https pages shown after Checkout                                                           |
-| `ONBOARDING_PROVISIONING_ADAPTER`                                                    | `manual` (default) or `kelevo` (stub)                                                      |
-| `OUTREACH_STATUS_URL`, `ONBOARDING_STATUS_TOKEN`, `ONBOARDING_STATUS_SIGNING_SECRET` | all three enable the status outbox                                                         |
-| `ONBOARDING_RECONCILE_ENABLED`                                                       | `1` runs the 15-minute reconciler                                                          |
-| `ONBOARDING_EMAIL_FROM`                                                              | default `EMAIL_USER`                                                                       |
+| Setting                                                                              | Notes                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ONBOARDING_ENABLED`                                                                 | `1` to enable. Anything else: routes 404, no workers.                                                                                                                                |
+| `IWD_ONBOARDING_TOKEN`                                                               | ≥32 chars; bearer from Outreach                                                                                                                                                      |
+| `ONBOARDING_REQUEST_SIGNING_SECRET`                                                  | ≥32 chars; HMAC from Outreach; must differ from the token                                                                                                                            |
+| `ONBOARDING_PUBLIC_BASE_URL`                                                         | public https base of this API (continue links)                                                                                                                                       |
+| `ONBOARDING_CONTINUE_TOKEN_SECRET`                                                   | ≥32 chars                                                                                                                                                                            |
+| `ONBOARDING_CONTINUE_TTL_DAYS`                                                       | default 30                                                                                                                                                                           |
+| `ONBOARDING_DOCUMENT_DIR`                                                            | private volume, not web-served                                                                                                                                                       |
+| `ONBOARDING_DOCUMENT_KEY`                                                            | 32 random bytes, base64 (`openssl rand -base64 32`). Losing it loses the documents.                                                                                                  |
+| `ONBOARDING_BUNDLE_NAME`                                                             | default `iron-wing-carrier-client`                                                                                                                                                   |
+| `ONBOARDING_SIGNATURE_PROVIDER`                                                      | `signwell` (default) or `fake` (refused in production)                                                                                                                               |
+| `SIGNWELL_API_KEY`, `SIGNWELL_WEBHOOK_ID`                                            | SignWell API key and webhook id (the webhook HMAC key)                                                                                                                               |
+| `ONBOARDING_SIGNWELL_TEST_MODE`                                                      | default true; only `false`/`0`/`no` turns it off                                                                                                                                     |
+| `ONBOARDING_SIGNWELL_EXPIRES_IN_DAYS`                                                | default 14                                                                                                                                                                           |
+| `ONBOARDING_SIGNWELL_TIMEOUT_MS`                                                     | default 15000                                                                                                                                                                        |
+| `ONBOARDING_SIGNWELL_COORD_SCALE`, `_OFFSET_X`, `_OFFSET_Y`                          | layout points → SignWell coordinates; default scale 4/3, offsets 0 (calibrated; see below)                                                                                           |
+| `ONBOARDING_COUNTERSIGNER_NAME`, `_TITLE`, `_EMAIL`                                  | Iron Wing countersigner (recipient 2, Dispatch)                                                                                                                                      |
+| `ONBOARDING_REQUESTER_EMAIL`                                                         | optional; one email address. SignWell `custom_requester_email` (shown as the requester/reply address); omitted when unset. The requester name is always `Iron Wing Logistics L.L.C.` |
+| `ONBOARDING_STRIPE_SECRET_KEY`                                                       | `sk_test_`/`rk_test_` unless `ONBOARDING_STRIPE_LIVE_CONFIRM=yes`                                                                                                                    |
+| `ONBOARDING_STRIPE_WEBHOOK_SECRET`                                                   | own endpoint secret (not the interim one)                                                                                                                                            |
+| `ONBOARDING_STRIPE_SUCCESS_URL`, `_CANCEL_URL`                                       | https pages shown after Checkout                                                                                                                                                     |
+| `ONBOARDING_PROVISIONING_ADAPTER`                                                    | `manual` (default) or `kelevo` (stub)                                                                                                                                                |
+| `OUTREACH_STATUS_URL`, `ONBOARDING_STATUS_TOKEN`, `ONBOARDING_STATUS_SIGNING_SECRET` | all three enable the status outbox                                                                                                                                                   |
+| `ONBOARDING_RECONCILE_ENABLED`                                                       | `1` runs the 15-minute reconciler                                                                                                                                                    |
+| `ONBOARDING_EMAIL_FROM`                                                              | default `EMAIL_USER`                                                                                                                                                                 |
 
 ## SignWell coordinate calibration
 
@@ -199,6 +200,37 @@ checks may report them.
    `setup_intent.setup_failed`, `setup_intent.requires_action`).
 6. Owner approves live keys; set them, then `ONBOARDING_ENABLED=1`, then the
    outbox settings, then `ONBOARDING_RECONCILE_ENABLED=1`.
+
+## Owner settings in SignWell
+
+Countersigning stays by email (no embedded signing). Each packet is created with
+`custom_requester_name: "Iron Wing Logistics L.L.C."` (and
+`custom_requester_email` when `ONBOARDING_REQUESTER_EMAIL` is set), reminders
+off, and its own email copy per recipient:
+
+- Carrier (recipient 1): subject `Iron Wing: your dispatch agreement for <legal
+name> — please sign`; a short message naming Iron Wing, the three documents,
+  that payment details are collected separately on Stripe's secure page, and to
+  reply before signing if anything differs.
+- Dispatch (recipient 2): subject `INTERNAL — countersign: <legal name> (<plan>,
+effective <date>)`; the message says the carrier has signed, lists legal name,
+  MC/USDOT, plan/fee and effective date to check, and the onboarding request's
+  8-character reference (never secrets or provider ids).
+- Document name: `Iron Wing dispatch agreement — <legal name>`.
+
+All text comes from the confirmed terms, is bounded in length and never
+contains JSON.
+
+Owner steps in the SignWell dashboard and mail:
+
+1. Turn off the account-owner notification emails (document sent/viewed/signed/
+   completed) in SignWell settings. Outreach shows onboarding progress, so these
+   would only duplicate it.
+2. Use a dedicated mailbox or alias for the countersigner
+   (`ONBOARDING_COUNTERSIGNER_EMAIL`) and for the requester reply address
+   (`ONBOARDING_REQUESTER_EMAIL`), with a mail filter (e.g. subject starts with
+   `INTERNAL — countersign:`) so countersign requests and carrier replies are not
+   lost in a personal inbox.
 
 ## Recovery
 

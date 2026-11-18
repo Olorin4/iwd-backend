@@ -102,3 +102,21 @@ it("turns test mode off only explicitly and enables the outbox only when fully c
     expect(config.outbox.enabled).toBe(true);
     expect(config.reconcile.enabled).toBe(true);
 });
+
+it("accepts one optional requester email and refuses lists or junk", () => {
+    expect(getOnboardingConfig(base).signature.requesterEmail).toBeNull();
+    expect(
+        getOnboardingConfig({
+            ...base,
+            ONBOARDING_REQUESTER_EMAIL: "onboarding@example.test",
+        }).signature.requesterEmail
+    ).toBe("onboarding@example.test");
+    for (const bad of [
+        "a@example.test,b@example.test",
+        "not-an-email",
+        "Name <a@example.test>",
+    ])
+        expect(() =>
+            getOnboardingConfig({ ...base, ONBOARDING_REQUESTER_EMAIL: bad })
+        ).toThrow(/ONBOARDING_REQUESTER_EMAIL/);
+});

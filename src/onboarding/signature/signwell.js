@@ -126,10 +126,18 @@ export function createSignwellProvider({
                     name: f.name,
                     file_base64: f.bytes.toString("base64"),
                 })),
+                ...(metadata.requester_name
+                    ? { custom_requester_name: metadata.requester_name }
+                    : {}),
+                ...(metadata.requester_email
+                    ? { custom_requester_email: metadata.requester_email }
+                    : {}),
                 recipients: signers.map((s) => ({
                     id: s.id,
                     name: s.name,
                     email: s.email,
+                    ...(s.subject ? { subject: s.subject } : {}),
+                    ...(s.message ? { message: s.message } : {}),
                 })),
                 fields: signwellFields(filled.files, calibration),
                 apply_signing_order: true,
