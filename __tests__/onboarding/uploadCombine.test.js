@@ -142,11 +142,12 @@ test("every declared HEIC size counts, and a HEIC without one is refused", async
     const convert = jest.fn();
     // A small first size box followed by a huge one (e.g. a thumbnail first).
     const first = heic.indexOf("ispe");
-    const tail = Buffer.alloc(16);
-    tail.writeUInt32BE(16, 0);
+    // ispe box: size, type, version/flags, width, height (20 bytes).
+    const tail = Buffer.alloc(20);
+    tail.writeUInt32BE(20, 0);
     tail.write("ispe", 4, "ascii");
-    tail.writeUInt32BE(20000, 8);
     tail.writeUInt32BE(20000, 12);
+    tail.writeUInt32BE(20000, 16);
     const second = Buffer.concat([heic, tail]);
     expect(first).toBeGreaterThan(0);
     expect(await validateUpload(second, { maxBytes, convert })).toEqual({
