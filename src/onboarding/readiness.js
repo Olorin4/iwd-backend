@@ -130,23 +130,57 @@ export function reportLoadBoard(items, { board, note = null, at }) {
     const text = typeof note === "string" ? note.trim().slice(0, 100) : "";
     if (board === "OTHER" && !text) throw new Error("load_board_note_required");
     const current = items.find((item) => item.key === "LOAD_BOARD_ACCESS");
-    if (current?.state === "VERIFIED") return null;
+    // Nothing new: the board is already reported (or confirmed by staff).
+    if (
+        (current?.reported ?? []).includes(board) ||
+        (current?.boards ?? []).includes(board)
+    )
+        return null;
     const reported = LOAD_BOARDS.filter(
         (b) => b === board || (current?.reported ?? []).includes(b)
     );
-    const entry = {
-        key: "LOAD_BOARD_ACCESS",
-        state: "RECEIVED",
-        at: at.toISOString(),
-        actor: { type: "carrier" },
-        note: current?.note ?? null,
-        reported,
-        reported_note:
-            board === "OTHER" ? text : (current?.reported_note ?? null),
-    };
+    const reported_note =
+        board === "OTHER" ? text : (current?.reported_note ?? null);
+    // Once Iron Wing confirmed access the step stays done; a board added
+    // later just waits for its own confirmation (owner ruling 2026-11-19).
+    const entry =
+        current?.state === "VERIFIED"
+            ? { ...current, reported, reported_note }
+            : {
+                  key: "LOAD_BOARD_ACCESS",
+                  state: "RECEIVED",
+                  at: at.toISOString(),
+                  actor: { type: "carrier" },
+                  note: current?.note ?? null,
+                  reported,
+                  reported_note,
+              };
     return current
         ? items.map((item) => (item === current ? entry : item))
         : [...items, entry];
+}
+
+/**
+ * Per-board view of LOAD_BOARD_ACCESS: confirmed by staff, or reported by
+ * the carrier and waiting for confirmation. Board order: DAT One,
+ * Truckstop, other.
+ */
+export function loadBoardStatuses(item) {
+    if (!item) return [];
+    const confirmed = item.boards ?? [];
+    const reported = item.reported ?? [];
+    return LOAD_BOARDS.filter(
+        (b) => confirmed.includes(b) || reported.includes(b)
+    ).map((board) => ({
+        board,
+        name:
+            board === "OTHER"
+                ? ((confirmed.includes("OTHER") ? item.note : null) ??
+                  item.reported_note ??
+                  null)
+                : null,
+        state: confirmed.includes(board) ? "CONFIRMED" : "WAITING",
+    }));
 }
 
 export function unverifyOperationItem(items, key, { actor, at }) {
@@ -157,10 +191,17 @@ export function unverifyOperationItem(items, key, { actor, at }) {
             item === current
                 ? {
                       key: item.key,
-                      state: "PENDING",
+                      // Back to waiting when the carrier had reported boards.
+                      state: item.reported?.length ? "RECEIVED" : "PENDING",
                       at: at.toISOString(),
                       actor,
                       note: null,
+                      ...(item.reported?.length
+                          ? {
+                                reported: item.reported,
+                                reported_note: item.reported_note ?? null,
+                            }
+                          : {}),
                   }
                 : item
         );

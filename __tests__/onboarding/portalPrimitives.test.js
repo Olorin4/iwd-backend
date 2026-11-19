@@ -23,6 +23,8 @@ import {
     unverifyOperationItem,
     verifyOperationItem,
     confirmLoadBoardAccess,
+    reportLoadBoard,
+    loadBoardStatuses,
 } from "../../src/onboarding/readiness.js";
 import {
     invitationEmail,
@@ -635,5 +637,81 @@ describe("factoring is optional for portal onboardings only (2026-11-19)", () =>
         });
         expect(steps.join(" | ")).not.toMatch(/factoring/i);
         expect(steps).toContain("W-9 form");
+    });
+});
+
+describe("load boards are confirmed one by one (2026-11-19)", () => {
+    const base = () =>
+        reportLoadBoard(initialOperations(), { board: "DAT_ONE", at });
+    const lb = (items) => items.find((i) => i.key === "LOAD_BOARD_ACCESS");
+    test("Added after confirmation records the board and stays VERIFIED", () => {
+        const confirmed = confirmLoadBoardAccess(base(), {
+            boards: ["DAT_ONE"],
+            actor: "s",
+            at,
+        });
+        const more = reportLoadBoard(confirmed, { board: "TRUCKSTOP", at });
+        expect(lb(more)).toMatchObject({
+            state: "VERIFIED",
+            boards: ["DAT_ONE"],
+            reported: ["DAT_ONE", "TRUCKSTOP"],
+        });
+    });
+    test("Added twice for a confirmed board changes nothing", () => {
+        const confirmed = confirmLoadBoardAccess(base(), {
+            boards: ["DAT_ONE"],
+            actor: "s",
+            at,
+        });
+        expect(reportLoadBoard(confirmed, { board: "DAT_ONE", at })).toBeNull();
+        expect(lb(confirmed).reported).toEqual(["DAT_ONE"]);
+    });
+    test("undo with reported boards returns to RECEIVED, without to PENDING", () => {
+        const confirmed = confirmLoadBoardAccess(base(), {
+            boards: ["DAT_ONE"],
+            actor: "s",
+            at,
+        });
+        const undone = unverifyOperationItem(confirmed, "LOAD_BOARD_ACCESS", {
+            actor: "s",
+            at,
+        });
+        expect(lb(undone)).toMatchObject({
+            state: "RECEIVED",
+            reported: ["DAT_ONE"],
+        });
+        expect(lb(undone).boards).toBeUndefined();
+        const staffOnly = confirmLoadBoardAccess(initialOperations(), {
+            boards: ["TRUCKSTOP"],
+            actor: "s",
+            at,
+        });
+        expect(
+            lb(
+                unverifyOperationItem(staffOnly, "LOAD_BOARD_ACCESS", {
+                    actor: "s",
+                    at,
+                })
+            ).state
+        ).toBe("PENDING");
+    });
+    test("loadBoardStatuses marks confirmed vs waiting, in board order", () => {
+        let items = reportLoadBoard(base(), {
+            board: "OTHER",
+            note: "123Loadboard",
+            at,
+        });
+        items = confirmLoadBoardAccess(items, {
+            boards: ["DAT_ONE"],
+            actor: "s",
+            at,
+        });
+        items = reportLoadBoard(items, { board: "TRUCKSTOP", at });
+        expect(loadBoardStatuses(lb(items))).toEqual([
+            { board: "DAT_ONE", name: null, state: "CONFIRMED" },
+            { board: "TRUCKSTOP", name: null, state: "WAITING" },
+            { board: "OTHER", name: "123Loadboard", state: "WAITING" },
+        ]);
+        expect(loadBoardStatuses(undefined)).toEqual([]);
     });
 });

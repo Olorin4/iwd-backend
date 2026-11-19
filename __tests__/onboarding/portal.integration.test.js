@@ -1313,3 +1313,40 @@ test("backfill readies a portal request whose only gap was factoring; email flow
     expect((await refreshed(email.id)).ready_at).toBeNull();
     expect(await readyAfterFactoringChange(db, DATE)).toBe(0);
 });
+
+test("a board added on the portal after confirmation is recorded and the item stays VERIFIED", async () => {
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const csrf = csrfToken(config.portal.tokenSecret, token.tokenId);
+    const post = (board) =>
+        browser(pathname(token) + "/load-board", {
+            method: "POST",
+            headers: {
+                Origin: PORTAL_BASE_URL,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ csrf, board }).toString(),
+        });
+    await post("DAT_ONE");
+    await act(row, "confirm_load_board_access", { boards: ["DAT_ONE"] });
+    expect((await post("TRUCKSTOP")).status).toBe(303);
+    const item = (await refreshed(row.id)).operations.find(
+        (i) => i.key === "LOAD_BOARD_ACCESS"
+    );
+    expect(item).toMatchObject({
+        state: "VERIFIED",
+        boards: ["DAT_ONE"],
+        reported: ["DAT_ONE", "TRUCKSTOP"],
+    });
+    const status = await db.onboardingEvent.findFirst({
+        where: { request_id: row.id, type: "onboarding.status.v1" },
+        orderBy: { version: "desc" },
+    });
+    expect(
+        status.payload.operations.items.find(
+            (i) => i.key === "LOAD_BOARD_ACCESS"
+        ).reported_boards
+    ).toEqual(["DAT_ONE", "TRUCKSTOP"]);
+});
