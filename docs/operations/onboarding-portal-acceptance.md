@@ -76,3 +76,13 @@ portal keeps its own header (logo and the legal name, Iron Wing Logistics L.L.C.
 one-line footer with onboarding@iron-wing-dispatching.com as the only contact. Captured with
 synthetic data at [390 px](onboarding-portal-acceptance/mobile-restored.png) and
 [1280 px](onboarding-portal-acceptance/desktop-restored.png).
+
+## Load board access tracking (2026-11-19, owner)
+
+- New staff-only checklist item `LOAD_BOARD_ACCESS`, **required for READY**. A closer confirms it
+  in Outreach (Sales → onboarding panel → "Load board access") by ticking DAT One, Truckstop or
+  Other (with its name); Undo returns it to unconfirmed. No logins are stored. Never in carrier
+  reminders; the portal's load board step shows "Iron Wing confirmed access to …" once confirmed.
+- Release: Outreach (5e543fa) before or with iwd-backend (41097fa) — older Outreach rejects the
+  new item key. On start, iwd's workers add the item (PENDING) to requests still in progress;
+  READY, cancelled and purged requests keep their six items and stay complete.
