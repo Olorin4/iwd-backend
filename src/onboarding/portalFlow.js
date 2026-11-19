@@ -134,18 +134,26 @@ export function portalMissingSteps(row) {
     ];
 }
 
-async function sendPortalReminder(deps, requestId, build) {
+async function sendPortalReminder(
+    deps,
+    requestId,
+    build,
+    { exemptAfterReady = false } = {}
+) {
     if (!deps.config.portal?.enabled) return false;
     const now = deps.now();
     const claim = await deps.db.$transaction(async (tx) => {
         const row = await lockRequest(tx, requestId);
+        // Owner ruling 2026-11-19: after READY a re-upload email is outside
+        // the two-reminder cap and does not use one up.
+        const exempt = exemptAfterReady && Boolean(row?.ready_at);
         if (
             !row?.portal_flow ||
             !row.portal_invited_at ||
             row.cancelled_at ||
             row.purged_at ||
             row.reminders_paused ||
-            row.reminders_sent >= MAX_REMINDERS
+            (!exempt && row.reminders_sent >= MAX_REMINDERS)
         )
             return null;
         // More than 30 days after READY the current link has expired: issue
@@ -168,12 +176,13 @@ async function sendPortalReminder(deps, requestId, build) {
         if (!copy) return null;
         // Reserve before handing off to SMTP. An ambiguous SMTP failure still
         // consumes the slot so recovery cannot send more than two reminders.
-        await applyFacetChange(
-            tx,
-            row,
-            { reminders_sent: row.reminders_sent + 1 },
-            now
-        );
+        if (!exempt)
+            await applyFacetChange(
+                tx,
+                row,
+                { reminders_sent: row.reminders_sent + 1 },
+                now
+            );
         return { row, copy };
     });
     if (!claim) return false;
@@ -200,13 +209,17 @@ export function sendDuePortalReminder(deps, requestId) {
 }
 
 export function sendPortalReupload(deps, requestId, key, reason) {
-    return sendPortalReminder(deps, requestId, (row, url) =>
-        reuploadEmail({
-            terms: row.terms,
-            url,
-            itemLabel: portalItemLabel(key, row.terms),
-            reason,
-        })
+    return sendPortalReminder(
+        deps,
+        requestId,
+        (row, url) =>
+            reuploadEmail({
+                terms: row.terms,
+                url,
+                itemLabel: portalItemLabel(key, row.terms),
+                reason,
+            }),
+        { exemptAfterReady: true }
     );
 }
 

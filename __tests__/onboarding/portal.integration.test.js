@@ -1514,3 +1514,39 @@ test("a re-upload email more than 30 days after READY carries a fresh link; old 
         await resolvePortalToken(deps, new URL(url).pathname.slice(3))
     ).toEqual({ error: "inactive" });
 });
+
+test("after READY a re-upload email goes out even when both reminders were used, and uses none", async () => {
+    const created = await createRequest({
+        portal_invited_at: DATE,
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+        reminders_sent: 2,
+    });
+    const row = await db.onboardingRequest.update({
+        where: { id: created.id },
+        data: { operations: readyOperations(created), ready_at: DATE },
+    });
+    await issuePortalToken(deps, row.id, { revokeExisting: true });
+    sent.mockClear();
+    expect(
+        await sendPortalReupload(
+            deps,
+            row.id,
+            "FACTORING_NOA",
+            "New factoring company, please."
+        )
+    ).toBe(true);
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect((await refreshed(row.id)).reminders_sent).toBe(2);
+    // Before READY the two-reminder cap still applies (owner ruling R15).
+    const early = await createRequest({
+        portal_invited_at: DATE,
+        reminders_sent: 2,
+    });
+    await issuePortalToken(deps, early.id, { revokeExisting: true });
+    sent.mockClear();
+    expect(
+        await sendPortalReupload(deps, early.id, "W9", "Page 2 missing.")
+    ).toBe(false);
+    expect(sent).not.toHaveBeenCalled();
+});
