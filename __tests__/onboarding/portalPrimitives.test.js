@@ -570,3 +570,70 @@ test("a READY onboarding opens with 'You're ready'; at least one load board is a
         portalPage({ ...ready, cancelled_at: new Date() }, { path: "/p/fake" })
     ).not.toContain("You’re ready");
 });
+
+describe("factoring is optional for portal onboardings only (2026-11-19)", () => {
+    const allButFactoring = () => {
+        let items = initialOperations();
+        for (const key of [
+            "AUTHORITY_VERIFIED",
+            "INSURANCE_COI",
+            "W9",
+            "CARRIER_PROFILE",
+            "FLEET_MAPPING",
+        ])
+            items = verifyOperationItem(items, key, { actor: "s", at });
+        return confirmLoadBoardAccess(items, {
+            boards: ["DAT_ONE"],
+            actor: "s",
+            at,
+        });
+    };
+    test.each([
+        ["PENDING", (items) => items],
+        [
+            "RECEIVED",
+            (items) =>
+                items.map((i) =>
+                    i.key === "FACTORING_NOA" ? { ...i, state: "RECEIVED" } : i
+                ),
+        ],
+        [
+            "REUPLOAD_REQUESTED",
+            (items) =>
+                items.map((i) =>
+                    i.key === "FACTORING_NOA"
+                        ? { ...i, state: "REUPLOAD_REQUESTED", note: "x" }
+                        : i
+                ),
+        ],
+        [
+            "NOT_FACTORING RECEIVED",
+            (items) =>
+                items.map((i) =>
+                    i.key === "FACTORING_NOA"
+                        ? { ...i, key: "NOT_FACTORING", state: "RECEIVED" }
+                        : i
+                ),
+        ],
+    ])("portal operations complete with factoring %s", (_, shape) => {
+        expect(
+            operationsState(shape(allButFactoring()), { portal: true })
+        ).toBe("COMPLETE");
+    });
+    test("email-flow operations stay PENDING while factoring is PENDING", () => {
+        expect(operationsState(allButFactoring())).toBe("PENDING");
+    });
+    test("portal reminders never list factoring", async () => {
+        const { portalMissingSteps } = await import(
+            "../../src/onboarding/portalFlow.js"
+        );
+        const steps = portalMissingSteps({
+            terms,
+            operations: initialOperations(),
+            signature_state: "COMPLETED",
+            payment_state: "READY",
+        });
+        expect(steps.join(" | ")).not.toMatch(/factoring/i);
+        expect(steps).toContain("W-9 form");
+    });
+});

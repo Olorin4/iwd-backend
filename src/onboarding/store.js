@@ -153,7 +153,18 @@ export function completedPurgeDate(readyAt) {
 export const abandonedPurgeDate = (cancelledAt) =>
     new Date(cancelledAt.getTime() + 90 * 86400000);
 
-export async function applyFacetChange(tx, row, changes, now = new Date()) {
+/**
+ * reevaluate: when a rule change (not a field change) makes a request READY,
+ * apply the READY side effects (ready_at, purge date, status event, Client
+ * ACTIVE) even though no field changed. Used by one-time backfills.
+ */
+export async function applyFacetChange(
+    tx,
+    row,
+    changes,
+    now = new Date(),
+    { reevaluate = false } = {}
+) {
     const data = {};
     const merged = { ...(changes ?? {}) };
     // waiting_for only means something while the packet is open (R14).
@@ -165,7 +176,14 @@ export async function applyFacetChange(tx, row, changes, now = new Date()) {
             throw new Error(`not_a_facet_field:${key}`);
         if (!same(row[key], value)) data[key] = value;
     }
-    if (Object.keys(data).length === 0)
+    if (
+        Object.keys(data).length === 0 &&
+        !(
+            reevaluate &&
+            !row.ready_at &&
+            deriveReadiness(facetsOf(row)).readiness === "READY"
+        )
+    )
         return { row, changed: false, status: null };
     const readiness = deriveReadiness(facetsOf({ ...row, ...data })).readiness;
     if (!row.ready_at && readiness === "READY") {

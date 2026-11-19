@@ -199,12 +199,18 @@ export const missingCarrierSlots = (items) =>
 
 // Every required slot present and VERIFIED. Requests created before load
 // board tracking (no LOAD_BOARD_ACCESS item at all) keep their six slots.
-export const operationsState = (items) => {
-    const list = items ?? [];
+// Every required slot present and VERIFIED. Requests created before load
+// board tracking (no LOAD_BOARD_ACCESS item at all) keep their six slots.
+// Portal onboardings (owner ruling 2026-11-19): factoring is optional, so
+// the factoring slot and its items never count, whatever their state.
+export const operationsState = (items, { portal = false } = {}) => {
+    const counts = (item) => !(portal && slotOf(item.key) === "FACTORING");
+    const list = (items ?? []).filter(counts);
     const required = OPERATION_SLOTS.filter(
         (slot) =>
-            slot !== "LOAD_BOARD_ACCESS" ||
-            list.some((i) => i.key === "LOAD_BOARD_ACCESS")
+            !(portal && slot === "FACTORING") &&
+            (slot !== "LOAD_BOARD_ACCESS" ||
+                list.some((i) => i.key === "LOAD_BOARD_ACCESS"))
     );
     return required.every((slot) =>
         list.some((i) => slotOf(i.key) === slot && i.state === "VERIFIED")
@@ -280,7 +286,9 @@ export const facetsOf = (row) => ({
     paymentCode: row.payment_code,
     provisioning: row.provisioning_state,
     provisioningCode: row.provisioning_code,
-    operations: operationsState(row.operations ?? []),
+    operations: operationsState(row.operations ?? [], {
+        portal: !!row.portal_flow,
+    }),
     completionEmailCode: row.completion_email_code ?? null,
 });
 
@@ -327,7 +335,7 @@ export function buildStatus(
             at: iso(row.provisioning_at),
         },
         operations: {
-            state: operationsState(items),
+            state: operationsState(items, { portal: !!row.portal_flow }),
             items: items.map((i) => ({
                 key: i.key,
                 state: i.state,

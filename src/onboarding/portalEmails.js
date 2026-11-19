@@ -1,11 +1,18 @@
 import { escapeHtml, textToHtml } from "../emailService.js";
 import { plain } from "./signature/messages.js";
 
+// Document rows shown on the portal (factoring included, as Optional).
 export const PORTAL_CARRIER_SLOTS = [
     "W9",
     "INSURANCE_COI",
     "AUTHORITY_VERIFIED",
     "FACTORING",
+];
+// What the carrier must send (owner ruling 2026-11-19: factoring optional).
+export const PORTAL_REQUIRED_SLOTS = [
+    "W9",
+    "INSURANCE_COI",
+    "AUTHORITY_VERIFIED",
 ];
 
 export function portalItemLabel(key, terms = {}) {

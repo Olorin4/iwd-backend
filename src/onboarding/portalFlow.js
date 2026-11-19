@@ -12,7 +12,7 @@ import {
     portalReminderEmail,
     reuploadEmail,
     portalItemLabel,
-    PORTAL_CARRIER_SLOTS,
+    PORTAL_REQUIRED_SLOTS,
 } from "./portalEmails.js";
 
 const STALE_INVITATION_MS = 30 * 60 * 1000;
@@ -123,7 +123,7 @@ export async function sendPortalInvitation(
 
 export function portalMissingSteps(row) {
     const missing = missingCarrierSlots(row.operations).filter((key) =>
-        PORTAL_CARRIER_SLOTS.includes(key)
+        PORTAL_REQUIRED_SLOTS.includes(key)
     );
     return [
         ...(row.signature_state === "COMPLETED" ? [] : ["Sign your agreement"]),

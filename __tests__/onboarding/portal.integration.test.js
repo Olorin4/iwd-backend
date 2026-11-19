@@ -43,6 +43,9 @@ import { saveQuestionnaire } from "../../src/onboarding/questionnaire.js";
 import {
     verifyOperationItem,
     OPERATION_SLOTS,
+    confirmLoadBoardAccess,
+    deriveReadiness,
+    facetsOf,
 } from "../../src/onboarding/readiness.js";
 import { onboardingStatusV1 } from "../../src/onboarding/contracts.js";
 import {
@@ -1231,4 +1234,82 @@ test("'Added' records the board the carrier set up and the page says what happen
             (i) => i.key === "LOAD_BOARD_ACCESS"
         ).state
     ).toBe("VERIFIED");
+});
+
+const readyOperations = (row, { factoring = false } = {}) => {
+    let operations = row.operations;
+    for (const slot of OPERATION_SLOTS) {
+        if (slot === "FACTORING" && !factoring) continue;
+        if (slot === "LOAD_BOARD_ACCESS") continue;
+        operations = verifyOperationItem(
+            operations,
+            slot === "FACTORING" ? "NOT_FACTORING" : slot,
+            { actor: ACTOR, at: DATE }
+        );
+    }
+    return confirmLoadBoardAccess(operations, {
+        boards: ["DAT_ONE"],
+        actor: ACTOR,
+        at: DATE,
+    });
+};
+
+test("READY portal request stays READY after a factoring re-upload request", async () => {
+    const row = await createRequest({
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    });
+    await recordUpload(deps, row.id, "FACTORING_NOA", pdf, {
+        source: "CARRIER",
+        actor: { type: "carrier" },
+    });
+    const fresh = await refreshed(row.id);
+    await db.$transaction(async (tx) =>
+        applyFacetChange(
+            tx,
+            await lockRequest(tx, row.id),
+            { operations: readyOperations(fresh) },
+            DATE
+        )
+    );
+    const ready = await refreshed(row.id);
+    expect(ready.ready_at).toEqual(DATE);
+    await act(row, "request_reupload", {
+        key: "FACTORING_NOA",
+        reason: "Wrong factoring company.",
+    });
+    const after = await refreshed(row.id);
+    expect(after.ready_at).toEqual(DATE);
+    expect(deriveReadiness(facetsOf(after)).readiness).toBe("READY");
+});
+
+test("backfill readies a portal request whose only gap was factoring; email flow untouched", async () => {
+    const { readyAfterFactoringChange } = await import(
+        "../../src/onboarding/factoringBackfill.js"
+    );
+    const portal = await createRequest({
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    });
+    const email = await createRequest({
+        portal_flow: false,
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    });
+    for (const row of [portal, email])
+        await db.onboardingRequest.update({
+            where: { id: row.id },
+            data: { operations: readyOperations(row) },
+        });
+    const events = await eventCount(portal.id);
+    expect(await readyAfterFactoringChange(db, DATE)).toBe(1);
+    const readied = await refreshed(portal.id);
+    expect(readied.ready_at).toEqual(DATE);
+    expect(await eventCount(portal.id)).toBe(events + 1);
+    expect(
+        (await db.client.findUnique({ where: { id: readied.client_id } }))
+            .status
+    ).toBe("ACTIVE");
+    expect((await refreshed(email.id)).ready_at).toBeNull();
+    expect(await readyAfterFactoringChange(db, DATE)).toBe(0);
 });
