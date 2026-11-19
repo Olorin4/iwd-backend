@@ -2,7 +2,6 @@ import { escapeHtml as html } from "../../emailService.js";
 import { PORTAL_CARRIER_SLOTS, portalItemLabel } from "../portalEmails.js";
 import { slotOf } from "../readiness.js";
 import { EQUIPMENT_TYPES } from "../questionnaire.js";
-import { siteFooter, siteHeader } from "./brand.js";
 import { loadBoardInstructions } from "./loadBoards.js";
 
 const CONTACT = "onboarding@iron-wing-dispatching.com";
@@ -11,13 +10,11 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title>
-<link rel="stylesheet" href="/portal-static/iron-wing/shared.css?v=3">
-<link rel="stylesheet" href="/portal-static/portal.css?v=3"></head>
-<body>${siteHeader}<main class="onboarding">${contents}
-<p class="portal-support">Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</p></main>
-${siteFooter}
-<script src="/portal-static/portal.js?v=2" defer></script></body></html>`;
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=4"></head>
+<body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
+<span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
+<footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
+<script src="/portal-static/portal.js?v=3" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {

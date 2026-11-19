@@ -383,7 +383,7 @@ test("puts separate dispatcher seat instructions between documents and the quest
     ).not.toContain("account.dat.com");
 });
 
-test("reuses Iron Wing website navigation and footer with local assets", () => {
+test("portal pages keep their own header and footer: legal name, one contact, no site chrome", () => {
     const page = portalPage(
         {
             terms,
@@ -392,22 +392,24 @@ test("reuses Iron Wing website navigation and footer with local assets", () => {
         },
         { path: "/p/fake" }
     );
-    expect(page).toContain('href="https://iron-wing-dispatching.com/#pricing"');
-    expect(page).toContain(
-        'href="https://iron-wing-dispatching.com/privacy-policy.html"'
-    );
-    expect(page).toContain('src="/portal-static/iron-wing/logo.webp"');
-    expect(page).toContain(
-        'href="https://iron-wing-dispatching.com/#newsletter-form"'
-    );
+    const header = page.match(/<header\b[\s\S]*?<\/header>/)?.[0];
+    expect(header).toContain('class="brand"');
+    expect(header).toContain('src="/portal-static/logo.svg?v=1"');
+    expect(header).toContain("Iron Wing Logistics L.L.C.");
     const footer = page.match(/<footer\b[\s\S]*?<\/footer>/)?.[0];
-    expect(footer).toMatch(/<h2>Contact<\/h2>[\s\S]*<h2>Follow us<\/h2>/);
-    expect(footer).toContain('aria-label="Legal"');
-    expect(footer).toMatch(
-        />Facebook<\/span>[\s\S]*>LinkedIn<\/span>[\s\S]*>Instagram<\/span>/
+    expect(footer).toBe(
+        '<footer>Questions? Reply to our email or write to <a href="mailto:onboarding@iron-wing-dispatching.com">onboarding@iron-wing-dispatching.com</a>.</footer>'
     );
-    expect(footer).not.toContain('id="newsletter-form"');
-    expect(page).not.toContain('class="cf-turnstile"');
+    for (const gone of [
+        "iron-wing-dispatching.com/#",
+        "newsletter",
+        "facebook",
+        "hamburger",
+        "/portal-static/iron-wing/",
+        "info@iron-wing",
+        "Iron Wing Dispatching",
+    ])
+        expect(page).not.toContain(gone);
 });
 
 test("questionnaire accepts omitted values and rejects zero trucks", () => {

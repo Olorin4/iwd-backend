@@ -60,24 +60,19 @@ Owner approved the email texts and the page look (2026-11-18).
 - **Load board access** follows Documents. The carrier assigns a separate DAT One or Truckstop
   seat to the named Iron Wing dispatcher. The dispatcher creates their own login with the
   provider. Iron Wing confirms access separately from the onboarding readiness checklist.
-  The menu paths were checked against the provider's published interface guides.
+  DAT's steps match its published guide; Truckstop's article renders only with JavaScript, so
+  its menu names were only partly confirmed (see the 2026-11-19 review).
   [DAT One seat setup](https://one.support.dat.com/en/account-billing-84e74143/user-management-f41a4be0/add-a-new-user-and-purchase-a-new-seat-0c787870),
   [Truckstop Account Management](https://community.truckstop.com/s/article/Account-Management-Tool).
 - **Factoring** is recorded as `NOT_FACTORING` / `RECEIVED` for staff review. The form returns
   to the factoring row with a confirmation specific to that choice.
-- **Brand** uses the header, footer and shared stylesheet from the Iron Wing homepage at
-  `4856e27`. To refresh the snapshot, build the public site and run
-  `node scripts/sync-portal-brand.mjs /path/to/iron-wing-dispatching` from iwd-backend.
-  The footer newsletter link opens the public site for signup.
 - **Browser verification** used a disposable local database and synthetic data with no outbound
-  email. Captures show both load board guides expanded at
-  [390 px](onboarding-portal-acceptance/mobile-polished.png) and
-  [1280 px](onboarding-portal-acceptance/desktop-polished.png).
+  email.
 
-## Shared footer refresh (2026-11-19)
+## Header and footer restored (2026-11-19, owner)
 
-The portal footer and shared stylesheet were regenerated from the public site's
-`Footer.astro` and `shared.css`. Contact, social and newsletter links are grouped, with
-privacy and terms in the bottom row. The private portal keeps its public-site signup link.
-Verified in Chromium at [390 px](onboarding-portal-acceptance/mobile-footer.png) and
-[1280 px](onboarding-portal-acceptance/desktop-footer.png) using synthetic carrier data.
+The public site's navbar, footer, newsletter and social links were removed again (owner). The
+portal keeps its own header (logo and the legal name, Iron Wing Logistics L.L.C.) and its
+one-line footer with onboarding@iron-wing-dispatching.com as the only contact. Captured with
+synthetic data at [390 px](onboarding-portal-acceptance/mobile-restored.png) and
+[1280 px](onboarding-portal-acceptance/desktop-restored.png).

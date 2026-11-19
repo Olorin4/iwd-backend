@@ -1,26 +1,4 @@
 /* global document, location, XMLHttpRequest */
-const menu = document.querySelector(".hamburger");
-const navigation = document.querySelector("#site-navigation");
-if (menu && navigation) {
-    menu.closest("header").classList.add("menu-enhanced");
-    const setMenuOpen = (open) => {
-        navigation.classList.toggle("active", open);
-        menu.setAttribute("aria-expanded", String(open));
-    };
-    menu.addEventListener("click", () => {
-        setMenuOpen(menu.getAttribute("aria-expanded") !== "true");
-    });
-    menu.closest("header").addEventListener("keydown", (event) => {
-        if (
-            event.key === "Escape" &&
-            menu.getAttribute("aria-expanded") === "true"
-        ) {
-            setMenuOpen(false);
-            menu.focus();
-        }
-    });
-}
-
 const portal = document.querySelector("[data-portal]");
 let timer;
 let deadline;

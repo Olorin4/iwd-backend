@@ -1,3 +1,42 @@
+:root {
+    color-scheme: light;
+    font-family: system-ui, sans-serif;
+    color: #181716;
+    background: #f5f3ef;
+    --ink: #221d19;
+    --line: #d9d2c9;
+}
+* {
+    box-sizing: border-box;
+}
+body {
+    margin: 0;
+}
+.brand {
+    background: var(--ink);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.75rem max(1rem, calc((100% - 56rem) / 2));
+    font-weight: 650;
+}
+.brand img {
+    border-radius: 0.35rem;
+}
+footer {
+    width: min(56rem, calc(100% - 2rem));
+    margin-inline: auto;
+    border-top: 1px solid var(--line);
+    color: #53483e;
+    padding-block: 1rem 2rem;
+    font-size: 0.9rem;
+}
+footer a {
+    color: var(--accent);
+    text-underline-offset: 0.15em;
+    overflow-wrap: anywhere;
+}
 body {
     color-scheme: light;
     color: #080d17;
@@ -167,9 +206,6 @@ fieldset {
     align-items: center;
     gap: 0.4rem;
 }
-.portal-support {
-    margin-top: 1.5rem;
-}
 .load-boards {
     display: grid;
     gap: 0.5rem;
@@ -204,37 +240,6 @@ fieldset {
     clip-path: inset(50%);
     white-space: nowrap;
 }
-@media (max-width: 900px) {
-    header {
-        position: relative;
-    }
-    header .hamburger {
-        display: none;
-    }
-    .menu-enhanced .hamburger {
-        display: flex;
-        width: 44px;
-        height: 44px;
-        padding: 12px 7px;
-    }
-    header:not(.menu-enhanced) .nav-links {
-        display: block;
-    }
-    header:not(.menu-enhanced) .nav-links ul {
-        flex-flow: row wrap;
-        justify-content: flex-end;
-        gap: 0 0.3rem;
-    }
-    header .nav-links a {
-        display: inline-flex;
-        align-items: center;
-        min-height: 44px;
-        padding: 0.4rem;
-    }
-    header .nav-links.active {
-        top: 100%;
-    }
-}
 @media (max-width: 600px) {
     .documents li {
         grid-template-columns: minmax(0, 1fr);
@@ -248,10 +253,5 @@ fieldset {
     }
     input[type="file"] {
         width: 100%;
-    }
-}
-@media (prefers-reduced-motion: reduce) {
-    html {
-        scroll-behavior: auto;
     }
 }
