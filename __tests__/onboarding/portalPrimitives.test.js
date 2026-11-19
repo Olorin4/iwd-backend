@@ -531,7 +531,7 @@ test("requests from before load board tracking stay complete with their six item
     expect(operationsState(legacy)).toBe("COMPLETE");
 });
 
-test("a READY onboarding opens with 'You're ready'; one load board is enough", () => {
+test("a READY onboarding opens with 'You're ready'; at least one load board is asked for", () => {
     let operations = initialOperations();
     for (const item of operations.filter((i) => i.key !== "LOAD_BOARD_ACCESS"))
         operations = verifyOperationItem(operations, item.key, {
@@ -547,7 +547,9 @@ test("a READY onboarding opens with 'You're ready'; one load board is enough", (
     };
     let page = portalPage(inProgress, { path: "/p/fake" });
     expect(page).not.toContain("You’re ready");
-    expect(page).toContain("One load board is enough");
+    expect(page).toContain(
+        "Set up at least one load board: DAT One, Truckstop or another board you use. You can add more than one."
+    );
     const ready = {
         ...inProgress,
         operations: confirmLoadBoardAccess(operations, {

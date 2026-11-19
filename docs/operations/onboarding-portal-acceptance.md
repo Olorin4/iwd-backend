@@ -86,7 +86,7 @@ synthetic data at [390 px](onboarding-portal-acceptance/mobile-restored.png) and
 - Release: Outreach (5e543fa) before or with iwd-backend (41097fa) — older Outreach rejects the
   new item key. On start, iwd's workers add the item (PENDING) to requests still in progress;
   READY, cancelled and purged requests keep their six items and stay complete.
-- The carrier's load board step says one board is enough (DAT One or Truckstop); staff confirm
+- The carrier's load board step asks for at least one board (DAT One, Truckstop or another), more allowed; staff confirm
   any one or more. When the onboarding is READY the page opens with a "You’re ready ✓" card
   ([390 px](onboarding-portal-acceptance/mobile-ready.png),
   [1280 px](onboarding-portal-acceptance/desktop-ready.png)).
