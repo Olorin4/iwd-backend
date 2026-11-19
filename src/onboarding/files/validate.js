@@ -22,6 +22,16 @@ export async function validateUpload(
         )
     )
         return { ok: false, code: "unsupported_type" };
+    // Read the declared size ("ispe" box) before the full decode: a small
+    // HEIC can declare an enormous image (decompression bomb).
+    const ispe = bytes.indexOf("ispe");
+    if (
+        ispe > 0 &&
+        ispe + 16 <= bytes.length &&
+        bytes.readUInt32BE(ispe + 8) * bytes.readUInt32BE(ispe + 12) >
+            50_000_000
+    )
+        return { ok: false, code: "too_large" };
     try {
         const jpeg = Buffer.from(
             await convert({ buffer: bytes, format: "JPEG", quality: 0.9 })

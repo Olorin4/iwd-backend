@@ -1414,3 +1414,26 @@ test("a no-JS post of three gallery photos stores one 3-page PDF version; a refu
         await db.onboardingDocument.count({ where: { request_id: row.id } })
     ).toBe(1);
 });
+
+test("a multi-file post over 15 MB in total is cut off while reading, not buffered whole", async () => {
+    const { readMultipart } = await import(
+        "../../src/onboarding/portal/routes.js"
+    );
+    const big = Buffer.alloc(6 * 1024 * 1024, 7);
+    const data = new FormData();
+    data.set("csrf", "x");
+    for (let i = 0; i < 4; i++)
+        data.append(
+            "file",
+            new Blob([big], { type: "image/jpeg" }),
+            `p${i}.jpg`
+        );
+    const encoded = new Request("http://x/", { method: "POST", body: data });
+    const { Readable } = await import("node:stream");
+    const req = Readable.from(Buffer.from(await encoded.arrayBuffer()));
+    req.headers = { "content-type": encoded.headers.get("content-type") };
+    const result = await readMultipart(req, MAX_UPLOAD_BYTES);
+    expect(result.error).toBe("too_large");
+    const kept = (result.files ?? []).reduce((sum, f) => sum + f.length, 0);
+    expect(kept).toBeLessThanOrEqual(MAX_UPLOAD_BYTES + 1);
+});

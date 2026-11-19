@@ -8,6 +8,8 @@ export const MAX_PAGES = 10;
 const LETTER = [612, 792];
 const MARGIN = 36;
 const MAX_EDGE = 2000;
+// Refuse decompression bombs before decoding (phone photos are ≤ ~50 MP).
+export const MAX_PIXELS = 50_000_000;
 const fail = (code) => ({ ok: false, code });
 
 /**
@@ -31,7 +33,22 @@ export async function prepareUpload(files, { maxBytes }) {
     }
     const pdf = await PDFDocument.create();
     for (const bytes of images) {
-        const jpeg = await sharp(bytes, { limitInputPixels: 120_000_000 })
+        let meta;
+        try {
+            // Header only (no pixel decode), so the size is read safely.
+            meta = await sharp(bytes, { limitInputPixels: false }).metadata();
+        } catch {
+            return fail("unsupported_type");
+        }
+        if (
+            !meta.width ||
+            !meta.height ||
+            meta.width * meta.height > MAX_PIXELS
+        )
+            return fail("too_large");
+    }
+    for (const bytes of images) {
+        const jpeg = await sharp(bytes, { limitInputPixels: MAX_PIXELS })
             .rotate()
             .resize({
                 width: MAX_EDGE,

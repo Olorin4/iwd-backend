@@ -30,7 +30,9 @@ const OPEN_THROTTLE = 5 * 60 * 1000;
 const CSP =
     "default-src 'self'; img-src 'self' data:; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'none'";
 
-async function multipart(req, maxBytes) {
+// Exported for tests. Keeps at most maxBytes + 1 bytes across all files:
+// past that it stops buffering and reports too_large.
+export async function readMultipart(req, maxBytes) {
     return new Promise((resolve, reject) => {
         let stream;
         try {
@@ -51,6 +53,7 @@ async function multipart(req, maxBytes) {
             return resolve({ error: "unsupported_type" });
         }
         const files = [];
+        let total = 0;
         let csrf;
         let error;
         stream.on("field", (name, value, info) => {
@@ -61,7 +64,12 @@ async function multipart(req, maxBytes) {
             if (name !== "file") error = "unsupported_type";
             const chunks = [];
             files.push(chunks);
-            file.on("data", (chunk) => chunks.push(chunk));
+            file.on("data", (chunk) => {
+                if (total > maxBytes) return;
+                total += chunk.length;
+                if (total > maxBytes) error = "too_large";
+                else chunks.push(chunk);
+            });
             file.on("limit", () => {
                 error = "too_large";
             });
@@ -352,7 +360,7 @@ export function createPortalRouter(
         "/documents/:itemKey",
         asyncRoute(async (req, res) => {
             const { deps, row, path, tokenId } = res.locals.portal;
-            const { csrf, files, error } = await multipart(
+            const { csrf, files, error } = await readMultipart(
                 req,
                 deps.config.files.maxBytes
             );

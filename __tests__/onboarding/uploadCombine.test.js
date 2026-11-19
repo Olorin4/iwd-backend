@@ -102,3 +102,35 @@ test("a single file passes through unchanged; nothing or an unknown type is refu
         code: "unsupported_type",
     });
 });
+
+test("an image larger than 50 megapixels is refused before decoding", async () => {
+    const tall = await sharp({
+        create: {
+            width: 8000,
+            height: 7000,
+            channels: 3,
+            background: { r: 1, g: 2, b: 3 },
+        },
+    })
+        .jpeg()
+        .toBuffer();
+    expect(
+        await prepareUpload([tall, await image(100, 100)], { maxBytes })
+    ).toEqual({ ok: false, code: "too_large" });
+}, 60000);
+
+test("a HEIC that declares more than 50 megapixels is refused without converting it", async () => {
+    const { validateUpload } = await import(
+        "../../src/onboarding/files/validate.js"
+    );
+    const bomb = Buffer.from(heic);
+    const at = bomb.indexOf("ispe");
+    bomb.writeUInt32BE(10000, at + 8);
+    bomb.writeUInt32BE(10000, at + 12);
+    const convert = jest.fn();
+    expect(await validateUpload(bomb, { maxBytes, convert })).toEqual({
+        ok: false,
+        code: "too_large",
+    });
+    expect(convert).not.toHaveBeenCalled();
+});
