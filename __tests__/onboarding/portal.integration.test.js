@@ -37,6 +37,7 @@ import {
     portalMissingSteps,
     sendDuePortalReminder,
     sendPortalInvitation,
+    sendPortalReupload,
 } from "../../src/onboarding/portalFlow.js";
 import { purgeDue } from "../../src/onboarding/retention.js";
 import { saveQuestionnaire } from "../../src/onboarding/questionnaire.js";
@@ -457,6 +458,12 @@ test("ready link grace is 30 days and purged requests never resolve", async () =
     const row = await createRequest();
     const token = await issuePortalToken(deps, row.id);
     const raw = pathname(token).slice(3);
+    // The link was issued before READY (rule A: a link issued in the last
+    // 30 days still works).
+    await db.portalToken.update({
+        where: { id: token.tokenId },
+        data: { created_at: new Date(now.getTime() - 60 * 86400000) },
+    });
     for (const [days, active] of [
         [29, true],
         [31, false],
@@ -985,6 +992,10 @@ test("inactive links show the contact page over HTTP: 31 days after READY, and o
     const row = await createRequest();
     const token = await issuePortalToken(deps, row.id);
     const base = pathname(token);
+    await db.portalToken.update({
+        where: { id: token.tokenId },
+        data: { created_at: new Date(now.getTime() - 60 * 86400000) },
+    });
     await db.onboardingRequest.update({
         where: { id: row.id },
         data: { ready_at: new Date(now.getTime() - 31 * 86400000) },
@@ -1449,4 +1460,57 @@ test("the portal lets photo thumbnails (blob: URLs) load", async () => {
     expect(response.headers.get("content-security-policy")).toContain(
         "img-src 'self' data: blob:"
     );
+});
+
+test("a re-upload email more than 30 days after READY carries a fresh link; old links stay dead", async () => {
+    const readyAt = new Date(now.getTime() - 40 * 86400000);
+    const created = await createRequest({
+        portal_invited_at: readyAt,
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    });
+    const row = await db.onboardingRequest.update({
+        where: { id: created.id },
+        data: { operations: readyOperations(created) },
+    });
+    const old = await issuePortalToken(deps, row.id, { revokeExisting: true });
+    await db.portalToken.update({
+        where: { id: old.tokenId },
+        data: { created_at: readyAt },
+    });
+    await db.onboardingRequest.update({
+        where: { id: row.id },
+        data: { ready_at: readyAt },
+    });
+    expect(await resolvePortalToken(deps, pathname(old).slice(3))).toEqual({
+        error: "inactive",
+    });
+    sent.mockClear();
+    expect(
+        await sendPortalReupload(
+            deps,
+            row.id,
+            "FACTORING_NOA",
+            "Please send the new factoring notice."
+        )
+    ).toBe(true);
+    const text = sent.mock.calls[0][0].text;
+    const url = text.match(
+        /https?:\/\/\S+\/p\/[A-Za-z0-9_-]+\.[0-9a-f]{64}/
+    )[0];
+    expect(url).not.toBe(old.url);
+    const fresh = await resolvePortalToken(
+        deps,
+        new URL(url).pathname.slice(3)
+    );
+    expect(fresh.error).toBeUndefined();
+    expect(fresh.row?.id).toBe(row.id);
+    expect(await resolvePortalToken(deps, pathname(old).slice(3))).toEqual({
+        error: "inactive",
+    });
+    // The fresh link itself expires 30 days after it was issued.
+    now = new Date(now.getTime() + 31 * 86400000);
+    expect(
+        await resolvePortalToken(deps, new URL(url).pathname.slice(3))
+    ).toEqual({ error: "inactive" });
 });

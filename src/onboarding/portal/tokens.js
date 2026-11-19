@@ -58,11 +58,17 @@ export async function resolvePortalToken(deps, token) {
     const row = found.request;
     const cutoff =
         deps.now().getTime() - deps.config.portal.linkGraceDays * 86400000;
+    // A link works for 30 days after READY or cancellation, or 30 days after
+    // it was issued if later (owner ruling 2026-11-19: a re-upload request
+    // months after READY gets a fresh link; old links stay dead).
+    const ended = [row.ready_at, row.cancelled_at].some(
+        (at) => at && at < cutoff
+    );
     if (
         found.revoked_at ||
         !row.portal_flow ||
         row.purged_at ||
-        [row.ready_at, row.cancelled_at].some((at) => at && at < cutoff)
+        (ended && found.created_at < cutoff)
     )
         return { error: "inactive" };
     return { row, tokenId: found.id };

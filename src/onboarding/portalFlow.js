@@ -148,7 +148,21 @@ async function sendPortalReminder(deps, requestId, build) {
             row.reminders_sent >= MAX_REMINDERS
         )
             return null;
-        const url = await activePortalUrl({ ...deps, db: tx }, requestId);
+        // More than 30 days after READY the current link has expired: issue
+        // a fresh one for this email (old links stay revoked).
+        const graceEnd =
+            now.getTime() - deps.config.portal.linkGraceDays * 86400000;
+        let url;
+        if (row.ready_at && row.ready_at < graceEnd) {
+            await tx.portalToken.updateMany({
+                where: { request_id: requestId, revoked_at: null },
+                data: { revoked_at: now },
+            });
+            url = portalUrl(
+                deps.config,
+                (await createRequestToken(tx, requestId, now)).id
+            );
+        } else url = await activePortalUrl({ ...deps, db: tx }, requestId);
         if (!url) return null;
         const copy = build(row, url, now);
         if (!copy) return null;
