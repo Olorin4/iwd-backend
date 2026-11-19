@@ -1350,3 +1350,67 @@ test("a board added on the portal after confirmation is recorded and the item st
         ).reported_boards
     ).toEqual(["DAT_ONE", "TRUCKSTOP"]);
 });
+
+test("a no-JS post of three gallery photos stores one 3-page PDF version; a refused set stores nothing", async () => {
+    const { PDFDocument } = await import("pdf-lib");
+    const sharp = (await import("sharp")).default;
+    const photo = await sharp({
+        create: {
+            width: 900,
+            height: 1200,
+            channels: 3,
+            background: { r: 240, g: 240, b: 240 },
+        },
+    })
+        .jpeg()
+        .toBuffer();
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const post = (files) => {
+        const data = new FormData();
+        data.set("csrf", csrfToken(config.portal.tokenSecret, token.tokenId));
+        for (const [bytes, name, type] of files)
+            data.append("file", new Blob([bytes], { type }), name);
+        // The unused camera input arrives as an empty part.
+        data.append(
+            "file",
+            new Blob([], { type: "application/octet-stream" }),
+            ""
+        );
+        return browser(pathname(token) + "/documents/INSURANCE_COI", {
+            method: "POST",
+            headers: { Origin: PORTAL_BASE_URL },
+            body: data,
+        });
+    };
+    let response = await post([
+        [photo, "p1.jpg", "image/jpeg"],
+        [photo, "p2.jpg", "image/jpeg"],
+        [photo, "p3.jpg", "image/jpeg"],
+    ]);
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toContain(
+        "uploaded=INSURANCE_COI"
+    );
+    const documents = await db.onboardingDocument.findMany({
+        where: { request_id: row.id },
+    });
+    expect(documents).toHaveLength(1);
+    expect(documents[0].media_type).toBe("application/pdf");
+    const stored = await deps.fileStore.get(documents[0].storage_key, {
+        expectedSha256: documents[0].sha256,
+    });
+    expect((await PDFDocument.load(stored)).getPageCount()).toBe(3);
+    const before = objects.size;
+    response = await post([
+        [pdf, "a.pdf", "application/pdf"],
+        [photo, "p.jpg", "image/jpeg"],
+    ]);
+    expect(response.headers.get("location")).toContain("error=mixed_files");
+    expect(objects.size).toBe(before);
+    expect(
+        await db.onboardingDocument.count({ where: { request_id: row.id } })
+    ).toBe(1);
+});

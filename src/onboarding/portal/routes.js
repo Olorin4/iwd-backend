@@ -1,5 +1,6 @@
 import express from "express";
 import Busboy from "busboy";
+import { MAX_PAGES, prepareUpload } from "../files/combine.js";
 import path from "node:path";
 import { readSignedDocumentForRequest } from "../actions.js";
 import { PORTAL_BASE_URL } from "../config.js";
@@ -35,19 +36,21 @@ async function multipart(req, maxBytes) {
         try {
             stream = Busboy({
                 headers: req.headers,
+                // Up to 10 photos for one document (the unused camera input
+                // arrives as an extra empty part).
                 limits: {
                     fileSize: maxBytes + 1,
-                    files: 1,
+                    files: MAX_PAGES + 2,
                     fields: 1,
                     fieldSize: 128,
-                    parts: 3,
+                    parts: MAX_PAGES + 4,
                 },
             });
         } catch {
             req.resume();
             return resolve({ error: "unsupported_type" });
         }
-        const chunks = [];
+        const files = [];
         let csrf;
         let error;
         stream.on("field", (name, value, info) => {
@@ -56,13 +59,18 @@ async function multipart(req, maxBytes) {
         });
         stream.on("file", (name, file) => {
             if (name !== "file") error = "unsupported_type";
+            const chunks = [];
+            files.push(chunks);
             file.on("data", (chunk) => chunks.push(chunk));
             file.on("limit", () => {
                 error = "too_large";
             });
             file.on("error", reject);
         });
-        for (const event of ["fieldsLimit", "filesLimit", "partsLimit"])
+        stream.on("filesLimit", () => {
+            error ??= "too_many_pages";
+        });
+        for (const event of ["fieldsLimit", "partsLimit"])
             stream.on(event, () => {
                 error ??= "unsupported_type";
             });
@@ -70,7 +78,13 @@ async function multipart(req, maxBytes) {
             resolve({ csrf, error: "unsupported_type" })
         );
         stream.once("close", () =>
-            resolve({ csrf, error, bytes: Buffer.concat(chunks) })
+            resolve({
+                csrf,
+                error,
+                files: files
+                    .map((chunks) => Buffer.concat(chunks))
+                    .filter((bytes) => bytes.length > 0),
+            })
         );
         req.once("aborted", () => stream.destroy());
         req.pipe(stream);
@@ -338,7 +352,7 @@ export function createPortalRouter(
         "/documents/:itemKey",
         asyncRoute(async (req, res) => {
             const { deps, row, path, tokenId } = res.locals.portal;
-            const { csrf, bytes, error } = await multipart(
+            const { csrf, files, error } = await multipart(
                 req,
                 deps.config.files.maxBytes
             );
@@ -349,9 +363,14 @@ export function createPortalRouter(
             const key = req.params.itemKey;
             if (!UPLOADABLE_KEYS.includes(key))
                 return res.redirect(303, path + "?error=unsupported_type");
-            const result = error
-                ? { code: error }
-                : await recordUpload(deps, row.id, key, bytes, {
+            const prepared = error
+                ? { ok: false, code: error }
+                : await prepareUpload(files, {
+                      maxBytes: deps.config.files.maxBytes,
+                  });
+            const result = !prepared.ok
+                ? prepared
+                : await recordUpload(deps, row.id, key, prepared.bytes, {
                       source: "CARRIER",
                       actor: { type: "carrier" },
                       tokenId,
