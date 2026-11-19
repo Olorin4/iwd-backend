@@ -236,6 +236,16 @@ export const onboardingStatusV1 = z
                                 .max(100)
                                 .nullable()
                                 .optional(),
+                            reported_boards: z
+                                .array(
+                                    z.enum(["DAT_ONE", "TRUCKSTOP", "OTHER"])
+                                )
+                                .optional(),
+                            reported_note: z
+                                .string()
+                                .max(100)
+                                .nullable()
+                                .optional(),
                             document: z
                                 .object({
                                     version: z.number().int().positive(),
@@ -266,6 +276,15 @@ export const onboardingStatusV1 = z
                 invited_at: nullableIso,
                 last_opened_at: nullableIso,
                 questionnaire_submitted: z.boolean(),
+                dispatcher: z
+                    .object({
+                        name: z.string().min(1).max(100),
+                        email: z.string().email().max(254),
+                        source: z.literal("ASSIGNED"),
+                    })
+                    .strict()
+                    .nullable()
+                    .optional(),
             })
             .strict()
             .nullable()

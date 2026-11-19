@@ -220,3 +220,22 @@ it("validates the enabled portal bucket, encryption key and reader credentials",
     expect(config.files.encryptionKey).toHaveLength(32);
     expect(config.files.maxBytes).toBe(15728640);
 });
+
+it("reads the default dispatcher: both values or neither", () => {
+    const env = (extra = {}) => ({ ...base, ...extra });
+    expect(getOnboardingConfig(env()).dispatcher).toBeNull();
+    expect(
+        getOnboardingConfig(
+            env({
+                ONBOARDING_DEFAULT_DISPATCHER_NAME: " Nick Kalas ",
+                ONBOARDING_DEFAULT_DISPATCHER_EMAIL:
+                    "Nick@Iron-Wing-Dispatching.com",
+            })
+        ).dispatcher
+    ).toEqual({ name: "Nick Kalas", email: "nick@iron-wing-dispatching.com" });
+    expect(() =>
+        getOnboardingConfig(
+            env({ ONBOARDING_DEFAULT_DISPATCHER_NAME: "Nick Kalas" })
+        )
+    ).toThrow(/go together/);
+});

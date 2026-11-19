@@ -2,7 +2,7 @@ import { escapeHtml as html } from "../../emailService.js";
 import { PORTAL_CARRIER_SLOTS, portalItemLabel } from "../portalEmails.js";
 import { deriveReadiness, facetsOf, slotOf } from "../readiness.js";
 import { EQUIPMENT_TYPES } from "../questionnaire.js";
-import { loadBoardInstructions } from "./loadBoards.js";
+import { boardName, joinNames, loadBoardGuide } from "./loadBoards.js";
 
 const CONTACT = "onboarding@iron-wing-dispatching.com";
 const safe = (value) => html(String(value ?? ""));
@@ -10,7 +10,7 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=5"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=6"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
@@ -38,6 +38,8 @@ const errors = {
     upload_unavailable:
         "Uploads are temporarily unavailable. Please try again.",
     request_closed: "This request is closed.",
+    load_board_name: "Enter the name of the load board, then press Added.",
+    invalid_load_board: "Choose a load board and try again.",
 };
 const allowedUploads =
     "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
@@ -84,22 +86,17 @@ ${
 }</li>`;
 }
 
-const BOARD_NAMES = { DAT_ONE: "DAT One", TRUCKSTOP: "Truckstop" };
-
 // Once Iron Wing confirms access the step shows that instead of the guide.
-function loadBoardAccess(row) {
+function loadBoardAccess(row, { base, csrf, dispatcher, justAdded }) {
     const item = row.operations.find(
         (entry) => entry.key === "LOAD_BOARD_ACCESS"
     );
-    if (item?.state !== "VERIFIED") return loadBoardInstructions;
-    const names = (item.boards ?? []).map((board) =>
-        board === "OTHER" ? item.note || "your load board" : BOARD_NAMES[board]
-    );
+    if (item?.state !== "VERIFIED")
+        return loadBoardGuide({ base, csrf, dispatcher, item, justAdded });
     const list =
-        names.length > 1
-            ? names.slice(0, -1).join(", ") + " and " + names.at(-1)
-            : (names[0] ?? "your load board");
-    return `<p class="state success">Iron Wing confirmed access to ${safe(list)} ✓</p>`;
+        joinNames((item.boards ?? []).map((b) => boardName(b, item.note))) ||
+        "your load board";
+    return `<p id="load-boards" class="state success">Iron Wing confirmed access to ${safe(list)} ✓</p>`;
 }
 
 // Shown once the onboarding is READY (every step done and verified).
@@ -122,6 +119,7 @@ export function portalPage(
         query = {},
         ownFiles = [],
         questionnaire = false,
+        dispatcher = null,
         signed = false,
         returned = false,
     } = {}
@@ -196,7 +194,7 @@ ${
           ).join("")}</ul>`
 }</section>
 <section class="card"><h2><span class="step" aria-hidden="true">④</span> Set up load board access</h2>
-${cancelled ? "<p>This request is closed.</p>" : locked ? "<p>Available after you sign.</p>" : loadBoardAccess(row)}</section>
+${cancelled ? "<p>This request is closed.</p>" : locked ? "<p>Available after you sign.</p>" : loadBoardAccess(row, { base, csrf: safe(csrf), dispatcher, justAdded: query.board === "added" })}</section>
 <section class="card"><h2><span class="step" aria-hidden="true">⑤</span> About your operation <small>Optional</small></h2>
 ${locked ? "<p>Available after you sign.</p>" : `<a href="${base}/questionnaire">${questionnaire ? "Edit your preferences" : "Answer a few questions"}</a>`}</section>
 </div>`

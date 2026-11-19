@@ -29,6 +29,8 @@ const FACET_FIELDS = [
     "portal_flow",
     "portal_invited_at",
     "portal_last_opened_at",
+    "dispatcher_name",
+    "dispatcher_email",
     "bundle_version_id",
 ];
 

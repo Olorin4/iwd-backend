@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { applyFacetChange, bumpStatus, lockRequest } from "../store.js";
-import { markOperationItemReceived, slotOf } from "../readiness.js";
+import {
+    markOperationItemReceived,
+    reportLoadBoard,
+    slotOf,
+} from "../readiness.js";
 import { validateUpload } from "./validate.js";
 
 export const UPLOADABLE_KEYS = [
@@ -221,4 +225,35 @@ export async function readDocumentFile(
         mediaType: doc.media_type,
         filename: "onboarding-document." + extension[doc.media_type],
     };
+}
+
+/** The carrier pressed "Added" for a load board (portal step ④). */
+export async function reportLoadBoardForCarrier(
+    deps,
+    requestId,
+    tokenId,
+    { board, other }
+) {
+    return deps.db.$transaction(async (tx) => {
+        const row = await lockRequest(tx, requestId);
+        if (!(await carrierCanWrite(tx, row, tokenId)))
+            return failure("request_closed");
+        let operations;
+        try {
+            operations = reportLoadBoard(row.operations, {
+                board,
+                note: other,
+                at: deps.now(),
+            });
+        } catch (error) {
+            return failure(
+                error.message === "load_board_note_required"
+                    ? "load_board_name"
+                    : "invalid_load_board"
+            );
+        }
+        if (!operations) return { ok: true, confirmed: true };
+        await applyFacetChange(tx, row, { operations }, deps.now());
+        return { ok: true };
+    });
 }

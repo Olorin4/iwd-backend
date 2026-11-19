@@ -66,7 +66,9 @@
                 "state": "VERIFIED",
                 "at": "2026-11-19T10:00:00.000Z",
                 "boards": ["DAT_ONE", "TRUCKSTOP"],
-                "boards_note": null
+                "boards_note": null,
+                "reported_boards": ["DAT_ONE", "TRUCKSTOP"],
+                "reported_note": null
             }
         ]
     },
@@ -79,6 +81,11 @@
         "flow": true,
         "invited_at": "2026-11-19T09:00:00.000Z",
         "last_opened_at": "2026-11-19T09:51:00.000Z",
-        "questionnaire_submitted": true
+        "questionnaire_submitted": true,
+        "dispatcher": {
+            "name": "Dana Ortiz",
+            "email": "dana@iron-wing-dispatching.com",
+            "source": "ASSIGNED"
+        }
     }
 }

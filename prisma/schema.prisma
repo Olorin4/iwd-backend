@@ -469,6 +469,9 @@ model OnboardingRequest {
   portal_invite_claimed_at DateTime?
   portal_invite_attempts   Int       @default(0)
   portal_last_opened_at    DateTime?
+  // Dispatcher a closer assigned for this carrier (else the configured default).
+  dispatcher_name          String?
+  dispatcher_email         String?
   ready_at                 DateTime?
   purge_after              DateTime?
   purged_at                DateTime?

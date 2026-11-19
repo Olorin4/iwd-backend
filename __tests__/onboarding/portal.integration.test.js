@@ -1119,3 +1119,116 @@ test("requests already in flight get the load board item; READY ones keep their 
     expect((await refreshed(ready.id)).operations).toHaveLength(6);
     expect(await addLoadBoardItem(db)).toBe(0);
 });
+
+test("the load board step names the dispatcher: the default, or one a closer assigns", async () => {
+    config = {
+        ...config,
+        dispatcher: {
+            name: "Nick Kalas",
+            email: "nick@iron-wing-dispatching.com",
+        },
+    };
+    deps = { ...deps, config };
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    let page = await (await browser(pathname(token))).text();
+    expect(page).toContain("Nick Kalas");
+    expect(page).toContain("nick@iron-wing-dispatching.com");
+    expect(page).not.toContain("Ask Iron Wing for your dispatcher");
+    await act(row, "set_dispatcher", {
+        name: "Dana Ortiz",
+        email: "Dana@Iron-Wing-Dispatching.com",
+    });
+    page = await (await browser(pathname(token))).text();
+    expect(page).toContain("Dana Ortiz");
+    expect(page).toContain("dana@iron-wing-dispatching.com");
+    const status = await db.onboardingEvent.findFirst({
+        where: { request_id: row.id, type: "onboarding.status.v1" },
+        orderBy: { version: "desc" },
+    });
+    expect(status.payload.portal.dispatcher).toEqual({
+        name: "Dana Ortiz",
+        email: "dana@iron-wing-dispatching.com",
+        source: "ASSIGNED",
+    });
+    await expect(
+        act(row, "set_dispatcher", { name: "X", email: "not-an-email" })
+    ).rejects.toMatchObject({
+        code: "invalid_request",
+    });
+    await act(row, "set_dispatcher", { name: null, email: null });
+    expect(await (await browser(pathname(token))).text()).toContain(
+        "Nick Kalas"
+    );
+});
+
+test("'Added' records the board the carrier set up and the page says what happens next", async () => {
+    config = {
+        ...config,
+        dispatcher: {
+            name: "Nick Kalas",
+            email: "nick@iron-wing-dispatching.com",
+        },
+    };
+    deps = { ...deps, config };
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const csrf = csrfToken(config.portal.tokenSecret, token.tokenId);
+    const post = (body) =>
+        browser(pathname(token) + "/load-board", {
+            method: "POST",
+            headers: {
+                Origin: PORTAL_BASE_URL,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams({ csrf, ...body }).toString(),
+        });
+    let response = await post({ board: "DAT_ONE" });
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toContain("#load-boards");
+    expect((await post({ board: "OTHER" })).headers.get("location")).toContain(
+        "error=load_board_name"
+    );
+    await post({ board: "OTHER", other: " 123Loadboard " });
+    expect((await post({ board: "BOGUS" })).status).toBe(400);
+    const item = (await refreshed(row.id)).operations.find(
+        (i) => i.key === "LOAD_BOARD_ACCESS"
+    );
+    expect(item).toMatchObject({
+        state: "RECEIVED",
+        reported: ["DAT_ONE", "OTHER"],
+        reported_note: "123Loadboard",
+    });
+    const page = await (await browser(pathname(token) + "?board=added")).text();
+    expect(page).toContain(
+        "You added a seat on DAT One and 123Loadboard for Nick Kalas."
+    );
+    expect(page).toContain("Iron Wing will check access and confirm it here.");
+    expect(page).not.toContain("tell Iron Wing which board is ready");
+    const status = await db.onboardingEvent.findFirst({
+        where: { request_id: row.id, type: "onboarding.status.v1" },
+        orderBy: { version: "desc" },
+    });
+    expect(
+        status.payload.operations.items.find(
+            (i) => i.key === "LOAD_BOARD_ACCESS"
+        )
+    ).toMatchObject({
+        state: "RECEIVED",
+        reported_boards: ["DAT_ONE", "OTHER"],
+        reported_note: "123Loadboard",
+    });
+    await act(row, "confirm_load_board_access", { boards: ["DAT_ONE"] });
+    expect(
+        (await post({ board: "TRUCKSTOP" })).headers.get("location")
+    ).toContain("#load-boards");
+    expect(
+        (await refreshed(row.id)).operations.find(
+            (i) => i.key === "LOAD_BOARD_ACCESS"
+        ).state
+    ).toBe("VERIFIED");
+});

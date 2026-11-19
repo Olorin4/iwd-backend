@@ -99,6 +99,7 @@ export function confirmLoadBoardAccess(
     const text = typeof note === "string" ? note.trim() : "";
     if (chosen.includes("OTHER") && !text)
         throw new Error("load_board_note_required");
+    const previous = items.find((item) => item.key === "LOAD_BOARD_ACCESS");
     const entry = {
         key: "LOAD_BOARD_ACCESS",
         state: "VERIFIED",
@@ -106,9 +107,45 @@ export function confirmLoadBoardAccess(
         actor,
         note: text || null,
         boards: LOAD_BOARDS.filter((b) => chosen.includes(b)),
+        // Keep what the carrier reported on the portal, for the record.
+        ...(previous?.reported
+            ? {
+                  reported: previous.reported,
+                  reported_note: previous.reported_note ?? null,
+              }
+            : {}),
     };
     return items.some((item) => item.key === "LOAD_BOARD_ACCESS")
         ? items.map((item) => (item.key === "LOAD_BOARD_ACCESS" ? entry : item))
+        : [...items, entry];
+}
+
+/**
+ * The carrier pressed "Added" for a board on the portal: LOAD_BOARD_ACCESS
+ * becomes RECEIVED with the reported boards (accumulated). Staff still
+ * confirm. Returns null once access is already confirmed (VERIFIED).
+ */
+export function reportLoadBoard(items, { board, note = null, at }) {
+    if (!LOAD_BOARDS.includes(board)) throw new Error("invalid_load_boards");
+    const text = typeof note === "string" ? note.trim().slice(0, 100) : "";
+    if (board === "OTHER" && !text) throw new Error("load_board_note_required");
+    const current = items.find((item) => item.key === "LOAD_BOARD_ACCESS");
+    if (current?.state === "VERIFIED") return null;
+    const reported = LOAD_BOARDS.filter(
+        (b) => b === board || (current?.reported ?? []).includes(b)
+    );
+    const entry = {
+        key: "LOAD_BOARD_ACCESS",
+        state: "RECEIVED",
+        at: at.toISOString(),
+        actor: { type: "carrier" },
+        note: current?.note ?? null,
+        reported,
+        reported_note:
+            board === "OTHER" ? text : (current?.reported_note ?? null),
+    };
+    return current
+        ? items.map((item) => (item === current ? entry : item))
         : [...items, entry];
 }
 
@@ -298,6 +335,12 @@ export function buildStatus(
                 ...(i.key === "LOAD_BOARD_ACCESS" && i.boards
                     ? { boards: i.boards, boards_note: i.note ?? null }
                     : {}),
+                ...(i.key === "LOAD_BOARD_ACCESS" && i.reported
+                    ? {
+                          reported_boards: i.reported,
+                          reported_note: i.reported_note ?? null,
+                      }
+                    : {}),
                 ...(row.portal_flow
                     ? {
                           document:
@@ -319,6 +362,14 @@ export function buildStatus(
                       invited_at: iso(row.portal_invited_at),
                       last_opened_at: iso(row.portal_last_opened_at),
                       questionnaire_submitted: questionnaireSubmitted,
+                      // A closer's assignment; null means the configured default.
+                      dispatcher: row.dispatcher_name
+                          ? {
+                                name: row.dispatcher_name,
+                                email: row.dispatcher_email,
+                                source: "ASSIGNED",
+                            }
+                          : null,
                   },
               }
             : {}),

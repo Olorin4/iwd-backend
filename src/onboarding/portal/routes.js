@@ -5,6 +5,7 @@ import { readSignedDocumentForRequest } from "../actions.js";
 import { PORTAL_BASE_URL } from "../config.js";
 import {
     markNotFactoring,
+    reportLoadBoardForCarrier,
     readDocumentFile,
     recordUpload,
     UPLOADABLE_KEYS,
@@ -208,6 +209,10 @@ export function createPortalRouter(
                 csrf,
                 ownFiles,
                 questionnaire: Boolean(questionnaire),
+                // A closer's assignment, else the configured default.
+                dispatcher: row.dispatcher_name
+                    ? { name: row.dispatcher_name, email: row.dispatcher_email }
+                    : (deps.config.dispatcher ?? null),
                 query: req.query,
                 signed,
                 returned,
@@ -367,14 +372,24 @@ export function createPortalRouter(
         parameterLimit: 35,
         inflate: false,
     });
-    page.post(["/not-factoring", "/questionnaire"], form, (req, res, next) => {
-        const { deps, tokenId, row } = res.locals.portal;
-        if (!validCsrf(deps.config.portal.tokenSecret, tokenId, req.body?.csrf))
-            return denied(res);
-        if (row.signature_state !== "COMPLETED" || row.cancelled_at)
-            return closed(res);
-        next();
-    });
+    page.post(
+        ["/not-factoring", "/questionnaire", "/load-board"],
+        form,
+        (req, res, next) => {
+            const { deps, tokenId, row } = res.locals.portal;
+            if (
+                !validCsrf(
+                    deps.config.portal.tokenSecret,
+                    tokenId,
+                    req.body?.csrf
+                )
+            )
+                return denied(res);
+            if (row.signature_state !== "COMPLETED" || row.cancelled_at)
+                return closed(res);
+            next();
+        }
+    );
 
     page.post(
         "/not-factoring",
@@ -387,6 +402,41 @@ export function createPortalRouter(
                     (result.ok
                         ? "?factoring=saved#factoring"
                         : "?error=" + encodeURIComponent(result.code))
+            );
+        })
+    );
+
+    page.post(
+        "/load-board",
+        asyncRoute(async (req, res) => {
+            const { deps, row, path, tokenId } = res.locals.portal;
+            const board = String(req.body?.board ?? "");
+            if (!["DAT_ONE", "TRUCKSTOP", "OTHER"].includes(board))
+                return res
+                    .status(400)
+                    .send(
+                        messagePage(
+                            "Load board",
+                            "Choose a load board and try again."
+                        )
+                    );
+            const result = await reportLoadBoardForCarrier(
+                deps,
+                row.id,
+                tokenId,
+                {
+                    board,
+                    other: String(req.body?.other ?? ""),
+                }
+            );
+            return res.redirect(
+                303,
+                path +
+                    (result.ok
+                        ? "?board=added#load-boards"
+                        : "?error=" +
+                          encodeURIComponent(result.code) +
+                          "#load-boards")
             );
         })
     );

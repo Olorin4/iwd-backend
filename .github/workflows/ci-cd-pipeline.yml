@@ -142,6 +142,8 @@ jobs:
                   echo "ONBOARDING_PUBLIC_BASE_URL=${{ secrets.ONBOARDING_PUBLIC_BASE_URL }}" >> .env
                   echo "ONBOARDING_RECONCILE_ENABLED=${{ secrets.ONBOARDING_RECONCILE_ENABLED }}" >> .env
                   echo "ONBOARDING_REQUESTER_EMAIL=${{ secrets.ONBOARDING_REQUESTER_EMAIL }}" >> .env
+                  echo "ONBOARDING_DEFAULT_DISPATCHER_NAME=${{ secrets.ONBOARDING_DEFAULT_DISPATCHER_NAME }}" >> .env
+                  echo "ONBOARDING_DEFAULT_DISPATCHER_EMAIL=${{ secrets.ONBOARDING_DEFAULT_DISPATCHER_EMAIL }}" >> .env
                   echo "ONBOARDING_REQUEST_SIGNING_SECRET=${{ secrets.ONBOARDING_REQUEST_SIGNING_SECRET }}" >> .env
                   echo "ONBOARDING_SIGNATURE_PROVIDER=${{ secrets.ONBOARDING_SIGNATURE_PROVIDER }}" >> .env
                   echo "ONBOARDING_SIGNWELL_TEST_MODE=${{ secrets.ONBOARDING_SIGNWELL_TEST_MODE }}" >> .env

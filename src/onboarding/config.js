@@ -36,6 +36,19 @@ function optionalEmail(env, name) {
     return value;
 }
 
+// The dispatcher shown to every carrier in the portal's load board step unless
+// a closer assigns another (owner ruling 2026-11-19). Both or neither.
+function defaultDispatcher(env) {
+    const name = env.ONBOARDING_DEFAULT_DISPATCHER_NAME?.trim() || null;
+    const email = optionalEmail(env, "ONBOARDING_DEFAULT_DISPATCHER_EMAIL");
+    if (!name && !email) return null;
+    if (!name || !email || name.length > 100)
+        throw new OnboardingConfigError(
+            "ONBOARDING_DEFAULT_DISPATCHER_NAME and ONBOARDING_DEFAULT_DISPATCHER_EMAIL go together."
+        );
+    return { name, email: email.toLowerCase() };
+}
+
 // A single-label host (no dot) is a Docker service name on the private
 // container network (e.g. http://outreach:3012); it can never be a public site.
 const INTERNAL_SERVICE_HOST = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -237,6 +250,7 @@ export function getOnboardingConfig(env = process.env) {
             key: parseDocumentKey(env.ONBOARDING_DOCUMENT_KEY),
         },
         bundleName: env.ONBOARDING_BUNDLE_NAME || "iron-wing-carrier-client",
+        dispatcher: defaultDispatcher(env),
         signature: {
             provider,
             apiKey:

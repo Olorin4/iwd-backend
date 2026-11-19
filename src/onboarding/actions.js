@@ -61,6 +61,18 @@ const SCHEMAS = {
         .object({ ...base, key: z.enum(OPERATION_KEYS) })
         .strict(),
     resend_portal_link: z.object(base).strict(),
+    // The dispatcher shown on this carrier's portal; nulls restore the default.
+    set_dispatcher: z
+        .object({
+            ...base,
+            name: z.string().trim().min(1).max(100).nullable(),
+            email: z.string().trim().toLowerCase().email().max(254).nullable(),
+        })
+        .strict()
+        .refine((v) => (v.name === null) === (v.email === null), {
+            message: "name_and_email_together",
+            path: ["email"],
+        }),
     // Iron Wing confirmed the dispatcher's load board seat(s) (staff only).
     confirm_load_board_access: z
         .object({
@@ -209,6 +221,18 @@ async function perform(deps, row, action, input) {
                 { now: deps.now }
             );
             return "item_verified";
+        }
+        case "set_dispatcher": {
+            await transition(
+                deps.db,
+                row.id,
+                () => ({
+                    dispatcher_name: input.name,
+                    dispatcher_email: input.email,
+                }),
+                { now: deps.now }
+            );
+            return "dispatcher_set";
         }
         case "confirm_load_board_access": {
             const now = deps.now();

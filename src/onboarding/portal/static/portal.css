@@ -262,3 +262,19 @@ fieldset {
 .ready h2 {
     color: #235e3e;
 }
+.dispatcher {
+    padding: 0.6rem 0.8rem;
+    background: #f4f5f7;
+    border: 1px solid var(--line);
+    border-radius: 0.35rem;
+}
+.added {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-block: 0.4rem 0.9rem;
+}
+.added-now {
+    border-left-color: #235e3e;
+}
