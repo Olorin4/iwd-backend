@@ -1,6 +1,6 @@
 import { escapeHtml as html } from "../../emailService.js";
 import { PORTAL_CARRIER_SLOTS, portalItemLabel } from "../portalEmails.js";
-import { slotOf } from "../readiness.js";
+import { deriveReadiness, facetsOf, slotOf } from "../readiness.js";
 import { EQUIPMENT_TYPES } from "../questionnaire.js";
 import { loadBoardInstructions } from "./loadBoards.js";
 
@@ -10,7 +10,7 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=4"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=5"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
@@ -102,6 +102,18 @@ function loadBoardAccess(row) {
     return `<p class="state success">Iron Wing confirmed access to ${safe(list)} ✓</p>`;
 }
 
+// Shown once the onboarding is READY (every step done and verified).
+function readyCard(row) {
+    if (
+        row.cancelled_at ||
+        deriveReadiness(facetsOf(row)).readiness !== "READY"
+    )
+        return "";
+    return `<section class="card ready" role="status"><h2>You’re ready ✓</h2>
+<p>Your onboarding with Iron Wing is complete: your agreement is signed, your payment method is saved, your documents are verified and your dispatcher has load board access.</p>
+<p>Your Iron Wing dispatcher will contact you to plan your first loads. Download your signed agreement below; this page stays available for 30 days.</p></section>`;
+}
+
 export function portalPage(
     row,
     {
@@ -155,6 +167,7 @@ export function portalPage(
         row.terms.legal_name + " onboarding",
         `
 <h1>Onboarding for ${safe(row.terms.legal_name)}</h1>
+${readyCard(row)}
 ${cancelled ? "<p class='notice'>This request is closed. Contact Iron Wing for help.</p>" : ""}
 ${message ? `<p class="notice" role="status">${safe(message)}</p>` : ""}
 <div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-signature="${safe(row.signature_state)}" data-payment="${safe(row.payment_state)}">

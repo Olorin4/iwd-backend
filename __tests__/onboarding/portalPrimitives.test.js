@@ -530,3 +530,41 @@ test("requests from before load board tracking stay complete with their six item
     expect(legacy).toHaveLength(6);
     expect(operationsState(legacy)).toBe("COMPLETE");
 });
+
+test("a READY onboarding opens with 'You're ready'; one load board is enough", () => {
+    let operations = initialOperations();
+    for (const item of operations.filter((i) => i.key !== "LOAD_BOARD_ACCESS"))
+        operations = verifyOperationItem(operations, item.key, {
+            actor: "s",
+            at,
+        });
+    const inProgress = {
+        terms,
+        operations,
+        signature_state: "COMPLETED",
+        payment_state: "READY",
+        provisioning_state: "MANUAL_CONFIRMED",
+    };
+    let page = portalPage(inProgress, { path: "/p/fake" });
+    expect(page).not.toContain("You’re ready");
+    expect(page).toContain("One load board is enough");
+    const ready = {
+        ...inProgress,
+        operations: confirmLoadBoardAccess(operations, {
+            boards: ["TRUCKSTOP"],
+            actor: "s",
+            at,
+        }),
+    };
+    page = portalPage(ready, { path: "/p/fake" });
+    expect(page).toMatch(
+        /<section class="card ready"[^>]*>[\s\S]*You’re ready/
+    );
+    expect(page.indexOf("You’re ready")).toBeLessThan(
+        page.indexOf("Sign your agreement")
+    );
+    expect(page).toContain("Iron Wing confirmed access to Truckstop");
+    expect(
+        portalPage({ ...ready, cancelled_at: new Date() }, { path: "/p/fake" })
+    ).not.toContain("You’re ready");
+});

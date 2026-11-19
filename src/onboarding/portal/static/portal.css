@@ -255,3 +255,10 @@ fieldset {
         width: 100%;
     }
 }
+.ready {
+    border-color: #235e3e;
+    border-left-width: 0.35rem;
+}
+.ready h2 {
+    color: #235e3e;
+}

@@ -1,4 +1,5 @@
 export const loadBoardInstructions = `
+<p><strong>One load board is enough:</strong> set up the one you use, DAT One or Truckstop. You don’t need both.</p>
 <p>Add a separate load board seat for the Iron Wing dispatcher assigned to you. Use the dispatcher’s work name and email so they can set up their own login.</p>
 <p><a href="mailto:onboarding@iron-wing-dispatching.com">Ask Iron Wing for your dispatcher’s name and email</a> if you haven’t received them yet. Keep passwords and verification codes private.</p>
 <div class="load-boards">
