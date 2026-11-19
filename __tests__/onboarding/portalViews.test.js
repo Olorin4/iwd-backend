@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { portalSteps } from "../../src/onboarding/portal/steps.js";
-import { portalPage } from "../../src/onboarding/portal/views.js";
+import { portalPage, portalStamp } from "../../src/onboarding/portal/views.js";
 import {
     confirmLoadBoardAccess,
     initialOperations,
@@ -369,4 +369,34 @@ test("a received document can be replaced until Iron Wing verifies it", () => {
         verified.indexOf("</li>", verified.indexOf("W-9"))
     );
     expect(v).not.toContain("Replace this document");
+});
+
+test("the page fingerprint changes with what the carrier sees, not with bookkeeping", () => {
+    const base = row({
+        signature_state: "COMPLETED",
+        payment_state: "READY",
+        operations: received(initialOperations(), ["W9"]),
+    });
+    const stamp = portalStamp(base);
+    expect(stamp).toMatch(/^[0-9a-f]{16}$/);
+    expect(page(base)).toContain(`data-stamp="${stamp}"`);
+    expect(
+        portalStamp({
+            ...base,
+            portal_last_opened_at: at,
+            reminders_sent: 2,
+            version: 9,
+        })
+    ).toBe(stamp);
+    expect(
+        portalStamp({
+            ...base,
+            operations: verifyOperationItem(base.operations, "W9", {
+                actor: "s",
+                at,
+            }),
+        })
+    ).not.toBe(stamp);
+    expect(portalStamp({ ...base, cancelled_at: at })).not.toBe(stamp);
+    expect(portalStamp({ ...base, dispatcher_name: "Other" })).not.toBe(stamp);
 });

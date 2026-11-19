@@ -43,8 +43,37 @@ beforeEach(() => {
             sent.push(body);
         }
     };
+    fetches = [];
+    statusStamp = null;
+    window.fetch = async (url) => {
+        fetches.push(url);
+        return {
+            status: 200,
+            ok: true,
+            json: async () => ({ stamp: statusStamp }),
+        };
+    };
+    navigations = [];
+    delete window.location;
+    window.location = {
+        pathname: "/p/fake",
+        replace: (to) => navigations.push(to),
+        reload: () => navigations.push("reload"),
+        assign: (to) => navigations.push(to),
+    };
+    visibility = "visible";
+    Object.defineProperty(document, "visibilityState", {
+        get: () => visibility,
+        configurable: true,
+    });
+    jest.useFakeTimers();
     window.eval(script);
 });
+afterEach(() => jest.useRealTimers());
+
+let fetches, statusStamp, navigations, visibility;
+const pageStamp = () => document.querySelector("[data-portal]").dataset.stamp;
+const banner = () => document.querySelector(".updated-bar");
 
 const w9 = () => document.querySelector('form[action$="/documents/W9"]');
 const choose = (form, files) => {
@@ -100,4 +129,46 @@ test("a PDF chosen after photos is refused with the mixed-files message", () => 
     );
     form.dispatchEvent(new Event("submit", { cancelable: true }));
     expect(sent[0].getAll("file").map((f) => f.name)).toEqual(["page1.jpg"]);
+});
+
+describe("the page notices Iron Wing's changes (owner choice 2026-11-19: check every 20 s)", () => {
+    test("nothing changed: it checks every 20 s and stays put", async () => {
+        statusStamp = pageStamp();
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(fetches).toEqual(["/p/fake/status.json"]);
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(fetches).toHaveLength(2);
+        expect(navigations).toEqual([]);
+    });
+
+    test("a change with nothing in progress reloads the page without old notices", async () => {
+        statusStamp = "changed";
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(navigations).toEqual(["/p/fake"]);
+    });
+
+    test("a change while the carrier is choosing photos shows a Refresh bar instead", async () => {
+        choose(w9(), [image("page1.jpg")]);
+        statusStamp = "changed";
+        await jest.advanceTimersByTimeAsync(20000);
+        expect(navigations).toEqual([]);
+        expect(banner().hidden).toBe(false);
+        expect(banner().textContent).toContain(
+            "Iron Wing updated your checklist"
+        );
+        banner().querySelector("button").click();
+        expect(navigations).toEqual(["/p/fake"]);
+    });
+
+    test("a hidden tab does not check; coming back checks at once", async () => {
+        visibility = "hidden";
+        await jest.advanceTimersByTimeAsync(60000);
+        expect(fetches).toEqual([]);
+        visibility = "visible";
+        statusStamp = "changed";
+        document.dispatchEvent(new Event("visibilitychange"));
+        await jest.advanceTimersByTimeAsync(0);
+        expect(fetches).toHaveLength(1);
+        expect(navigations).toEqual(["/p/fake"]);
+    });
 });

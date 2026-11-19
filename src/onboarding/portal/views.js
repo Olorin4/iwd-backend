@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { escapeHtml as html } from "../../emailService.js";
 import {
     PORTAL_CARRIER_SLOTS,
@@ -15,11 +16,11 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=11"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=12"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
-<script src="/portal-static/portal.js?v=6" defer></script></body></html>`;
+<script src="/portal-static/portal.js?v=7" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {
@@ -164,6 +165,28 @@ const UPLOAD_ERRORS = new Set([
     "busy",
 ]);
 
+/**
+ * Fingerprint of what the carrier's page shows that Iron Wing or a provider
+ * can change; the page compares it with status.json to notice changes. Not
+ * the row version: opening the page is bookkeeping and must not count.
+ */
+export function portalStamp(row) {
+    return createHash("sha256")
+        .update(
+            JSON.stringify([
+                row.signature_state ?? null,
+                row.signature_waiting_for ?? null,
+                row.payment_state ?? null,
+                Boolean(row.cancelled_at),
+                row.dispatcher_name ?? null,
+                row.dispatcher_email ?? null,
+                row.operations ?? null,
+            ])
+        )
+        .digest("hex")
+        .slice(0, 16);
+}
+
 export function portalPage(
     row,
     {
@@ -300,7 +323,8 @@ ${model.phase === "allSet" ? `<section class="all-set" role="status">${icon.hour
 ${cancelled ? "<p class='notice'>This request is closed. Contact Iron Wing for help.</p>" : ""}
 ${redo && complete && !cancelled ? '<p class="notice" role="status">Iron Wing asked for a new file — see your documents below.</p>' : ""}
 ${message ? `<p class="notice" role="status">${safe(message)}</p>` : ""}
-<div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-signature="${safe(row.signature_state)}" data-payment="${safe(row.payment_state)}">
+<div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-stamp="${portalStamp(row)}">
+<div class="updated-bar" role="status" hidden><p>Iron Wing updated your checklist.</p><button type="button">Refresh</button></div>
 <ol class="timeline">
 ${step(byId.sign, 1, { open: isOpen("sign"), subtitle: subtitles.sign, body: signBody })}
 ${step(byId.payment, 2, { open: isOpen("payment"), subtitle: subtitles.payment, body: paymentBody })}

@@ -1604,3 +1604,28 @@ test("Iron Wing returning from SignWell sees a neutral page, not the carrier's, 
     expect(text).toContain('class="timeline"');
     expect(text).not.toContain("Signature recorded");
 });
+
+test("status.json carries the page fingerprint, which changes when Iron Wing verifies a document", async () => {
+    const created = await createRequest({ signature_state: "COMPLETED" });
+    const token = await issuePortalToken(deps, created.id, {
+        revokeExisting: true,
+    });
+    const base = pathname(token);
+    const stampOf = async () =>
+        (await (await browser(base + "/status.json")).json()).stamp;
+    const html = await (await browser(base)).text();
+    const first = await stampOf();
+    expect(html).toContain(`data-stamp="${first}"`);
+    // Opening the page again is bookkeeping, not a change.
+    expect(await stampOf()).toBe(first);
+    const row = await refreshed(created.id);
+    await db.onboardingRequest.update({
+        where: { id: row.id },
+        data: {
+            operations: row.operations.map((i) =>
+                i.key === "W9" ? { ...i, state: "VERIFIED" } : i
+            ),
+        },
+    });
+    expect(await stampOf()).not.toBe(first);
+});

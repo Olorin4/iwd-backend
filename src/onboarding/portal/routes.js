@@ -25,6 +25,7 @@ import {
     inactivePage,
     messagePage,
     portalPage,
+    portalStamp,
     questionnairePage,
 } from "./views.js";
 
@@ -386,6 +387,7 @@ export function createPortalRouter(
     page.get("/status.json", (req, res) => {
         const { row } = res.locals.portal;
         res.json({
+            stamp: portalStamp(row),
             signature: row.signature_state,
             payment: row.payment_state,
             items: row.operations.map(({ key, state }) => ({ key, state })),

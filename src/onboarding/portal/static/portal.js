@@ -1,44 +1,77 @@
 /* global document, location, XMLHttpRequest */
 document.documentElement.classList.add("js");
 const portal = document.querySelector("[data-portal]");
-let timer;
-let deadline;
+const updatedBar = portal?.querySelector(".updated-bar");
 
-function beginPolling() {
-    if (!portal) return;
-    deadline = Date.now() + 120000;
-    if (timer) return;
-    timer = setInterval(async () => {
-        if (Date.now() > deadline) {
-            clearInterval(timer);
-            timer = undefined;
+// The page notices Iron Wing's changes (verified documents, load boards,
+// re-upload requests) and provider updates: every 20 s while the tab is
+// visible, every 5 s for two minutes after opening SignWell or Stripe, and
+// at once when the carrier returns to the tab (owner choice 2026-11-19).
+const SLOW_MS = 20000;
+const FAST_MS = 5000;
+let fastUntil = 0;
+let timer;
+let checking = false;
+
+// Something the carrier is in the middle of (chosen files, an upload).
+const busy = () =>
+    [...document.querySelectorAll("form[data-upload]")].some(
+        (form) => form.dataset.busy === "true"
+    );
+const refresh = () => location.replace(location.pathname);
+
+async function check() {
+    if (!portal || checking || document.visibilityState === "hidden") return;
+    checking = true;
+    try {
+        const response = await fetch(portal.dataset.statusUrl, {
+            cache: "no-store",
+        });
+        if (response.status === 410) {
+            location.reload();
             return;
         }
-        try {
-            const response = await fetch(portal.dataset.statusUrl, {
-                cache: "no-store",
-            });
-            if (response.status === 410) {
-                location.reload();
-                return;
-            }
-            if (!response.ok) return;
-            const status = await response.json();
-            if (
-                status.signature !== portal.dataset.signature ||
-                status.payment !== portal.dataset.payment
-            )
-                location.reload();
-        } catch {
-            // A temporary connection issue will be retried on the next poll.
+        if (!response.ok) return;
+        const status = await response.json();
+        if (status.stamp && status.stamp !== portal.dataset.stamp) {
+            if (busy()) updatedBar.hidden = false;
+            else refresh();
         }
-    }, 5000);
+    } catch {
+        // A temporary connection issue is retried on the next check.
+    } finally {
+        checking = false;
+    }
 }
 
+function schedule() {
+    if (!portal) return;
+    clearTimeout(timer);
+    timer = setTimeout(
+        async () => {
+            await check();
+            schedule();
+        },
+        Date.now() < fastUntil ? FAST_MS : SLOW_MS
+    );
+}
+
+function beginPolling() {
+    fastUntil = Date.now() + 120000;
+    schedule();
+}
+
+updatedBar?.querySelector("button").addEventListener("click", refresh);
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") return;
+    check();
+    schedule();
+});
 document
     .querySelectorAll("[data-poll-link]")
     .forEach((link) => link.addEventListener("click", beginPolling));
 if (portal?.dataset.poll === "true") beginPolling();
+else schedule();
 
 const MAX_PHOTOS = 10;
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
@@ -73,6 +106,7 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
             picked === 1
                 ? `Chosen: ${single[0].name}`
                 : `${picked} files chosen`;
+        form.dataset.busy = String(photos.length + picked > 0);
         const count = photos.length + picked;
         button.textContent =
             photos.length > 0
@@ -165,6 +199,7 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
             return;
         }
         const request = new XMLHttpRequest();
+        form.dataset.busy = "true";
         button.disabled = true;
         bar.hidden = false;
         bar.removeAttribute("value");
