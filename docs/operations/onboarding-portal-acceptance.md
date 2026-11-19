@@ -90,3 +90,10 @@ synthetic data at [390 px](onboarding-portal-acceptance/mobile-restored.png) and
   any one or more. When the onboarding is READY the page opens with a "You’re ready ✓" card
   ([390 px](onboarding-portal-acceptance/mobile-ready.png),
   [1280 px](onboarding-portal-acceptance/desktop-ready.png)).
+- The load board step names the dispatcher (settings `ONBOARDING_DEFAULT_DISPATCHER_NAME` /
+  `_EMAIL`, or a closer's assignment in Outreach) inside the DAT One and Truckstop steps. Each
+  board ends with an **Added** button (another board takes its name); the step then says "You
+  added a seat on … for {dispatcher}. Iron Wing will check access and confirm it here." Outreach
+  shows "Carrier reports: …" with those boards pre-ticked for the closer to confirm. No email links.
+- Release: set the two dispatcher settings (server `.env` + GitHub secrets; the pipeline already
+  writes them). Migration `20261119120000_onboarding_dispatcher` adds two columns.
