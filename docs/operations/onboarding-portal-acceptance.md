@@ -73,3 +73,11 @@ Owner approved the email texts and the page look (2026-11-18).
   email. Captures show both load board guides expanded at
   [390 px](onboarding-portal-acceptance/mobile-polished.png) and
   [1280 px](onboarding-portal-acceptance/desktop-polished.png).
+
+## Shared footer refresh (2026-11-19)
+
+The portal footer and shared stylesheet were regenerated from the public site's
+`Footer.astro` and `shared.css`. Contact, social and newsletter links are grouped, with
+privacy and terms in the bottom row. The private portal keeps its public-site signup link.
+Verified in Chromium at [390 px](onboarding-portal-acceptance/mobile-footer.png) and
+[1280 px](onboarding-portal-acceptance/desktop-footer.png) using synthetic carrier data.

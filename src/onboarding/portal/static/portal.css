@@ -30,7 +30,7 @@ p {
     margin-block: 0.5rem;
     overflow-wrap: anywhere;
 }
-small {
+.onboarding small {
     color: #53483e;
     font-size: 0.8rem;
     font-weight: 500;
@@ -192,15 +192,6 @@ fieldset {
 }
 .load-boards li + li {
     margin-top: 0.5rem;
-}
-.newsletter-signup .secondary-cta {
-    display: inline-block;
-}
-.social-icons a {
-    display: grid;
-    min-width: 44px;
-    min-height: 44px;
-    place-items: center;
 }
 #factoring {
     scroll-margin-top: 1rem;

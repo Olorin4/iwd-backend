@@ -12,8 +12,8 @@ function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${safe(title)} | Iron Wing</title>
-<link rel="stylesheet" href="/portal-static/iron-wing/shared.css?v=2">
-<link rel="stylesheet" href="/portal-static/portal.css?v=2"></head>
+<link rel="stylesheet" href="/portal-static/iron-wing/shared.css?v=3">
+<link rel="stylesheet" href="/portal-static/portal.css?v=3"></head>
 <body>${siteHeader}<main class="onboarding">${contents}
 <p class="portal-support">Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</p></main>
 ${siteFooter}

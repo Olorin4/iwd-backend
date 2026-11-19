@@ -400,6 +400,13 @@ test("reuses Iron Wing website navigation and footer with local assets", () => {
     expect(page).toContain(
         'href="https://iron-wing-dispatching.com/#newsletter-form"'
     );
+    const footer = page.match(/<footer\b[\s\S]*?<\/footer>/)?.[0];
+    expect(footer).toMatch(/<h2>Contact<\/h2>[\s\S]*<h2>Follow us<\/h2>/);
+    expect(footer).toContain('aria-label="Legal"');
+    expect(footer).toMatch(
+        />Facebook<\/span>[\s\S]*>LinkedIn<\/span>[\s\S]*>Instagram<\/span>/
+    );
+    expect(footer).not.toContain('id="newsletter-form"');
     expect(page).not.toContain('class="cf-turnstile"');
 });
 
