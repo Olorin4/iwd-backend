@@ -108,6 +108,8 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
                 : `${picked} files chosen`;
         form.dataset.busy = String(photos.length + picked > 0);
         const count = photos.length + picked;
+        // Muted until there is something to send (owner 2026-11-19).
+        button.disabled = count === 0;
         button.textContent =
             photos.length > 0
                 ? `Send ${count} page${count === 1 ? "" : "s"} as one PDF`
@@ -176,6 +178,7 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         label();
     });
     addPage?.addEventListener("click", () => chooser?.click());
+    label();
 
     form.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -201,6 +204,7 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         const request = new XMLHttpRequest();
         form.dataset.busy = "true";
         button.disabled = true;
+        button.setAttribute("aria-busy", "true");
         bar.hidden = false;
         bar.removeAttribute("value");
         request.open("POST", form.action);
@@ -210,6 +214,7 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         });
         const failed = () => {
             button.disabled = false;
+            button.removeAttribute("aria-busy");
             bar.hidden = true;
             failedNote(form, "Upload failed. Try again.");
         };

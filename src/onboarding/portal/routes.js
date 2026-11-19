@@ -30,6 +30,19 @@ import {
 } from "./views.js";
 
 const FILES = path.resolve("src/onboarding/portal/static");
+// The carrier's current files, with the AI reader's flags (card colours
+// and the page fingerprint).
+const carrierFiles = (deps, requestId) =>
+    deps.db.onboardingDocument.findMany({
+        where: {
+            request_id: requestId,
+            source: "CARRIER",
+            state: "CURRENT",
+            purged_at: null,
+            storage_key: { not: null },
+        },
+        select: { id: true, item_key: true, flags: true },
+    });
 const OPEN_THROTTLE = 5 * 60 * 1000;
 // Set when the carrier leaves for SignWell through /sign. SignWell has one
 // redirect_url for both signers, so a return without it is Iron Wing's
@@ -223,16 +236,7 @@ export function createPortalRouter(
     const render = async (req, res, { signed, returned } = {}) => {
         const { deps, row, path, csrf } = res.locals.portal;
         const [ownFiles, questionnaire] = await Promise.all([
-            deps.db.onboardingDocument.findMany({
-                where: {
-                    request_id: row.id,
-                    source: "CARRIER",
-                    state: "CURRENT",
-                    purged_at: null,
-                    storage_key: { not: null },
-                },
-                select: { id: true, item_key: true },
-            }),
+            carrierFiles(deps, row.id),
             deps.db.onboardingQuestionnaire.findUnique({
                 where: { request_id: row.id },
                 select: { request_id: true },
@@ -384,15 +388,18 @@ export function createPortalRouter(
         })
     );
 
-    page.get("/status.json", (req, res) => {
-        const { row } = res.locals.portal;
-        res.json({
-            stamp: portalStamp(row),
-            signature: row.signature_state,
-            payment: row.payment_state,
-            items: row.operations.map(({ key, state }) => ({ key, state })),
-        });
-    });
+    page.get(
+        "/status.json",
+        asyncRoute(async (req, res) => {
+            const { deps, row } = res.locals.portal;
+            res.json({
+                stamp: portalStamp(row, await carrierFiles(deps, row.id)),
+                signature: row.signature_state,
+                payment: row.payment_state,
+                items: row.operations.map(({ key, state }) => ({ key, state })),
+            });
+        })
+    );
 
     page.post(
         "/documents/:itemKey",

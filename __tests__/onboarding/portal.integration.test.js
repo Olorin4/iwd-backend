@@ -1628,4 +1628,22 @@ test("status.json carries the page fingerprint, which changes when Iron Wing ver
         },
     });
     expect(await stampOf()).not.toBe(first);
+    // The AI reader flagging the carrier's file is a change too.
+    const before = await stampOf();
+    await db.onboardingDocument.create({
+        data: {
+            request_id: created.id,
+            item_key: "INSURANCE_COI",
+            version: 1,
+            source: "CARRIER",
+            storage_key: "docs/fake",
+            sha256: "0".repeat(64),
+            size: 1,
+            media_type: "application/pdf",
+            state: "CURRENT",
+            extraction_status: "DONE",
+            flags: ["insurance_expired"],
+        },
+    });
+    expect(await stampOf()).not.toBe(before);
 });

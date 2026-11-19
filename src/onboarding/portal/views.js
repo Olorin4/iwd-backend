@@ -16,11 +16,11 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=12"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=13"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
-<script src="/portal-static/portal.js?v=7" defer></script></body></html>`;
+<script src="/portal-static/portal.js?v=8" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {
@@ -79,6 +79,26 @@ function uploadForm({ base, csrf, key, label }) {
 <button type="submit">Upload</button><progress max="100" hidden></progress></form>`;
 }
 
+// What the AI reader's flags tell the carrier (owner 2026-11-19: flagged
+// files are orange). Worded as "please check": the reader can be wrong.
+function readerReasons(flags, row, label) {
+    const terms = row.terms ?? {};
+    const text = {
+        wrong_document_type: `this doesn’t look like a ${label}`,
+        name_mismatch: `the company name doesn’t seem to match ${terms.legal_name}`,
+        mc_mismatch: `the MC number doesn’t seem to match ${terms.mc_number}`,
+        usdot_mismatch: `the USDOT number doesn’t seem to match ${terms.usdot}`,
+        insurance_expired: "a policy on this certificate looks expired",
+        insurance_expiring_30d:
+            "a policy on this certificate expires within 30 days",
+        signature_missing: "the form doesn’t look signed",
+        unreadable: "we couldn’t read this file clearly",
+    };
+    return (Array.isArray(flags) ? flags : [])
+        .map((flag) => text[flag])
+        .filter(Boolean);
+}
+
 // One document row (owner-approved redesign, A-style rows).
 function itemRow(row, slot, { base, csrf, closed, ownFiles }) {
     const item = row.operations.find((entry) => slotOf(entry.key) === slot);
@@ -90,30 +110,38 @@ function itemRow(row, slot, { base, csrf, closed, ownFiles }) {
     const ownLink = file
         ? ` · <a href="${base}/documents/${safe(file.id)}/file">your upload</a>`
         : "";
+    const reasons =
+        state === "RECEIVED" ? readerReasons(file?.flags, row, label) : [];
     const status =
-        item?.key === "NOT_FACTORING"
-            ? "No factoring"
-            : ({
-                  RECEIVED: `Received — we’re reviewing it${ownLink}`,
-                  VERIFIED: `Verified ✓${ownLink}`,
-                  REUPLOAD_REQUESTED: `Iron Wing asks: ${safe(item?.note)}`,
-              }[state] ??
-              (optional
-                  ? "Only if you use a factoring company"
-                  : "PDF, or a photo of each page"));
+        reasons.length > 0
+            ? `Please check: ${safe(reasons.join("; "))}. Replace it if needed; otherwise Iron Wing will review it.${ownLink}`
+            : item?.key === "NOT_FACTORING"
+              ? "No factoring"
+              : ({
+                    RECEIVED: `Received — Iron Wing is reviewing it${ownLink}`,
+                    VERIFIED: `Verified ✓${ownLink}`,
+                    REUPLOAD_REQUESTED: `Iron Wing asks: ${safe(item?.note)}`,
+                }[state] ??
+                (optional
+                    ? "Only if you use a factoring company"
+                    : "PDF, or a photo of each page"));
+    // Owner 2026-11-19: green only once verified; orange when Iron Wing or
+    // the AI reader found a problem; received files are "in review".
     const kind =
-        state === "VERIFIED" || state === "RECEIVED"
+        state === "VERIFIED" || item?.key === "NOT_FACTORING"
             ? "done"
-            : state === "REUPLOAD_REQUESTED"
+            : state === "REUPLOAD_REQUESTED" || reasons.length > 0
               ? "redo"
-              : "needed";
+              : state === "RECEIVED"
+                ? "review"
+                : "needed";
     const canUpload = !closed && state !== "VERIFIED";
     return `<li class="doc doc-${kind}${optional ? " doc-optional" : ""}"${optional ? ' id="factoring"' : ""}>
-<div class="doc-head"><span class="doc-icon">${kind === "done" ? icon.doc : kind === "redo" ? icon.warn : icon.upload}</span>
+<div class="doc-head"><span class="doc-icon">${kind === "done" || kind === "review" ? icon.doc : kind === "redo" ? icon.warn : icon.upload}</span>
 <div><h4>${safe(label)}${optional ? ' <span class="chip">Optional</span>' : ""}</h4><p class="doc-status">${status}</p></div></div>
-${canUpload && kind !== "done" ? uploadForm({ base, csrf, key, label }) : ""}${
+${canUpload && (kind === "needed" || state === "REUPLOAD_REQUESTED") ? uploadForm({ base, csrf, key, label }) : ""}${
         canUpload && state === "RECEIVED" && item?.key !== "NOT_FACTORING"
-            ? `<details class="replace"><summary>Replace this document</summary><p class="hint">Send the whole document again, with every page.</p>${uploadForm({ base, csrf, key, label })}</details>`
+            ? `<details class="replace"${reasons.length > 0 ? " open" : ""}><summary>Replace this document</summary><p class="hint">Send the whole document again, with every page.</p>${uploadForm({ base, csrf, key, label })}</details>`
             : ""
     }</li>`;
 }
@@ -170,7 +198,7 @@ const UPLOAD_ERRORS = new Set([
  * can change; the page compares it with status.json to notice changes. Not
  * the row version: opening the page is bookkeeping and must not count.
  */
-export function portalStamp(row) {
+export function portalStamp(row, ownFiles = []) {
     return createHash("sha256")
         .update(
             JSON.stringify([
@@ -181,6 +209,10 @@ export function portalStamp(row) {
                 row.dispatcher_name ?? null,
                 row.dispatcher_email ?? null,
                 row.operations ?? null,
+                // The AI reader's flags on the carrier's current files.
+                ownFiles
+                    .map((file) => [file.item_key, file.flags ?? null])
+                    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
             ])
         )
         .digest("hex")
@@ -250,6 +282,17 @@ export function portalPage(
             i.state === "REUPLOAD_REQUESTED"
     );
     if (redo && complete && !cancelled) openOn.documents = true;
+    // A received file the AI reader flagged is shown too (owner 2026-11-19).
+    const flagged = ownFiles.some((file) => {
+        const item = (row.operations ?? []).find(
+            (i) => i.key === file.item_key
+        );
+        return (
+            item?.state === "RECEIVED" &&
+            readerReasons(file.flags, row, "").length > 0
+        );
+    });
+    if (flagged && complete && !cancelled) openOn.documents = true;
     const isOpen = (id) => byId[id].state === "current" || Boolean(openOn[id]);
     const docItems = (row.operations ?? []).filter((i) =>
         PORTAL_REQUIRED_SLOTS.includes(slotOf(i.key))
@@ -300,13 +343,15 @@ export function portalPage(
         payment: paid ? safe(paymentStatus) : "",
         documents: redo
             ? "Iron Wing asked for a new file"
-            : byId.documents.state === "done"
-              ? docsVerified
-                  ? "All verified ✓"
-                  : "Received · Iron Wing is reviewing"
-              : complete
-                ? "PDF, or photos of each page"
-                : "",
+            : flagged && !cancelled
+              ? "Please check a document"
+              : byId.documents.state === "done"
+                ? docsVerified
+                    ? "All verified ✓"
+                    : "Received · Iron Wing is reviewing"
+                : complete
+                  ? "PDF, or photos of each page"
+                  : "",
         loadBoard: safe(loadBoardSummary(lbItem, dispatcher)),
         about: questionnaire
             ? "Your preferences are saved"
@@ -323,7 +368,7 @@ ${model.phase === "allSet" ? `<section class="all-set" role="status">${icon.hour
 ${cancelled ? "<p class='notice'>This request is closed. Contact Iron Wing for help.</p>" : ""}
 ${redo && complete && !cancelled ? '<p class="notice" role="status">Iron Wing asked for a new file — see your documents below.</p>' : ""}
 ${message ? `<p class="notice" role="status">${safe(message)}</p>` : ""}
-<div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-stamp="${portalStamp(row)}">
+<div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-stamp="${portalStamp(row, ownFiles)}">
 <div class="updated-bar" role="status" hidden><p>Iron Wing updated your checklist.</p><button type="button">Refresh</button></div>
 <ol class="timeline">
 ${step(byId.sign, 1, { open: isOpen("sign"), subtitle: subtitles.sign, body: signBody })}

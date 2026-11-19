@@ -18,6 +18,12 @@
     --wait: #5a3b00;
     --wait-bg: #fff6e0;
     --wait-line: #f0c75e;
+    --warn: #9a3f07;
+    --warn-bg: #fff3ea;
+    --warn-line: #f39a5b;
+    --review: #24467a;
+    --review-bg: #eef3fb;
+    --review-line: #b8c7e0;
 }
 * {
     box-sizing: border-box;
@@ -296,7 +302,18 @@ button:hover {
 }
 button:disabled {
     opacity: 0.65;
+    cursor: not-allowed;
+}
+button[aria-busy="true"] {
     cursor: wait;
+}
+/* Upload is muted until a file is chosen (owner 2026-11-19). */
+.upload button[type="submit"]:disabled:not([aria-busy="true"]) {
+    opacity: 1;
+    background: #e4e8ef;
+    color: #7c879a;
+    border: 1px solid #cfd5df;
+    box-shadow: none;
 }
 .choose,
 .take-photos {
@@ -365,8 +382,12 @@ textarea:focus-visible,
     background: var(--ok-bg);
 }
 .doc-redo {
-    border: 1px solid var(--wait-line);
-    background: var(--wait-bg);
+    border: 1px solid var(--warn-line);
+    background: var(--warn-bg);
+}
+.doc-review {
+    border: 1px solid var(--review-line);
+    background: var(--review-bg);
 }
 .doc-optional.doc-needed {
     border: 1px dashed #c3cad5;
@@ -384,8 +405,12 @@ textarea:focus-visible,
 .doc-done .doc-icon {
     color: var(--ok);
 }
-.doc-redo .doc-icon {
-    color: #8a5a00;
+.doc-redo .doc-icon,
+.doc-redo .doc-status {
+    color: var(--warn);
+}
+.doc-review .doc-icon {
+    color: var(--review);
 }
 .doc h4 {
     margin: 0;

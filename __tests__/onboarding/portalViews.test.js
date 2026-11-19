@@ -400,3 +400,102 @@ test("the page fingerprint changes with what the carrier sees, not with bookkeep
     expect(portalStamp({ ...base, cancelled_at: at })).not.toBe(stamp);
     expect(portalStamp({ ...base, dispatcher_name: "Other" })).not.toBe(stamp);
 });
+
+describe("document card colours (owner 2026-11-19)", () => {
+    const docsRow = (operations) =>
+        row({
+            signature_state: "COMPLETED",
+            payment_state: "READY",
+            operations,
+        });
+    const card = (html, label) => {
+        const start = html.lastIndexOf("<li", html.indexOf(label));
+        return html.slice(start, html.indexOf("</li>", start));
+    };
+    const w9File = (flags) => ({
+        id: "d1",
+        item_key: "W9",
+        flags,
+        extraction_status: "DONE",
+    });
+
+    test("received but not verified is an in-review card, not green", () => {
+        const html = page(docsRow(received(initialOperations(), ["W9"])), {
+            ownFiles: [w9File([])],
+        });
+        expect(card(html, "W-9")).toMatch(/class="doc doc-review"/);
+        expect(card(html, "W-9")).toContain(
+            "Received — Iron Wing is reviewing it"
+        );
+    });
+
+    test("only verified is green", () => {
+        const ops = verifyOperationItem(
+            received(initialOperations(), ["W9"]),
+            "W9",
+            { actor: "s", at }
+        );
+        expect(card(page(docsRow(ops)), "W-9")).toMatch(/class="doc doc-done"/);
+    });
+
+    test("a file the reader flagged is orange, says why and opens Replace", () => {
+        const html = page(docsRow(received(initialOperations(), ["W9"])), {
+            ownFiles: [w9File(["name_mismatch", "signature_missing"])],
+        });
+        const w9 = card(html, "W-9");
+        expect(w9).toMatch(/class="doc doc-redo"/);
+        expect(w9).toContain(
+            "Please check: the company name doesn’t seem to match Example Freight LLC; the form doesn’t look signed."
+        );
+        expect(w9).toContain('<details class="replace" open>');
+    });
+
+    test("a flagged file opens the documents step even when everything was sent", () => {
+        const ops = received(initialOperations(), [
+            "W9",
+            "INSURANCE_COI",
+            "AUTHORITY_VERIFIED",
+        ]);
+        const quiet = page(docsRow(ops), { ownFiles: [w9File([])] });
+        const flagged = page(docsRow(ops), {
+            ownFiles: [w9File(["unreadable"])],
+        });
+        const docsOpen = (html) =>
+            /<details open>(?:(?!<\/details>)[\s\S])*?Documents sent|<details open>(?:(?!<\/details>)[\s\S])*?Upload your documents/.test(
+                html
+            );
+        expect(docsOpen(quiet)).toBe(false);
+        expect(docsOpen(flagged)).toBe(true);
+    });
+
+    test("verified stays green even if the reader had flagged it", () => {
+        const ops = verifyOperationItem(
+            received(initialOperations(), ["W9"]),
+            "W9",
+            { actor: "s", at }
+        );
+        const html = page(docsRow(ops), {
+            ownFiles: [w9File(["name_mismatch"])],
+        });
+        expect(card(html, "W-9")).toMatch(/class="doc doc-done"/);
+    });
+
+    test("an operator re-upload request is orange", () => {
+        const ops = initialOperations().map((i) =>
+            i.key === "W9"
+                ? { ...i, state: "REUPLOAD_REQUESTED", note: "Page 2 missing" }
+                : i
+        );
+        expect(card(page(docsRow(ops)), "W-9")).toMatch(/class="doc doc-redo"/);
+    });
+
+    test("the fingerprint follows the reader's flags", () => {
+        const r = docsRow(received(initialOperations(), ["W9"]));
+        expect(portalStamp(r, [w9File([])])).not.toBe(
+            portalStamp(r, [w9File(["name_mismatch"])])
+        );
+        expect(page(r, { ownFiles: [w9File(["unreadable"])] })).toContain(
+            `data-stamp="${portalStamp(r, [w9File(["unreadable"])])}"`
+        );
+    });
+});

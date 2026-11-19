@@ -172,3 +172,14 @@ describe("the page notices Iron Wing's changes (owner choice 2026-11-19: check e
         expect(navigations).toEqual(["/p/fake"]);
     });
 });
+
+test("the upload button is muted until a file is chosen", () => {
+    const form = w9();
+    expect(submitButton(form).disabled).toBe(true);
+    choose(form, [image("page1.jpg")]);
+    expect(submitButton(form).disabled).toBe(false);
+    form.querySelector(".photo-list .remove").click();
+    expect(submitButton(form).disabled).toBe(true);
+    choose(form, [new File(["%PDF"], "w9.pdf", { type: "application/pdf" })]);
+    expect(submitButton(form).disabled).toBe(false);
+});
