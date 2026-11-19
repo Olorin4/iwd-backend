@@ -43,9 +43,7 @@
                     "version": 2,
                     "source": "CARRIER",
                     "extraction": "DONE",
-                    "flags": [
-                        "name_mismatch"
-                    ]
+                    "flags": ["name_mismatch"]
                 }
             },
             {
@@ -62,6 +60,13 @@
                 "key": "FLEET_MAPPING",
                 "state": "PENDING",
                 "at": null
+            },
+            {
+                "key": "LOAD_BOARD_ACCESS",
+                "state": "VERIFIED",
+                "at": "2026-11-19T10:00:00.000Z",
+                "boards": ["DAT_ONE", "TRUCKSTOP"],
+                "boards_note": null
             }
         ]
     },

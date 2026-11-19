@@ -1045,3 +1045,77 @@ test("a re-upload request bumps the version and writes one status event", async 
         note: "Page 2 missing.",
     });
 });
+
+test("staff confirm load board access; the status carries the boards and the page shows it", async () => {
+    const row = await createRequest();
+    await expect(
+        act(row, "confirm_load_board_access", { boards: [] })
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    await expect(
+        act(row, "confirm_load_board_access", { boards: ["OTHER"] })
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    const events = await eventCount(row.id);
+    await act(row, "confirm_load_board_access", {
+        boards: ["TRUCKSTOP", "DAT_ONE"],
+    });
+    expect(await eventCount(row.id)).toBe(events + 1);
+    const item = (await refreshed(row.id)).operations.find(
+        (i) => i.key === "LOAD_BOARD_ACCESS"
+    );
+    expect(item).toMatchObject({
+        state: "VERIFIED",
+        boards: ["DAT_ONE", "TRUCKSTOP"],
+        actor: ACTOR,
+    });
+    const status = await db.onboardingEvent.findFirst({
+        where: { request_id: row.id, type: "onboarding.status.v1" },
+        orderBy: { version: "desc" },
+    });
+    expect(
+        status.payload.operations.items.find(
+            (i) => i.key === "LOAD_BOARD_ACCESS"
+        )
+    ).toMatchObject({
+        state: "VERIFIED",
+        boards: ["DAT_ONE", "TRUCKSTOP"],
+    });
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    expect(await (await browser(pathname(token))).text()).toContain(
+        "Iron Wing confirmed access to DAT One and Truckstop"
+    );
+    await act(row, "unverify_operation_item", { key: "LOAD_BOARD_ACCESS" });
+    expect(
+        (await refreshed(row.id)).operations.find(
+            (i) => i.key === "LOAD_BOARD_ACCESS"
+        ).state
+    ).toBe("PENDING");
+});
+
+test("requests already in flight get the load board item; READY ones keep their six items", async () => {
+    const { addLoadBoardItem } = await import(
+        "../../src/onboarding/loadBoardBackfill.js"
+    );
+    const strip = (ops) => ops.filter((i) => i.key !== "LOAD_BOARD_ACCESS");
+    const open = await createRequest();
+    await db.onboardingRequest.update({
+        where: { id: open.id },
+        data: { operations: strip(open.operations) },
+    });
+    const ready = await createRequest();
+    await db.onboardingRequest.update({
+        where: { id: ready.id },
+        data: { operations: strip(ready.operations), ready_at: DATE },
+    });
+    const before = await eventCount(open.id);
+    expect(await addLoadBoardItem(db)).toBe(1);
+    expect(await eventCount(open.id)).toBe(before + 1);
+    expect(
+        (await refreshed(open.id)).operations.find(
+            (i) => i.key === "LOAD_BOARD_ACCESS"
+        )
+    ).toMatchObject({ state: "PENDING" });
+    expect((await refreshed(ready.id)).operations).toHaveLength(6);
+    expect(await addLoadBoardItem(db)).toBe(0);
+});

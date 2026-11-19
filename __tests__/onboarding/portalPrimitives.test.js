@@ -22,6 +22,7 @@ import {
     requestReupload,
     unverifyOperationItem,
     verifyOperationItem,
+    confirmLoadBoardAccess,
 } from "../../src/onboarding/readiness.js";
 import {
     invitationEmail,
@@ -481,4 +482,51 @@ test("SignWell gets send_email false for a recipient that must get no email", as
         signwellRecipient({ id: "2", name: "Iw", email: "iw@example.test" })
             .send_email
     ).toBe(true);
+});
+
+test("load board access is a staff-confirmed checklist item that READY waits for", () => {
+    const items = initialOperations();
+    expect(items.find((i) => i.key === "LOAD_BOARD_ACCESS")).toMatchObject({
+        state: "PENDING",
+    });
+    expect(missingCarrierSlots(items)).not.toContain("LOAD_BOARD_ACCESS");
+    let all = items;
+    for (const item of items.filter((i) => i.key !== "LOAD_BOARD_ACCESS"))
+        all = verifyOperationItem(all, item.key, { actor: "s", at });
+    expect(operationsState(all)).toBe("PENDING");
+    const confirmed = confirmLoadBoardAccess(all, {
+        boards: ["DAT_ONE", "OTHER"],
+        note: "123Loadboard",
+        actor: "s",
+        at,
+    });
+    expect(confirmed.find((i) => i.key === "LOAD_BOARD_ACCESS")).toMatchObject({
+        state: "VERIFIED",
+        boards: ["DAT_ONE", "OTHER"],
+        note: "123Loadboard",
+    });
+    expect(operationsState(confirmed)).toBe("COMPLETE");
+    const undone = unverifyOperationItem(confirmed, "LOAD_BOARD_ACCESS", {
+        actor: "s",
+        at,
+    });
+    const reopened = undone.find((i) => i.key === "LOAD_BOARD_ACCESS");
+    expect(reopened.state).toBe("PENDING");
+    expect(reopened.boards).toBeUndefined();
+    expect(() =>
+        confirmLoadBoardAccess(all, { boards: [], actor: "s", at })
+    ).toThrow();
+    expect(() =>
+        confirmLoadBoardAccess(all, { boards: ["OTHER"], actor: "s", at })
+    ).toThrow();
+});
+
+test("requests from before load board tracking stay complete with their six items", () => {
+    let legacy = initialOperations().filter(
+        (i) => i.key !== "LOAD_BOARD_ACCESS"
+    );
+    for (const item of legacy)
+        legacy = verifyOperationItem(legacy, item.key, { actor: "s", at });
+    expect(legacy).toHaveLength(6);
+    expect(operationsState(legacy)).toBe("COMPLETE");
 });

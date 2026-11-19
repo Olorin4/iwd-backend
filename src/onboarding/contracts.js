@@ -160,6 +160,7 @@ export const OPERATION_KEYS = [
     "NOT_FACTORING",
     "CARRIER_PROFILE",
     "FLEET_MAPPING",
+    "LOAD_BOARD_ACCESS",
 ];
 export const OPERATION_ITEM_STATES = [
     "PENDING",
@@ -224,6 +225,17 @@ export const onboardingStatusV1 = z
                             // checked).
                             state: z.enum(OPERATION_ITEM_STATES),
                             at: nullableIso,
+                            // Additive (2026-11-19): LOAD_BOARD_ACCESS only.
+                            boards: z
+                                .array(
+                                    z.enum(["DAT_ONE", "TRUCKSTOP", "OTHER"])
+                                )
+                                .optional(),
+                            boards_note: z
+                                .string()
+                                .max(100)
+                                .nullable()
+                                .optional(),
                             document: z
                                 .object({
                                     version: z.number().int().positive(),

@@ -158,7 +158,7 @@ describe("blocking priority and recovery actions", () => {
 describe("operations checklist", () => {
     const at = new Date("2026-11-19T09:40:00Z");
     const actor = { user_id: "u1", email: "closer@example.test" };
-    it("starts with six pending items and completes when each slot is verified", () => {
+    it("starts with seven pending items and completes when each slot is verified", () => {
         let items = initialOperations();
         expect(items.map((i) => i.key)).toEqual([
             "AUTHORITY_VERIFIED",
@@ -167,6 +167,7 @@ describe("operations checklist", () => {
             "FACTORING_NOA",
             "CARRIER_PROFILE",
             "FLEET_MAPPING",
+            "LOAD_BOARD_ACCESS",
         ]);
         expect(operationsState(items)).toBe("PENDING");
         for (const key of [
@@ -175,6 +176,7 @@ describe("operations checklist", () => {
             "W9",
             "NOT_FACTORING",
             "CARRIER_PROFILE",
+            "LOAD_BOARD_ACCESS",
         ])
             items = verifyOperationItem(items, key, { actor, at });
         expect(operationsState(items)).toBe("PENDING");
@@ -274,6 +276,7 @@ describe("R15 checklist RECEIVED", () => {
             "FACTORING_NOA",
             "CARRIER_PROFILE",
             "FLEET_MAPPING",
+            "LOAD_BOARD_ACCESS",
         ])
             items = verifyOperationItem(items, key, { actor, at });
         expect(operationsState(items)).toBe("PENDING");
@@ -303,7 +306,7 @@ describe("R15 checklist RECEIVED", () => {
         );
         expect(items.map((i) => i.key)).toContain("NOT_FACTORING");
         expect(items.map((i) => i.key)).not.toContain("FACTORING_NOA");
-        expect(items).toHaveLength(6);
+        expect(items).toHaveLength(7);
     });
 
     it("missingCarrierSlots lists only PENDING carrier-facing slots, never FLEET_MAPPING", () => {

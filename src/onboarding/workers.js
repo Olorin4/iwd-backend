@@ -1,6 +1,7 @@
 import { portalReminderIds, sendDuePortalReminder } from "./portalFlow.js";
 import { readPendingDocuments } from "./reader/worker.js";
 import { purgeDue, retentionDay } from "./retention.js";
+import { addLoadBoardItem } from "./loadBoardBackfill.js";
 import { deliverPending } from "./outbox.js";
 import { REPLAY_RECEIPT_TTL_MS, pruneReplayReceipts } from "./store.js";
 import {
@@ -102,6 +103,10 @@ export function startOnboardingWorkers(deps) {
                 )
             )
         );
+    // Once per start: requests in progress get the load board checklist item.
+    addLoadBoardItem(deps.db, deps.now()).catch(() =>
+        deps.logger?.error?.({ code: "onboarding_load_board_backfill_failed" })
+    );
     // Retention applies to every onboarding request, with or without the
     // portal switch (owner ruling: 90 days abandoned, 3 years completed).
     let lastPurgeDay;

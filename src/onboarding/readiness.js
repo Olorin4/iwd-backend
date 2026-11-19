@@ -7,7 +7,11 @@ export const OPERATION_SLOTS = [
     "FACTORING", // satisfied by FACTORING_NOA or NOT_FACTORING
     "CARRIER_PROFILE",
     "FLEET_MAPPING",
+    // Staff-only: Iron Wing confirmed the carrier's load board seat(s) for the
+    // assigned dispatcher (owner ruling 2026-11-19). Required for READY.
+    "LOAD_BOARD_ACCESS",
 ];
+export const LOAD_BOARDS = ["DAT_ONE", "TRUCKSTOP", "OTHER"];
 const FACTORING_KEYS = ["FACTORING_NOA", "NOT_FACTORING"];
 
 export const slotOf = (key) =>
@@ -81,9 +85,48 @@ export function requestReupload(items, key, { actor, note, at }) {
     );
 }
 
+/**
+ * Confirms the carrier's load board access: boards is a non-empty subset of
+ * LOAD_BOARDS; OTHER needs a short note naming the board. Returns a new array.
+ */
+export function confirmLoadBoardAccess(
+    items,
+    { boards, note = null, actor, at }
+) {
+    const chosen = [...new Set(boards ?? [])];
+    if (!chosen.length || chosen.some((b) => !LOAD_BOARDS.includes(b)))
+        throw new Error("invalid_load_boards");
+    const text = typeof note === "string" ? note.trim() : "";
+    if (chosen.includes("OTHER") && !text)
+        throw new Error("load_board_note_required");
+    const entry = {
+        key: "LOAD_BOARD_ACCESS",
+        state: "VERIFIED",
+        at: at.toISOString(),
+        actor,
+        note: text || null,
+        boards: LOAD_BOARDS.filter((b) => chosen.includes(b)),
+    };
+    return items.some((item) => item.key === "LOAD_BOARD_ACCESS")
+        ? items.map((item) => (item.key === "LOAD_BOARD_ACCESS" ? entry : item))
+        : [...items, entry];
+}
+
 export function unverifyOperationItem(items, key, { actor, at }) {
     const current = items.find((item) => slotOf(item.key) === slotOf(key));
     if (current?.state !== "VERIFIED") return null;
+    if (current.key === "LOAD_BOARD_ACCESS")
+        return items.map((item) =>
+            item === current
+                ? {
+                      key: item.key,
+                      state: "PENDING",
+                      at: at.toISOString(),
+                      actor,
+                      note: null,
+                  }
+                : item
+        );
     return items.map((item) =>
         item === current
             ? {
@@ -117,11 +160,21 @@ export const missingCarrierSlots = (items) =>
             )
     );
 
-export const operationsState = (items) =>
-    items.length === OPERATION_SLOTS.length &&
-    items.every((i) => i.state === "VERIFIED")
+// Every required slot present and VERIFIED. Requests created before load
+// board tracking (no LOAD_BOARD_ACCESS item at all) keep their six slots.
+export const operationsState = (items) => {
+    const list = items ?? [];
+    const required = OPERATION_SLOTS.filter(
+        (slot) =>
+            slot !== "LOAD_BOARD_ACCESS" ||
+            list.some((i) => i.key === "LOAD_BOARD_ACCESS")
+    );
+    return required.every((slot) =>
+        list.some((i) => slotOf(i.key) === slot && i.state === "VERIFIED")
+    ) && list.every((i) => i.state === "VERIFIED")
         ? "COMPLETE"
         : "PENDING";
+};
 
 const CLOSED_SIGNATURE = ["DECLINED", "EXPIRED", "CANCELLED"];
 const PROVISIONED = ["SUCCEEDED", "MANUAL_CONFIRMED"];
@@ -242,6 +295,9 @@ export function buildStatus(
                 key: i.key,
                 state: i.state,
                 at: i.at ?? null,
+                ...(i.key === "LOAD_BOARD_ACCESS" && i.boards
+                    ? { boards: i.boards, boards_note: i.note ?? null }
+                    : {}),
                 ...(row.portal_flow
                     ? {
                           document:

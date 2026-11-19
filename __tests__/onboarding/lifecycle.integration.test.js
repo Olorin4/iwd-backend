@@ -148,6 +148,10 @@ it("runs end to end: manual provisioning, confirm, checklist → READY and Clien
         expect((await action("verify_operation_item", { key })).status).toBe(
             200
         );
+    expect(
+        (await action("confirm_load_board_access", { boards: ["DAT_ONE"] }))
+            .status
+    ).toBe(200);
     expect((await app.call("GET", `/requests/${KEY}`)).json.readiness).toBe(
         "IN_PROGRESS"
     );
@@ -180,8 +184,9 @@ it("runs end to end: manual provisioning, confirm, checklist → READY and Clien
     const audits = await prisma.onboardingEvent.findMany({
         where: { type: { startsWith: "audit.action." } },
     });
-    // confirm + six checklist items (the 422 never reached a request).
-    expect(audits.length).toBe(7);
+    // confirm + six checklist items + load board access (the 422 never
+    // reached a request).
+    expect(audits.length).toBe(8);
     expect(audits.every((a) => a.payload.actor.email === ACTOR.email)).toBe(
         true
     );

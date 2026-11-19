@@ -84,6 +84,24 @@ ${
 }</li>`;
 }
 
+const BOARD_NAMES = { DAT_ONE: "DAT One", TRUCKSTOP: "Truckstop" };
+
+// Once Iron Wing confirms access the step shows that instead of the guide.
+function loadBoardAccess(row) {
+    const item = row.operations.find(
+        (entry) => entry.key === "LOAD_BOARD_ACCESS"
+    );
+    if (item?.state !== "VERIFIED") return loadBoardInstructions;
+    const names = (item.boards ?? []).map((board) =>
+        board === "OTHER" ? item.note || "your load board" : BOARD_NAMES[board]
+    );
+    const list =
+        names.length > 1
+            ? names.slice(0, -1).join(", ") + " and " + names.at(-1)
+            : (names[0] ?? "your load board");
+    return `<p class="state success">Iron Wing confirmed access to ${safe(list)} ✓</p>`;
+}
+
 export function portalPage(
     row,
     {
@@ -165,7 +183,7 @@ ${
           ).join("")}</ul>`
 }</section>
 <section class="card"><h2><span class="step" aria-hidden="true">④</span> Set up load board access</h2>
-${cancelled ? "<p>This request is closed.</p>" : locked ? "<p>Available after you sign.</p>" : loadBoardInstructions}</section>
+${cancelled ? "<p>This request is closed.</p>" : locked ? "<p>Available after you sign.</p>" : loadBoardAccess(row)}</section>
 <section class="card"><h2><span class="step" aria-hidden="true">⑤</span> About your operation <small>Optional</small></h2>
 ${locked ? "<p>Available after you sign.</p>" : `<a href="${base}/questionnaire">${questionnaire ? "Edit your preferences" : "Answer a few questions"}</a>`}</section>
 </div>`

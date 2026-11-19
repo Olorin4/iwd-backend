@@ -3,6 +3,8 @@ import { OPERATION_KEYS, actorSchema } from "./contracts.js";
 import { OnboardingError, findRequestByKey } from "./requests.js";
 import { currentStatus, transition, writeAuditEvent } from "./store.js";
 import {
+    LOAD_BOARDS,
+    confirmLoadBoardAccess,
     markOperationItemReceived,
     requestReupload,
     unverifyOperationItem,
@@ -59,6 +61,18 @@ const SCHEMAS = {
         .object({ ...base, key: z.enum(OPERATION_KEYS) })
         .strict(),
     resend_portal_link: z.object(base).strict(),
+    // Iron Wing confirmed the dispatcher's load board seat(s) (staff only).
+    confirm_load_board_access: z
+        .object({
+            ...base,
+            boards: z.array(z.enum(LOAD_BOARDS)).min(1).max(3),
+            note: z.string().trim().max(100).nullable().optional(),
+        })
+        .strict()
+        .refine((v) => !v.boards.includes("OTHER") || Boolean(v.note), {
+            message: "note_required_for_other",
+            path: ["note"],
+        }),
     // R15: the document arrived (PENDING → RECEIVED); verify still follows.
     mark_operation_item_received: itemSchema,
     // R15: pause or resume the documents reminders (OWNER only in Outreach).
@@ -195,6 +209,23 @@ async function perform(deps, row, action, input) {
                 { now: deps.now }
             );
             return "item_verified";
+        }
+        case "confirm_load_board_access": {
+            const now = deps.now();
+            await transition(
+                deps.db,
+                row.id,
+                (r) => ({
+                    operations: confirmLoadBoardAccess(r.operations, {
+                        boards: input.boards,
+                        note: input.note ?? null,
+                        actor: input.actor,
+                        at: now,
+                    }),
+                }),
+                { now: deps.now }
+            );
+            return "load_board_access_confirmed";
         }
         case "mark_operation_item_received": {
             const now = deps.now();
