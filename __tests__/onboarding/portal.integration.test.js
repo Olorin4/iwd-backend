@@ -1550,3 +1550,57 @@ test("after READY a re-upload email goes out even when both reminders were used,
     ).toBe(false);
     expect(sent).not.toHaveBeenCalled();
 });
+
+test("Iron Wing returning from SignWell sees a neutral page, not the carrier's, and the invitation goes out", async () => {
+    const key = randomUUID();
+    const { row } = await putRequest(
+        deps,
+        key,
+        requestBody({ idempotency_key: key })
+    );
+    await approveTestBundle(db, deps.documentStore, {
+        makePacket: makeSyntheticPacket,
+        layout: syntheticLayout(),
+    });
+    await deps.onRequestCreated(row);
+    await queue.drain();
+    const stored = await db.portalToken.findFirst({
+        where: { request_id: row.id },
+    });
+    const { portalUrl } = await import("../../src/onboarding/portal/tokens.js");
+    const base = new URL(portalUrl(config, stored.id)).pathname;
+    const envelope = await db.signatureEnvelope.findFirst({
+        where: { request_id: row.id },
+    });
+    sent.mockClear();
+    // Iron Wing signs; no webhook or reconcile has run yet (production
+    // 2026-11-19): SignWell's single redirect_url lands here.
+    signature.sign(envelope.provider_document_id, "2");
+    let response = await browser(base + "?signature=returned");
+    expect(response.status).toBe(200);
+    let text = await response.text();
+    expect(text).toContain("Signature recorded");
+    expect(text).not.toContain('class="timeline"');
+    await queue.drain();
+    const after = await refreshed(row.id);
+    expect(after.signature_waiting_for).toBe("CARRIER");
+    expect(after.portal_last_opened_at).toBeNull();
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(sent.mock.calls[0][0].text).toContain(PORTAL_BASE_URL + base);
+
+    // The carrier leaves for SignWell through /sign and comes back with
+    // the cookie it set: the carrier's own page.
+    response = await browser(base + "/sign");
+    expect(response.status).toBe(303);
+    const cookie = response.headers.get("set-cookie");
+    expect(cookie).toMatch(/HttpOnly/i);
+    expect(cookie).toMatch(/SameSite=Lax/i);
+    expect(cookie).toContain("Path=" + base);
+    signature.sign(envelope.provider_document_id, "1");
+    response = await browser(base + "?signature=returned", {
+        headers: { Cookie: cookie.split(";")[0] },
+    });
+    text = await response.text();
+    expect(text).toContain('class="timeline"');
+    expect(text).not.toContain("Signature recorded");
+});

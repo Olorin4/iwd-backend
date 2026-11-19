@@ -473,8 +473,8 @@ async function deliverEnvelope(deps, { envelope, bundle, row }) {
                 message: copy.carrier.message,
                 requester_name: REQUESTER_NAME,
                 requester_email: deps.config.signature.requesterEmail ?? null,
-                // The carrier signs last, so this redirect reaches the carrier;
-                // the dispatcher passing through it sees a neutral waiting page.
+                // One redirect for both signers: the portal shows the carrier
+                // their page (cookie set by /sign) and Iron Wing a neutral one.
                 redirect_url: row.portal_flow
                     ? (await activePortalUrl(deps, row.id)) +
                       "?signature=returned"
@@ -790,11 +790,41 @@ export async function handleSignwellWebhook(deps, body) {
     });
     if (count !== 1) {
         log(deps, "onboarding_signwell_event_throttled");
+        // SignWell treats 202 as delivered and never resends it, so a
+        // throttled event (e.g. Iron Wing's signature seconds after a
+        // "viewed") is checked once more when the window closes.
+        recheckLater(deps, envelope, now);
         return 202;
     }
     if (!(await recordReceipt(deps.db, "signwell", receiptKey))) return 200;
     await reconcileEnvelope(deps, envelope.id);
     return 200;
+}
+
+// Envelopes with a re-check already scheduled (one per window, per process).
+const pendingRechecks = new Set();
+
+function recheckLater(deps, envelope, now) {
+    if (!deps.later || pendingRechecks.has(envelope.id)) return;
+    pendingRechecks.add(envelope.id);
+    const last = envelope.last_webhook_fetch_at?.getTime() ?? now.getTime();
+    const wait = Math.max(
+        1000,
+        Math.min(
+            WEBHOOK_REFETCH_INTERVAL_MS + 1000,
+            last + WEBHOOK_REFETCH_INTERVAL_MS + 1000 - now.getTime()
+        )
+    );
+    deps.later(wait, async () => {
+        pendingRechecks.delete(envelope.id);
+        await reconcileEnvelope(deps, envelope.id);
+    });
+}
+
+/** Re-reads the request's open packet from the provider now. */
+export async function reconcileActiveEnvelope(deps, requestId) {
+    const envelope = await activeEnvelope(deps.db, requestId);
+    return envelope ? reconcileEnvelope(deps, envelope.id) : null;
 }
 
 /** Envelopes the reconcile job polls. */

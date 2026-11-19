@@ -13,7 +13,10 @@ import {
 } from "../files/documents.js";
 import { handleContinue } from "../paymentFlow.js";
 import { saveQuestionnaire } from "../questionnaire.js";
-import { carrierSigningUrl } from "../signatureFlow.js";
+import {
+    carrierSigningUrl,
+    reconcileActiveEnvelope,
+} from "../signatureFlow.js";
 import { transition } from "../store.js";
 import { csrfToken, validCsrf } from "./csrf.js";
 import { hostGuard } from "./hostGuard.js";
@@ -27,6 +30,15 @@ import {
 
 const FILES = path.resolve("src/onboarding/portal/static");
 const OPEN_THROTTLE = 5 * 60 * 1000;
+// Set when the carrier leaves for SignWell through /sign. SignWell has one
+// redirect_url for both signers, so a return without it is Iron Wing's
+// countersigner, who must not land on the carrier's page.
+const SIGNING_COOKIE = "iwd_carrier_signing";
+const SIGNING_COOKIE_MS = 7 * 86400000;
+const hasSigningCookie = (req) =>
+    (req.get("Cookie") ?? "")
+        .split(";")
+        .some((c) => c.trim() === SIGNING_COOKIE + "=1");
 const CSP =
     "default-src 'self'; img-src 'self' data: blob:; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'none'";
 
@@ -246,6 +258,21 @@ export function createPortalRouter(
         "/",
         asyncRoute(async (req, res) => {
             const { deps, row } = res.locals.portal;
+            if (req.query.signature === "returned" && !hasSigningCookie(req)) {
+                // Record the signature now (and send the carrier's
+                // invitation) rather than waiting for a webhook or the poll.
+                await reconcileActiveEnvelope(deps, row.id).catch(() =>
+                    deps.logger?.error?.({
+                        code: "onboarding_return_reconcile_failed",
+                    })
+                );
+                return res.send(
+                    messagePage(
+                        "Signature recorded",
+                        "Thank you. Your signature is recorded and the carrier now receives their onboarding link by email. You can close this tab."
+                    )
+                );
+            }
             const now = deps.now();
             if (
                 !row.portal_last_opened_at ||
@@ -271,7 +298,16 @@ export function createPortalRouter(
         asyncRoute(async (req, res) => {
             const { deps, row } = res.locals.portal;
             const result = await carrierSigningUrl(deps, row.id);
-            if (result.url) return res.redirect(303, result.url);
+            if (result.url) {
+                res.cookie(SIGNING_COOKIE, "1", {
+                    httpOnly: true,
+                    secure: true,
+                    sameSite: "lax",
+                    path: res.locals.portal.path,
+                    maxAge: SIGNING_COOKIE_MS,
+                });
+                return res.redirect(303, result.url);
+            }
             // /sign may just have reconciled the completed packet: render the
             // fresh state (download link, unlocked steps), not the stale row.
             if (result.error === "completed")

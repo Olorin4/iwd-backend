@@ -51,6 +51,21 @@ export function createOnboardingDeps(
                         })
                     )
             ),
+        // Delayed work (e.g. re-checking a throttled webhook); never keeps
+        // the process alive. Errors are logged by code only.
+        later: (ms, fn) =>
+            setTimeout(
+                () =>
+                    Promise.resolve()
+                        .then(fn)
+                        .catch((error) =>
+                            deps.logger?.error({
+                                code: "onboarding_async_failed",
+                                reason: error?.code ?? "error",
+                            })
+                        ),
+                ms
+            ).unref?.(),
         recordReceipt: (provider, key) => recordReceipt(db, provider, key),
         onRequestCreated: (row) => sendPacket(deps, row.id),
         // R15: the combined completion email goes out even when the payment

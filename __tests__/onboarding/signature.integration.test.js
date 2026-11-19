@@ -28,9 +28,11 @@ serializeSuite();
 
 const KEY = fixture("onboarding.request.v1").idempotency_key;
 let app, deps, config, queue, signature;
+let delayed;
 
 beforeEach(async () => {
     await cleanTables(prisma);
+    delayed = [];
     const dir = tempDir();
     config = testConfig(dir);
     queue = taskQueue();
@@ -41,6 +43,7 @@ beforeEach(async () => {
         sendEmail: jest.fn(),
         signature,
         schedule: queue.schedule,
+        later: (ms, fn) => delayed.push({ ms, fn }),
         onSignatureCompleted: jest.fn(),
     });
     await approveTestBundle(prisma, deps.documentStore, {
@@ -926,4 +929,28 @@ describe("GET /requests/:key/iron-wing-signing-url (R14)", () => {
         expect(ok.status).toBe(200);
         expect(logged()).not.toContain(ok.json.url);
     });
+});
+
+it("a throttled webhook is checked again when the window closes, so Iron Wing's signature is not lost", async () => {
+    await put();
+    const [envelope] = await envelopes();
+    const id = envelope.provider_document_id;
+    // First event of the signing session: SignWell does not show the
+    // signature yet (production 2026-11-19, 09:17:10).
+    expect((await webhook("document_viewed", id)).status).toBe(200);
+    await queue.drain();
+    expect((await request()).signature_waiting_for).toBe("IRON_WING");
+    // The signature's own event arrives inside the 30 s window.
+    signature.sign(id, "2");
+    expect((await webhook("document_signed", id, nowS() + 1)).status).toBe(202);
+    expect((await request()).signature_waiting_for).toBe("IRON_WING");
+    expect(delayed).toHaveLength(1);
+    expect(delayed[0].ms).toBeGreaterThan(0);
+    expect(delayed[0].ms).toBeLessThanOrEqual(31000);
+    // A second throttled event in the same window adds no second check.
+    expect((await webhook("document_viewed", id, nowS() + 2)).status).toBe(202);
+    expect(delayed).toHaveLength(1);
+    await delayed[0].fn();
+    await queue.drain();
+    expect((await request()).signature_waiting_for).toBe("CARRIER");
 });
