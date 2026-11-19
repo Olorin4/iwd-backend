@@ -1,14 +1,13 @@
 import { deriveReadiness, facetsOf } from "./readiness.js";
 import { applyFacetChange, lockRequest } from "./store.js";
 
-// Owner ruling 2026-11-19: factoring is optional for portal onboardings. A
-// portal request whose only gap was factoring is READY under the new rule;
-// this applies the READY side effects once (ready_at, purge date, status
-// event, Client ACTIVE). No email is sent. Email-flow requests are untouched.
-export async function readyAfterFactoringChange(db, now = new Date()) {
+// Owner rulings 2026-11-19: factoring is optional for portal onboardings, and
+// Kelevo set-up is no longer part of READY. An open request that is READY
+// under the current rule but has no ready_at gets the READY side effects once
+// (ready_at, purge date, status event, Client ACTIVE). No email is sent.
+export async function readyAfterRuleChange(db, now = new Date()) {
     const candidates = await db.onboardingRequest.findMany({
         where: {
-            portal_flow: true,
             ready_at: null,
             cancelled_at: null,
             purged_at: null,
@@ -20,7 +19,7 @@ export async function readyAfterFactoringChange(db, now = new Date()) {
         const done = await db.$transaction(async (tx) => {
             const row = await lockRequest(tx, id);
             if (
-                !row?.portal_flow ||
+                !row ||
                 row.ready_at ||
                 row.cancelled_at ||
                 row.purged_at ||

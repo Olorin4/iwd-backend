@@ -35,13 +35,14 @@ describe("deriveReadiness over every facet combination", () => {
     it(`covers ${all.length} combinations`, () =>
         expect(all.length).toBe(2 * 10 * 5 * 6 * 2 * 2));
 
-    it("READY exactly when all four facets are complete and the request is open", () => {
+    // Owner ruling 2026-11-19: Kelevo set-up is not part of READY until the
+    // Kelevo agency-client API (PRD-0020) exists.
+    it("READY exactly when signature, payment and operations are complete and the request is open, whatever the Kelevo state", () => {
         for (const f of all) {
             const ready =
                 !f.cancelled &&
                 f.signature === "COMPLETED" &&
                 f.payment === "READY" &&
-                ["SUCCEEDED", "MANUAL_CONFIRMED"].includes(f.provisioning) &&
                 f.operations === "COMPLETE";
             expect(deriveReadiness(f).readiness === "READY").toBe(ready);
         }
@@ -56,7 +57,7 @@ describe("deriveReadiness over every facet combination", () => {
         }
     });
 
-    it("BLOCKED exactly when an open request has a failed, unknown or manual facet", () => {
+    it("BLOCKED exactly when an open request has a failed or unknown signature or payment (never Kelevo)", () => {
         for (const f of all) {
             const { readiness } = deriveReadiness(f);
             if (readiness === "CLOSED" || readiness === "READY") continue;
@@ -64,8 +65,7 @@ describe("deriveReadiness over every facet combination", () => {
                 ["UNKNOWN", "ERROR"].includes(f.signature) ||
                 (["NOT_SENT", "SENT", "VIEWED"].includes(f.signature) &&
                     !!f.signatureCode) ||
-                f.payment === "FAILED" ||
-                ["FAILED", "MANUAL_REQUIRED"].includes(f.provisioning);
+                f.payment === "FAILED";
             expect(readiness).toBe(blocked ? "BLOCKED" : "IN_PROGRESS");
         }
     });
@@ -114,19 +114,6 @@ describe("blocking priority and recovery actions", () => {
             { payment: "FAILED", paymentCode: "checkout_expired" },
             "checkout_expired",
             "resend_payment_link",
-        ],
-        [
-            { provisioning: "FAILED" },
-            "provisioning_failed",
-            "retry_provisioning",
-        ],
-        [
-            {
-                provisioning: "MANUAL_REQUIRED",
-                provisioningCode: "kelevo_api_unavailable",
-            },
-            "kelevo_api_unavailable",
-            "confirm_provisioning",
         ],
         [
             { signature: "UNKNOWN", payment: "FAILED" },

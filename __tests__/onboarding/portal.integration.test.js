@@ -1297,8 +1297,8 @@ test("READY portal request stays READY after a factoring re-upload request", asy
 });
 
 test("backfill readies a portal request whose only gap was factoring; email flow untouched", async () => {
-    const { readyAfterFactoringChange } = await import(
-        "../../src/onboarding/factoringBackfill.js"
+    const { readyAfterRuleChange } = await import(
+        "../../src/onboarding/readyBackfill.js"
     );
     const portal = await createRequest({
         payment_state: "READY",
@@ -1315,7 +1315,7 @@ test("backfill readies a portal request whose only gap was factoring; email flow
             data: { operations: readyOperations(row) },
         });
     const events = await eventCount(portal.id);
-    expect(await readyAfterFactoringChange(db, DATE)).toBe(1);
+    expect(await readyAfterRuleChange(db, DATE)).toBe(1);
     const readied = await refreshed(portal.id);
     expect(readied.ready_at).toEqual(DATE);
     expect(await eventCount(portal.id)).toBe(events + 1);
@@ -1324,7 +1324,49 @@ test("backfill readies a portal request whose only gap was factoring; email flow
             .status
     ).toBe("ACTIVE");
     expect((await refreshed(email.id)).ready_at).toBeNull();
-    expect(await readyAfterFactoringChange(db, DATE)).toBe(0);
+    expect(await readyAfterRuleChange(db, DATE)).toBe(0);
+});
+
+test("backfill readies requests that waited only on Kelevo set-up, in either flow", async () => {
+    const { readyAfterRuleChange } = await import(
+        "../../src/onboarding/readyBackfill.js"
+    );
+    const portal = await createRequest({
+        payment_state: "READY",
+        provisioning_state: "MANUAL_REQUIRED",
+        provisioning_code: "manual_provisioning_required",
+    });
+    const email = await createRequest({
+        portal_flow: false,
+        payment_state: "READY",
+        provisioning_state: "MANUAL_REQUIRED",
+    });
+    const cancelled = await createRequest({
+        payment_state: "READY",
+        provisioning_state: "MANUAL_REQUIRED",
+        cancelled_at: DATE,
+    });
+    await db.onboardingRequest.update({
+        where: { id: portal.id },
+        data: { operations: readyOperations(portal) },
+    });
+    for (const row of [email, cancelled])
+        await db.onboardingRequest.update({
+            where: { id: row.id },
+            data: { operations: readyOperations(row, { factoring: true }) },
+        });
+    expect(await readyAfterRuleChange(db, DATE)).toBe(2);
+    for (const row of [portal, email]) {
+        const readied = await refreshed(row.id);
+        expect(readied.ready_at).toEqual(DATE);
+        expect(readied.provisioning_state).toBe("MANUAL_REQUIRED");
+        expect(
+            (await db.client.findUnique({ where: { id: readied.client_id } }))
+                .status
+        ).toBe("ACTIVE");
+    }
+    expect((await refreshed(cancelled.id)).ready_at).toBeNull();
+    expect(await readyAfterRuleChange(db, DATE)).toBe(0);
 });
 
 test("a board added on the portal after confirmation is recorded and the item stays VERIFIED", async () => {

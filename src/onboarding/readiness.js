@@ -261,10 +261,10 @@ export const operationsState = (items, { portal = false } = {}) => {
 };
 
 const CLOSED_SIGNATURE = ["DECLINED", "EXPIRED", "CANCELLED"];
-const PROVISIONED = ["SUCCEEDED", "MANUAL_CONFIRMED"];
 
 /**
- * Derives readiness and the blocking reason from the four facets.
+ * Derives readiness and the blocking reason from the facets (Kelevo set-up
+ * is tracked but, by owner ruling 2026-11-19, neither required nor blocking).
  * input: { cancelled, signature, signatureCode, payment, paymentCode,
  *          provisioning, provisioningCode, operations: "PENDING"|"COMPLETE" }
  * CLOSED by a declined/expired/cancelled packet still names reissue_packet as
@@ -280,10 +280,12 @@ export function deriveReadiness(f) {
                 action: "reissue_packet",
             },
         };
+    // Owner ruling 2026-11-19: Kelevo set-up (provisioning) is not part of
+    // READY and never blocks, until the Kelevo agency-client API (PRD-0020)
+    // exists. Its state is still tracked and can be confirmed by hand.
     if (
         f.signature === "COMPLETED" &&
         f.payment === "READY" &&
-        PROVISIONED.includes(f.provisioning) &&
         f.operations === "COMPLETE"
     )
         return { readiness: "READY", blocked: null };
@@ -305,16 +307,6 @@ export function deriveReadiness(f) {
     if (f.completionEmailCode) return block(f.completionEmailCode, "reconcile");
     if (f.payment === "FAILED")
         return block(f.paymentCode || "payment_failed", "resend_payment_link");
-    if (f.provisioning === "FAILED")
-        return block(
-            f.provisioningCode || "provisioning_failed",
-            "retry_provisioning"
-        );
-    if (f.provisioning === "MANUAL_REQUIRED")
-        return block(
-            f.provisioningCode || "manual_provisioning_required",
-            "confirm_provisioning"
-        );
     return { readiness: "IN_PROGRESS", blocked: null };
 }
 

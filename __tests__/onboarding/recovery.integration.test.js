@@ -149,7 +149,7 @@ describe.each([
         });
     });
 
-    it("(c) provisioning PENDING > 10 min → FAILED provisioning_stale, then retry works", async () => {
+    it("(c) provisioning PENDING > 10 min → FAILED provisioning_stale (not blocking), then retry works", async () => {
         await sentRequest();
         await setRow({
             signature_state: "COMPLETED",
@@ -165,11 +165,10 @@ describe.each([
             provisioning_state: "FAILED",
             provisioning_code: "provisioning_stale",
         });
+        // Owner ruling 2026-11-19: Kelevo set-up never blocks the onboarding.
         const status = (await app.call("GET", `/requests/${KEY}`)).json;
-        expect(status.blocked).toEqual({
-            code: "provisioning_stale",
-            action: "retry_provisioning",
-        });
+        expect(status.blocked).toBeNull();
+        expect(status.provisioning.state).toBe("FAILED");
         const retried = await app.call(
             "POST",
             `/requests/${KEY}/actions/retry_provisioning`,

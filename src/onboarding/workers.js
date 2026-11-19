@@ -2,7 +2,7 @@ import { portalReminderIds, sendDuePortalReminder } from "./portalFlow.js";
 import { readPendingDocuments } from "./reader/worker.js";
 import { purgeDue, retentionDay } from "./retention.js";
 import { addLoadBoardItem } from "./loadBoardBackfill.js";
-import { readyAfterFactoringChange } from "./factoringBackfill.js";
+import { readyAfterRuleChange } from "./readyBackfill.js";
 import { deliverPending } from "./outbox.js";
 import { REPLAY_RECEIPT_TTL_MS, pruneReplayReceipts } from "./store.js";
 import {
@@ -124,10 +124,11 @@ export function startOnboardingWorkers(deps) {
     addLoadBoardItem(deps.db, deps.now()).catch(() =>
         deps.logger?.error?.({ code: "onboarding_load_board_backfill_failed" })
     );
-    // Once per start: portal requests that are READY now that factoring is
-    // optional get their READY side effects (owner ruling 2026-11-19).
-    readyAfterFactoringChange(deps.db, deps.now()).catch(() =>
-        deps.logger?.error?.({ code: "onboarding_factoring_backfill_failed" })
+    // Once per start: requests that are READY under the current rule (factoring
+    // optional on the portal, Kelevo set-up not required; owner rulings
+    // 2026-11-19) get their READY side effects.
+    readyAfterRuleChange(deps.db, deps.now()).catch(() =>
+        deps.logger?.error?.({ code: "onboarding_ready_backfill_failed" })
     );
     // Retention applies to every onboarding request, with or without the
     // portal switch (owner ruling: 90 days abandoned, 3 years completed).

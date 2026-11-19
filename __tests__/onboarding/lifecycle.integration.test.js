@@ -119,14 +119,9 @@ it("runs end to end: manual provisioning, confirm, checklist → READY and Clien
         provisioning_state: "MANUAL_REQUIRED",
         provisioning_code: "manual_provisioning_required",
     });
+    // Owner ruling 2026-11-19: Kelevo set-up is tracked but never blocks.
     let status = (await app.call("GET", `/requests/${KEY}`)).json;
-    expect(status).toMatchObject({
-        readiness: "BLOCKED",
-        blocked: {
-            code: "manual_provisioning_required",
-            action: "confirm_provisioning",
-        },
-    });
+    expect(status).toMatchObject({ readiness: "IN_PROGRESS", blocked: null });
     expect((await action("confirm_provisioning", {})).status).toBe(422);
     const confirmed = await action("confirm_provisioning", {
         kelevo_ref: "KEL-CARRIER-42",
@@ -193,6 +188,41 @@ it("runs end to end: manual provisioning, confirm, checklist → READY and Clien
     expect(
         audits.some((a) => a.payload.outcome === "provisioning_confirmed")
     ).toBe(true);
+});
+
+it("reaches READY without Kelevo set-up; confirming Kelevo afterwards keeps it READY", async () => {
+    await toPaymentReady();
+    for (const key of [
+        "AUTHORITY_VERIFIED",
+        "INSURANCE_COI",
+        "W9",
+        "NOT_FACTORING",
+        "CARRIER_PROFILE",
+        "FLEET_MAPPING",
+    ])
+        expect((await action("verify_operation_item", { key })).status).toBe(
+            200
+        );
+    const last = await action("confirm_load_board_access", {
+        boards: ["DAT_ONE"],
+    });
+    expect(onboardingStatusV1.parse(last.json)).toMatchObject({
+        readiness: "READY",
+        blocked: null,
+        provisioning: { state: "MANUAL_REQUIRED", kelevo_ref: null },
+    });
+    const row = await request();
+    expect(row.ready_at).not.toBeNull();
+    expect(await prisma.client.findFirst()).toMatchObject({ status: "ACTIVE" });
+    const confirmed = await action("confirm_provisioning", {
+        kelevo_ref: "KEL-LATER-7",
+    });
+    expect(confirmed.status).toBe(200);
+    expect(onboardingStatusV1.parse(confirmed.json)).toMatchObject({
+        readiness: "READY",
+        provisioning: { state: "MANUAL_CONFIRMED", kelevo_ref: "KEL-LATER-7" },
+    });
+    expect((await request()).ready_at).toEqual(row.ready_at);
 });
 
 it("the Kelevo adapter stub returns MANUAL_REQUIRED with kelevo_api_unavailable; retry stays manual", async () => {
