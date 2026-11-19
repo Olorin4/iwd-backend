@@ -359,6 +359,50 @@ test("renders escaped carrier names and re-upload reasons", () => {
     expect(page).not.toContain("<script>bad</script>");
 });
 
+test("puts separate dispatcher seat instructions between documents and the questionnaire", () => {
+    const row = {
+        terms,
+        operations: initialOperations(),
+        signature_state: "COMPLETED",
+    };
+    const options = { path: "/p/fake", csrf: "test" };
+    const page = portalPage(row, options);
+    expect(page).toMatch(
+        /③[^<]*<\/span> Documents[\s\S]+④[^<]*<\/span> Set up load board access[\s\S]+⑤[^<]*<\/span> About your operation/
+    );
+    expect(page).toContain("account.dat.com");
+    expect(page).toContain("Seat Assignments");
+    expect(page).toContain("Subscriptions &amp; Users");
+    expect(page).toContain("Manage Users");
+    expect(page).not.toMatch(/type="password"/);
+    expect(
+        portalPage({ ...row, signature_state: "SENT" }, options)
+    ).not.toContain("account.dat.com");
+    expect(
+        portalPage({ ...row, cancelled_at: new Date() }, options)
+    ).not.toContain("account.dat.com");
+});
+
+test("reuses Iron Wing website navigation and footer with local assets", () => {
+    const page = portalPage(
+        {
+            terms,
+            operations: initialOperations(),
+            signature_state: "SENT",
+        },
+        { path: "/p/fake" }
+    );
+    expect(page).toContain('href="https://iron-wing-dispatching.com/#pricing"');
+    expect(page).toContain(
+        'href="https://iron-wing-dispatching.com/privacy-policy.html"'
+    );
+    expect(page).toContain('src="/portal-static/iron-wing/logo.webp"');
+    expect(page).toContain(
+        'href="https://iron-wing-dispatching.com/#newsletter-form"'
+    );
+    expect(page).not.toContain('class="cf-turnstile"');
+});
+
 test("questionnaire accepts omitted values and rejects zero trucks", () => {
     expect(
         questionnaireSchema.parse({

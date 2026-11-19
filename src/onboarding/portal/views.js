@@ -2,18 +2,22 @@ import { escapeHtml as html } from "../../emailService.js";
 import { PORTAL_CARRIER_SLOTS, portalItemLabel } from "../portalEmails.js";
 import { slotOf } from "../readiness.js";
 import { EQUIPMENT_TYPES } from "../questionnaire.js";
+import { siteFooter, siteHeader } from "./brand.js";
+import { loadBoardInstructions } from "./loadBoards.js";
 
 const CONTACT = "onboarding@iron-wing-dispatching.com";
 const safe = (value) => html(String(value ?? ""));
 
-function shell(title, contents, script = false) {
+function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=1"></head>
-<body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
-<span>Iron Wing Logistics L.L.C.</span></header><main>${contents}</main>
-<footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
-${script ? '<script src="/portal-static/portal.js?v=1" defer></script>' : ""}</body></html>`;
+<title>${safe(title)} | Iron Wing</title>
+<link rel="stylesheet" href="/portal-static/iron-wing/shared.css?v=2">
+<link rel="stylesheet" href="/portal-static/portal.css?v=2"></head>
+<body>${siteHeader}<main class="onboarding">${contents}
+<p class="portal-support">Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</p></main>
+${siteFooter}
+<script src="/portal-static/portal.js?v=2" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {
@@ -41,7 +45,7 @@ const errors = {
 const allowedUploads =
     "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
 
-function itemRow(row, slot, { base, csrf, closed, ownFiles }) {
+function itemRow(row, slot, { base, csrf, closed, ownFiles, factoringSaved }) {
     const item = row.operations.find((entry) => slotOf(entry.key) === slot);
     const key = slot === "FACTORING" ? "FACTORING_NOA" : slot;
     const label = portalItemLabel(key, row.terms);
@@ -63,7 +67,8 @@ function itemRow(row, slot, { base, csrf, closed, ownFiles }) {
         ? `<p><a href="${base}/documents/${safe(file.id)}/file">Download your upload</a></p>`
         : "";
     const canUpload = !closed && item?.state !== "VERIFIED";
-    return `<li><div><h3>${safe(label)}</h3><p class="state">${safe(state)}</p>
+    return `<li${slot === "FACTORING" ? ' id="factoring"' : ""}><div><h3>${safe(label)}</h3><p class="state">${safe(state)}</p>
+${slot === "FACTORING" && factoringSaved && item?.key === "NOT_FACTORING" ? '<p class="notice" role="status">We recorded that you don’t use factoring.</p>' : ""}
 ${item?.state === "REUPLOAD_REQUESTED" ? `<p class="notice">${safe(item.note)}</p>` : ""}${ownLink}</div>
 ${
     canUpload
@@ -73,8 +78,8 @@ ${
 <input id="file-${key}" name="file" type="file" accept="${allowedUploads}" required>
 <button type="submit">Upload</button><progress max="100" hidden></progress></form>
 ${
-    slot === "FACTORING"
-        ? `<form method="post" action="${base}/not-factoring" data-post><input type="hidden" name="csrf" value="${csrf}">
+    slot === "FACTORING" && item?.key !== "NOT_FACTORING"
+        ? `<form method="post" action="${base}/not-factoring"><input type="hidden" name="csrf" value="${csrf}">
 <button class="secondary" type="submit">I don't use factoring</button></form>`
         : ""
 }</div>`
@@ -158,13 +163,15 @@ ${
                   csrf: safe(csrf),
                   closed: cancelled,
                   ownFiles,
+                  factoringSaved: query.factoring === "saved",
               })
           ).join("")}</ul>`
 }</section>
-<section class="card"><h2><span class="step" aria-hidden="true">④</span> About your operation <small>Optional</small></h2>
+<section class="card"><h2><span class="step" aria-hidden="true">④</span> Set up load board access</h2>
+${cancelled ? "<p>This request is closed.</p>" : locked ? "<p>Available after you sign.</p>" : loadBoardInstructions}</section>
+<section class="card"><h2><span class="step" aria-hidden="true">⑤</span> About your operation <small>Optional</small></h2>
 ${locked ? "<p>Available after you sign.</p>" : `<a href="${base}/questionnaire">${questionnaire ? "Edit your preferences" : "Answer a few questions"}</a>`}</section>
-</div>`,
-        true
+</div>`
     );
 }
 
@@ -173,7 +180,6 @@ const UPLOADABLE_NOTICE_KEYS = new Set([
     "INSURANCE_COI",
     "AUTHORITY_VERIFIED",
     "FACTORING_NOA",
-    "NOT_FACTORING",
 ]);
 
 export function questionnairePage(
@@ -205,7 +211,6 @@ ${area("excluded_freight", "Freight you do not haul", 500)}
 ${input("max_deadhead_miles", "Maximum deadhead (miles)", 'type="number" min="0" step="1"')}
 ${area("availability", "Availability", 300)}
 ${area("other_preferences", "Other preferences", 2000)}
-<button type="submit">Save preferences</button></form><p class="sr-only">${safe(row.terms.legal_name)}</p>`,
-        true
+<button type="submit">Save preferences</button></form><p class="sr-only">${safe(row.terms.legal_name)}</p>`
     );
 }

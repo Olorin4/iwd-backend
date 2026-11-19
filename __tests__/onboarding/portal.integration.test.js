@@ -853,9 +853,18 @@ test("a form posted without JavaScript (Origin: null) passes only as a same-orig
             })
         ).status
     ).toBe(403);
-    expect(
-        (await post({ Origin: "null", "Sec-Fetch-Site": "same-origin" })).status
-    ).toBe(303);
+    const saved = await post({
+        Origin: "null",
+        "Sec-Fetch-Site": "same-origin",
+    });
+    expect(saved.status).toBe(303);
+    expect(saved.headers.get("location")).toBe(
+        base + "?factoring=saved#factoring"
+    );
+    const page = await browser(base + "?factoring=saved");
+    expect(await page.text()).toContain(
+        "We recorded that you don’t use factoring."
+    );
     expect(
         (await refreshed(row.id)).operations.find(
             (item) => item.key === "NOT_FACTORING"

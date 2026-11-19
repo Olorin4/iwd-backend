@@ -385,7 +385,7 @@ export function createPortalRouter(
                 303,
                 path +
                     (result.ok
-                        ? "?uploaded=NOT_FACTORING"
+                        ? "?factoring=saved#factoring"
                         : "?error=" + encodeURIComponent(result.code))
             );
         })
