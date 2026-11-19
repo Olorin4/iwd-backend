@@ -122,7 +122,12 @@ loadboard,allset,ready}-{mobile,desktop}.png` and `redesign-photo-button-mobile.
   own confirmation; Outreach lists each board and pre-ticks confirmed + reported.
 - **Tests:** iwd 680+ unit, 165 integration; Outreach 1,097 web, 2,837 API unit, 148 Sales/Today
   integration.
-- **Open (owner):** HEIC conversion still runs in the app process; a separate process with memory
-  and time limits is the proper backstop against crafted HEIC files (proposed follow-up).
+- **HEIC isolation (owner request):** conversion runs in a separate Node process (384 MB heap,
+  15 s timeout, one at a time, at most 3 waiting, else "busy"); a crafted HEIC can only take down
+  that child.
+- **Final review fixes:** photo thumbnails allowed by the CSP (`blob:`); a damaged photo is refused,
+  not a 500; a re-upload request (also after READY) opens and announces the documents step; the
+  chosen file is shown (native input visible without JavaScript); set-size and 50 MP messages.
+- **Open (owner):** a re-upload request more than 30 days after READY emails a link that has expired.
 - **Release:** Outreach before or with iwd-backend; `docker builder prune -f` before building on
   hetzner-staging; no new settings.
