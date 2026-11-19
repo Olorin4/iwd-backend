@@ -1,4 +1,4 @@
-import convertHeic from "heic-convert";
+import { convertHeicIsolated } from "./heicProcess.js";
 
 const signatures = [
     [Buffer.from("%PDF-"), "application/pdf"],
@@ -8,7 +8,7 @@ const signatures = [
 
 export async function validateUpload(
     bytes,
-    { maxBytes, convert = convertHeic }
+    { maxBytes, convert = convertHeicIsolated }
 ) {
     if (!Buffer.isBuffer(bytes) || bytes.length === 0)
         return { ok: false, code: "empty" };
