@@ -95,5 +95,5 @@ synthetic data at [390 px](onboarding-portal-acceptance/mobile-restored.png) and
   board ends with an **Added** button (another board takes its name); the step then says "You
   added a seat on … for {dispatcher}. Iron Wing will check access and confirm it here." Outreach
   shows "Carrier reports: …" with those boards pre-ticked for the closer to confirm. No email links.
-- Release: set the two dispatcher settings (server `.env` + GitHub secrets; the pipeline already
+- Release: set the two dispatcher settings — Nick Kalas, nick-kalas@iron-wing-dispatching.com (owner, 2026-11-19) — (server `.env` + GitHub secrets; the pipeline already
   writes them). Migration `20261119120000_onboarding_dispatcher` adds two columns.
