@@ -97,3 +97,32 @@ synthetic data at [390 px](onboarding-portal-acceptance/mobile-restored.png) and
   shows "Carrier reports: …" with those boards pre-ticked for the closer to confirm. No email links.
 - Release: set the two dispatcher settings — Nick Kalas, dispatch@iron-wing-dispatching.com (owner, 2026-11-19) — (server `.env` + GitHub secrets; the pipeline already
   writes them). Migration `20261119120000_onboarding_dispatcher` adds two columns.
+
+## Redesign (2026-11-19)
+
+Spec `docs/superpowers/specs/2026-11-19-onboarding-portal-redesign-design.md`, plan
+`docs/superpowers/plans/2026-11-19-onboarding-portal-redesign.md`. Branch `feat/portal-redesign` in
+iwd-backend and Outreach.
+
+- **Look:** B timeline + A upload rows in the front-page theme. Done steps: gold checks on a solid
+  line, collapsed. Current: navy numeral with a gold halo, "You are here". Upcoming: grey, dashed.
+  Header "N of 4 steps done" with a gold bar. "All set on your side" card while Iron Wing reviews;
+  "You're ready" hero at the end. Screenshots: `onboarding-portal-acceptance/redesign-{documents,
+loadboard,allset,ready}-{mobile,desktop}.png` and `redesign-photo-button-mobile.png`.
+- **Uploads:** each row has "Choose file" (several files allowed) and, on touch devices only,
+  "Take photos" (pages collect with thumbnails). Up to 10 images become one PDF on the server; a PDF
+  mixed with images, more than 10 files or over 15 MB is refused and nothing is stored. Images over
+  50 MP and HEIC files declaring oversized images, grids or tile counts are refused before decoding.
+- **Factoring:** optional for portal onboardings only (never blocks READY, in any state); email-flow
+  onboardings and their approved texts unchanged. Outreach no longer counts it as outstanding for
+  portal onboardings. A one-time pass at worker start applies READY to portal requests whose only
+  gap was factoring (no email).
+- **Load boards:** each board shows not added / added — waiting for Iron Wing / confirmed by Iron
+  Wing, with the official DAT and Truckstop guides; boards added after confirmation wait for their
+  own confirmation; Outreach lists each board and pre-ticks confirmed + reported.
+- **Tests:** iwd 680+ unit, 165 integration; Outreach 1,097 web, 2,837 API unit, 148 Sales/Today
+  integration.
+- **Open (owner):** HEIC conversion still runs in the app process; a separate process with memory
+  and time limits is the proper backstop against crafted HEIC files (proposed follow-up).
+- **Release:** Outreach before or with iwd-backend; `docker builder prune -f` before building on
+  hetzner-staging; no new settings.
