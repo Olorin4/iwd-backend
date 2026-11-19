@@ -305,12 +305,26 @@ button:disabled {
     border: 1px solid var(--navy-2);
     position: relative;
 }
-.choose input,
-.take-photos input {
+/* With JavaScript the styled label stands in for the input (the chosen
+   file is shown next to it); without, the native input stays visible so the
+   carrier can see what was chosen. */
+.js .choose input,
+.js .take-photos input {
     position: absolute;
     inset: 0;
     opacity: 0;
     cursor: pointer;
+}
+.choose input,
+.take-photos input {
+    max-width: 100%;
+    font-size: 0.85rem;
+}
+.chosen {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--ok);
+    font-weight: 700;
 }
 /* Owner ruling: the camera button only on touch-first devices. */
 .take-photos {

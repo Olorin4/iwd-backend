@@ -263,3 +263,75 @@ describe("portal page", () => {
         expect(html).not.toContain("<b>Bad</b>");
     });
 });
+
+describe("final review fixes (2026-11-19)", () => {
+    const readyWithFactoringRedo = () => {
+        let operations = verifyAll(initialOperations());
+        operations = operations.map((i) =>
+            i.key === "FACTORING_NOA"
+                ? {
+                      ...i,
+                      state: "REUPLOAD_REQUESTED",
+                      note: "Wrong factoring company.",
+                  }
+                : i
+        );
+        return row({
+            signature_state: "COMPLETED",
+            payment_state: "READY",
+            provisioning_state: "MANUAL_CONFIRMED",
+            operations,
+        });
+    };
+    test("a re-upload request opens the documents step and is announced, even when READY", () => {
+        const html = page(readyWithFactoringRedo());
+        expect(html).toMatch(/<details open>[\s\S]*?Wrong factoring company\./);
+        expect(html).toContain(
+            "Iron Wing asked for a new file — see your documents below."
+        );
+        expect(html).not.toContain("All verified ✓");
+    });
+    test("error messages for photo sets", () => {
+        const base = row({
+            signature_state: "COMPLETED",
+            payment_state: "READY",
+        });
+        expect(page(base, { query: { error: "too_large_set" } })).toContain(
+            "Together these photos are over 15 MB — send fewer pages or upload a PDF."
+        );
+        expect(page(base, { query: { error: "unreadable_photo" } })).toContain(
+            "One of the photos couldn’t be read. Take it again or upload a PDF."
+        );
+        expect(page(base, { query: { error: "photo_too_large" } })).toContain(
+            "A photo is too large to read. Take it again at a normal size or upload a PDF."
+        );
+    });
+    test("without JavaScript the native file input stays visible; scripts show chosen files and check the total size", () => {
+        const css = fs.readFileSync(
+            path.resolve("src/onboarding/portal/static/portal.css"),
+            "utf8"
+        );
+        expect(css).toMatch(/\.js \.choose input,[\s\S]*?\{[^}]*opacity: 0/);
+        // The unscoped rule must not hide the input.
+        expect(css).not.toMatch(
+            /(^|\n)\.choose input,\s*\n\.take-photos input\s*\{[^}]*opacity/
+        );
+        const js = fs.readFileSync(
+            path.resolve("src/onboarding/portal/static/portal.js"),
+            "utf8"
+        );
+        expect(js).toContain('document.documentElement.classList.add("js")');
+        expect(js).toMatch(/files? chosen/);
+        expect(js).toContain("Together these photos are over 15 MB");
+    });
+});
+
+test("busy message", () => {
+    expect(
+        page(row({ signature_state: "COMPLETED", payment_state: "READY" }), {
+            query: { error: "busy" },
+        })
+    ).toContain(
+        "We’re busy reading photos right now. Please try again in a minute."
+    );
+});

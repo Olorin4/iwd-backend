@@ -63,3 +63,26 @@ test("uploads use the isolated converter by default", async () => {
     expect(source).toMatch(/convert = convertHeicIsolated/);
     expect(source).not.toMatch(/from "heic-convert"/);
 });
+
+test("a full queue refuses more conversions as busy instead of growing", async () => {
+    const options = { script: child("slow-echo") };
+    const calls = Array.from({ length: 5 }, () =>
+        convertHeicIsolated({ buffer: heic }, options)
+    );
+    const results = await Promise.allSettled(calls);
+    const busy = results.filter(
+        (r) => r.status === "rejected" && r.reason.message === "heic_busy"
+    );
+    expect(busy.length).toBe(1); // 1 running + 3 waiting accepted, the 5th refused
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(4);
+}, 20000);
+
+test("an upload refused because conversions are busy says so", async () => {
+    const { validateUpload } = await import(
+        "../../src/onboarding/files/validate.js"
+    );
+    const convert = jest.fn().mockRejectedValue(new Error("heic_busy"));
+    expect(
+        await validateUpload(heic, { maxBytes: 15 * 1024 * 1024, convert })
+    ).toEqual({ ok: false, code: "busy" });
+});

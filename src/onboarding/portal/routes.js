@@ -28,7 +28,7 @@ import {
 const FILES = path.resolve("src/onboarding/portal/static");
 const OPEN_THROTTLE = 5 * 60 * 1000;
 const CSP =
-    "default-src 'self'; img-src 'self' data:; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'none'";
+    "default-src 'self'; img-src 'self' data: blob:; form-action 'self' https://checkout.stripe.com; frame-ancestors 'none'; base-uri 'none'";
 
 // Exported for tests. Keeps at most maxBytes + 1 bytes across all files:
 // past that it stops buffering and reports too_large.

@@ -7,9 +7,13 @@ import path from "node:path";
 // refused. Paths are relative to the app root (the container's WORKDIR).
 const CHILD = path.resolve("src/onboarding/files/heicChild.js");
 const HEAP_MB = 384;
-const TIMEOUT_MS = 30000;
+const TIMEOUT_MS = 15000;
+// One running plus at most three waiting; more is refused as busy instead of
+// letting a burst of slow files hold everyone else's uploads.
+const MAX_WAITING = 3;
 
 let queue = Promise.resolve();
+let pending = 0;
 
 function convertOnce({ buffer, format, quality }, { script, timeoutMs }) {
     return new Promise((resolve, reject) => {
@@ -47,9 +51,15 @@ export function convertHeicIsolated(
     { buffer, format = "JPEG", quality = 0.9 },
     { script = CHILD, timeoutMs = TIMEOUT_MS } = {}
 ) {
-    const run = queue.then(() =>
-        convertOnce({ buffer, format, quality }, { script, timeoutMs })
-    );
+    if (pending > MAX_WAITING) return Promise.reject(new Error("heic_busy"));
+    pending += 1;
+    const run = queue
+        .then(() =>
+            convertOnce({ buffer, format, quality }, { script, timeoutMs })
+        )
+        .finally(() => {
+            pending -= 1;
+        });
     queue = run.catch(() => {});
     return run;
 }

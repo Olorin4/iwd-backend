@@ -23,7 +23,7 @@ export async function prepareUpload(files, { maxBytes }) {
     if (files.length === 1) return { ok: true, bytes: files[0] };
     if (files.length > MAX_PAGES) return fail("too_many_pages");
     if (files.reduce((sum, f) => sum + f.length, 0) > maxBytes)
-        return fail("too_large");
+        return fail("too_large_set");
     const images = [];
     for (const file of files) {
         const checked = await validateUpload(file, { maxBytes });
@@ -40,39 +40,44 @@ export async function prepareUpload(files, { maxBytes }) {
         } catch {
             return fail("unsupported_type");
         }
-        if (
-            !meta.width ||
-            !meta.height ||
-            meta.width * meta.height > MAX_PIXELS
-        )
-            return fail("too_large");
+        if (!meta.width || !meta.height) return fail("unreadable_photo");
+        if (meta.width * meta.height > MAX_PIXELS)
+            return fail("photo_too_large");
     }
-    for (const bytes of images) {
-        const jpeg = await sharp(bytes, { limitInputPixels: MAX_PIXELS })
-            .rotate()
-            .resize({
-                width: MAX_EDGE,
-                height: MAX_EDGE,
-                fit: "inside",
-                withoutEnlargement: true,
-            })
-            .jpeg({ quality: 85 })
-            .toBuffer();
-        const image = await pdf.embedJpg(jpeg);
-        const [w, h] =
-            image.width > image.height ? [LETTER[1], LETTER[0]] : LETTER;
-        const scale = Math.min(
-            (w - 2 * MARGIN) / image.width,
-            (h - 2 * MARGIN) / image.height
-        );
-        const page = pdf.addPage([w, h]);
-        page.drawImage(image, {
-            x: (w - image.width * scale) / 2,
-            y: (h - image.height * scale) / 2,
-            width: image.width * scale,
-            height: image.height * scale,
-        });
+    // A damaged photo (e.g. a truncated JPEG) passes the header checks but
+    // fails to decode: refuse it plainly instead of a server error.
+    try {
+        for (const bytes of images) {
+            const jpeg = await sharp(bytes, { limitInputPixels: MAX_PIXELS })
+                .rotate()
+                .resize({
+                    width: MAX_EDGE,
+                    height: MAX_EDGE,
+                    fit: "inside",
+                    withoutEnlargement: true,
+                })
+                .jpeg({ quality: 85 })
+                .toBuffer();
+            const image = await pdf.embedJpg(jpeg);
+            const [w, h] =
+                image.width > image.height ? [LETTER[1], LETTER[0]] : LETTER;
+            const scale = Math.min(
+                (w - 2 * MARGIN) / image.width,
+                (h - 2 * MARGIN) / image.height
+            );
+            const page = pdf.addPage([w, h]);
+            page.drawImage(image, {
+                x: (w - image.width * scale) / 2,
+                y: (h - image.height * scale) / 2,
+                width: image.width * scale,
+                height: image.height * scale,
+            });
+        }
+    } catch {
+        return fail("unreadable_photo");
     }
     const bytes = Buffer.from(await pdf.save());
-    return bytes.length > maxBytes ? fail("too_large") : { ok: true, bytes };
+    return bytes.length > maxBytes
+        ? fail("too_large_set")
+        : { ok: true, bytes };
 }

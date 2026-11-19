@@ -15,11 +15,11 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=9"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=10"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
-<script src="/portal-static/portal.js?v=4" defer></script></body></html>`;
+<script src="/portal-static/portal.js?v=5" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {
@@ -47,6 +47,13 @@ const errors = {
     invalid_load_board: "Choose a load board and try again.",
     mixed_files: "Send either one PDF or photos of the pages, not both.",
     too_many_pages: "Send at most 10 photos for one document.",
+    too_large_set:
+        "Together these photos are over 15 MB — send fewer pages or upload a PDF.",
+    unreadable_photo:
+        "One of the photos couldn’t be read. Take it again or upload a PDF.",
+    busy: "We’re busy reading photos right now. Please try again in a minute.",
+    photo_too_large:
+        "A photo is too large to read. Take it again at a normal size or upload a PDF.",
 };
 const allowedUploads =
     "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
@@ -146,6 +153,10 @@ const UPLOAD_ERRORS = new Set([
     "upload_unavailable",
     "mixed_files",
     "too_many_pages",
+    "too_large_set",
+    "unreadable_photo",
+    "photo_too_large",
+    "busy",
 ]);
 
 export function portalPage(
@@ -203,6 +214,14 @@ export function portalPage(
             query.board === "added" ||
             String(query.error ?? "").includes("load_board"),
     };
+    // Iron Wing asked for a new file (also after READY, e.g. factoring):
+    // open the documents step and say so at the top.
+    const redo = (row.operations ?? []).some(
+        (i) =>
+            PORTAL_CARRIER_SLOTS.includes(slotOf(i.key)) &&
+            i.state === "REUPLOAD_REQUESTED"
+    );
+    if (redo && complete && !cancelled) openOn.documents = true;
     const isOpen = (id) => byId[id].state === "current" || Boolean(openOn[id]);
     const docItems = (row.operations ?? []).filter((i) =>
         PORTAL_REQUIRED_SLOTS.includes(slotOf(i.key))
@@ -251,14 +270,15 @@ export function portalPage(
     const subtitles = {
         sign: complete ? "Signed ✓ · tap for your copy" : "",
         payment: paid ? safe(paymentStatus) : "",
-        documents:
-            byId.documents.state === "done"
-                ? docsVerified
-                    ? "All verified ✓"
-                    : "Received · Iron Wing is reviewing"
-                : complete
-                  ? "PDF, or photos of each page"
-                  : "",
+        documents: redo
+            ? "Iron Wing asked for a new file"
+            : byId.documents.state === "done"
+              ? docsVerified
+                  ? "All verified ✓"
+                  : "Received · Iron Wing is reviewing"
+              : complete
+                ? "PDF, or photos of each page"
+                : "",
         loadBoard: safe(loadBoardSummary(lbItem, dispatcher)),
         about: questionnaire
             ? "Your preferences are saved"
@@ -273,6 +293,7 @@ export function portalPage(
 ${model.phase === "ready" ? readyHero(base, dispatcher) : ""}
 ${model.phase === "allSet" ? `<section class="all-set" role="status">${icon.hourglass}<p>All set on your side. Iron Wing is reviewing your documents and setting up your account — you’ll see You’re ready here when we’re done. Nothing else to do.</p></section>` : ""}
 ${cancelled ? "<p class='notice'>This request is closed. Contact Iron Wing for help.</p>" : ""}
+${redo && complete && !cancelled ? '<p class="notice" role="status">Iron Wing asked for a new file — see your documents below.</p>' : ""}
 ${message ? `<p class="notice" role="status">${safe(message)}</p>` : ""}
 <div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-signature="${safe(row.signature_state)}" data-payment="${safe(row.payment_state)}">
 <ol class="timeline">

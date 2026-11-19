@@ -1439,3 +1439,14 @@ test("a multi-file post over 15 MB in total is cut off while reading, not buffer
     const kept = (result.files ?? []).reduce((sum, f) => sum + f.length, 0);
     expect(kept).toBeLessThanOrEqual(MAX_UPLOAD_BYTES + 1);
 });
+
+test("the portal lets photo thumbnails (blob: URLs) load", async () => {
+    const row = await createRequest();
+    const token = await issuePortalToken(deps, row.id, {
+        revokeExisting: true,
+    });
+    const response = await browser(pathname(token));
+    expect(response.headers.get("content-security-policy")).toContain(
+        "img-src 'self' data: blob:"
+    );
+});

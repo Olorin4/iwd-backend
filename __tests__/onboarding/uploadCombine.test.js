@@ -57,12 +57,12 @@ test("eleven images are refused as too_many_pages", async () => {
     });
 });
 
-test("files over 15 MB in total are refused as too_large", async () => {
+test("files over 15 MB in total are refused (set code)", async () => {
     const big = Buffer.alloc(8 * 1024 * 1024, 1);
     big.set([0xff, 0xd8, 0xff], 0);
     expect(await prepareUpload([big, big], { maxBytes })).toEqual({
         ok: false,
-        code: "too_large",
+        code: "too_large_set",
     });
 });
 
@@ -116,7 +116,7 @@ test("an image larger than 50 megapixels is refused before decoding", async () =
         .toBuffer();
     expect(
         await prepareUpload([tall, await image(100, 100)], { maxBytes })
-    ).toEqual({ ok: false, code: "too_large" });
+    ).toEqual({ ok: false, code: "photo_too_large" });
 }, 60000);
 
 test("a HEIC that declares more than 50 megapixels is refused without converting it", async () => {
@@ -216,4 +216,38 @@ test("a HEIC grid declaring a huge output or thousands of tiles is refused", asy
         code: "too_large",
     });
     expect(convert).not.toHaveBeenCalled();
+});
+
+describe("final review fixes (2026-11-19)", () => {
+    test("a damaged photo in a set is refused, not a server error", async () => {
+        const good = await image(800, 600);
+        const truncated = good.subarray(0, Math.floor(good.length / 2));
+        expect(await prepareUpload([good, truncated], { maxBytes })).toEqual({
+            ok: false,
+            code: "unreadable_photo",
+        });
+    });
+    test("a set over 15 MB in total has its own code; a single file keeps too_large", async () => {
+        const big = Buffer.alloc(8 * 1024 * 1024, 1);
+        big.set([0xff, 0xd8, 0xff], 0);
+        expect(await prepareUpload([big, big], { maxBytes })).toEqual({
+            ok: false,
+            code: "too_large_set",
+        });
+    });
+    test("an image over 50 megapixels has its own code", async () => {
+        const tall = await sharp({
+            create: {
+                width: 8000,
+                height: 7000,
+                channels: 3,
+                background: { r: 1, g: 2, b: 3 },
+            },
+        })
+            .jpeg()
+            .toBuffer();
+        expect(
+            await prepareUpload([tall, await image(100, 100)], { maxBytes })
+        ).toEqual({ ok: false, code: "photo_too_large" });
+    }, 60000);
 });

@@ -32,7 +32,8 @@ export async function validateUpload(
         if (jpeg.length > maxBytes) return { ok: false, code: "too_large" };
         if (jpeg.subarray(0, 3).equals(signatures[1][0]))
             return { ok: true, bytes: jpeg, mediaType: "image/jpeg" };
-    } catch {
+    } catch (error) {
+        if (error?.message === "heic_busy") return { ok: false, code: "busy" };
         // Malformed HEIC files use the same public error as unsupported files.
     }
     return { ok: false, code: "unsupported_type" };

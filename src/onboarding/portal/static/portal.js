@@ -1,4 +1,5 @@
 /* global document, location, XMLHttpRequest */
+document.documentElement.classList.add("js");
 const portal = document.querySelector("[data-portal]");
 let timer;
 let deadline;
@@ -40,6 +41,7 @@ document
 if (portal?.dataset.poll === "true") beginPolling();
 
 const MAX_PHOTOS = 10;
+const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
 // Upload rows: "Choose file" (one PDF, or several photos from the gallery)
 // and, on phones, "Take photos" one page at a time. Photos collect in a
@@ -52,8 +54,19 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
     const chooser = form.querySelector(".choose input");
     const photos = [];
 
+    const chosenNote = document.createElement("p");
+    chosenNote.className = "chosen";
+    chosenNote.setAttribute("role", "status");
+    chosenNote.hidden = true;
+    form.querySelector(".upload-actions")?.after(chosenNote);
     const label = () => {
-        const count = photos.length + (chooser?.files?.length ?? 0);
+        const picked = chooser?.files?.length ?? 0;
+        chosenNote.hidden = picked === 0;
+        chosenNote.textContent =
+            picked === 1
+                ? `Chosen: ${chooser.files[0].name}`
+                : `${picked} files chosen`;
+        const count = photos.length + picked;
         button.textContent =
             photos.length > 0
                 ? `Send ${count} page${count === 1 ? "" : "s"} as one PDF`
@@ -103,6 +116,17 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         for (const photo of photos) payload.append("file", photo.file);
         if (![...payload.getAll("file")].length) {
             failedNote(form, "Choose a file or take a photo first.");
+            return;
+        }
+        const total = [...payload.getAll("file")].reduce(
+            (sum, file) => sum + file.size,
+            0
+        );
+        if (total > MAX_TOTAL_BYTES) {
+            failedNote(
+                form,
+                "Together these photos are over 15 MB — send fewer pages or upload a PDF."
+            );
             return;
         }
         const request = new XMLHttpRequest();
