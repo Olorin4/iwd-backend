@@ -1,6 +1,6 @@
 # Onboarding portal redesign — design
 
-Date: 2026-11-19. Status: **draft for owner approval** (builder-check answers folded in).
+Date: 2026-11-19. Status: **approved by the owner 2026-11-19**.
 Builds on: `2026-11-18-client-onboarding-portal-design.md` (live, switch off) and the acceptance
 record `docs/operations/onboarding-portal-acceptance.md`.
 Mockups (owner-reviewed): https://claude.ai/artifact/82iiKdcyAZV6Uqv7y2yiWu — row "Chosen: B timeline +
