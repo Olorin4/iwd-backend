@@ -15,11 +15,11 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=10"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=11"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
-<script src="/portal-static/portal.js?v=5" defer></script></body></html>`;
+<script src="/portal-static/portal.js?v=6" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {
@@ -74,6 +74,7 @@ function uploadForm({ base, csrf, key, label }) {
 <div class="upload-actions"><label class="choose">Choose file<input name="file" type="file" multiple accept="${allowedUploads}" aria-label="Choose ${safe(label)}"></label>
 <label class="take-photos">${icon.camera}Take photos<input name="file" type="file" accept="image/*" capture="environment" aria-label="Take photos of ${safe(label)}"></label></div>
 <div class="photo-list" hidden></div>
+<button type="button" class="add-page" hidden>+ Add another page</button>
 <button type="submit">Upload</button><progress max="100" hidden></progress></form>`;
 }
 
@@ -109,7 +110,11 @@ function itemRow(row, slot, { base, csrf, closed, ownFiles }) {
     return `<li class="doc doc-${kind}${optional ? " doc-optional" : ""}"${optional ? ' id="factoring"' : ""}>
 <div class="doc-head"><span class="doc-icon">${kind === "done" ? icon.doc : kind === "redo" ? icon.warn : icon.upload}</span>
 <div><h4>${safe(label)}${optional ? ' <span class="chip">Optional</span>' : ""}</h4><p class="doc-status">${status}</p></div></div>
-${canUpload && kind !== "done" ? uploadForm({ base, csrf, key, label }) : ""}</li>`;
+${canUpload && kind !== "done" ? uploadForm({ base, csrf, key, label }) : ""}${
+        canUpload && state === "RECEIVED" && item?.key !== "NOT_FACTORING"
+            ? `<details class="replace"><summary>Replace this document</summary><p class="hint">Send the whole document again, with every page.</p>${uploadForm({ base, csrf, key, label })}</details>`
+            : ""
+    }</li>`;
 }
 
 const STEP_TITLES = {

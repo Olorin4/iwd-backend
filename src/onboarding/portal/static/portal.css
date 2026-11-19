@@ -469,6 +469,35 @@ textarea:focus-visible,
     background: rgba(8, 13, 23, 0.8);
     color: #fff;
 }
+.photo-list .photo-name {
+    display: block;
+    padding: 0.5rem;
+    font-size: 0.75rem;
+    word-break: break-all;
+}
+/* Photos chosen on a computer: one more page at a time. */
+.add-page {
+    background: #fff;
+    color: var(--navy-2);
+    border: 1px dashed var(--navy-2);
+}
+.add-page[hidden] {
+    display: none;
+}
+/* A received document can be sent again until Iron Wing verifies it. */
+.replace {
+    margin-top: 0.5rem;
+}
+.replace summary {
+    cursor: pointer;
+    color: var(--navy-2);
+    text-decoration: underline;
+    font-size: 0.9rem;
+}
+.replace .hint {
+    margin: 0.4rem 0;
+    font-size: 0.85rem;
+}
 progress {
     width: 100%;
 }

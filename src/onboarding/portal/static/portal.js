@@ -43,16 +43,23 @@ if (portal?.dataset.poll === "true") beginPolling();
 const MAX_PHOTOS = 10;
 const MAX_TOTAL_BYTES = 15 * 1024 * 1024;
 
-// Upload rows: "Choose file" (one PDF, or several photos from the gallery)
-// and, on phones, "Take photos" one page at a time. Photos collect in a
-// list with thumbnails; the server combines them into one PDF.
+// Upload rows: "Choose file" (one PDF, or photos) and, on phones, "Take
+// photos". Photos from either collect as pages with thumbnails, one or
+// several at a time; the server combines them into one PDF.
+const MIXED = "Send either one PDF or photos of the pages, not both.";
+const isPhoto = (file) =>
+    file.type.startsWith("image/") ||
+    /\.(heic|heif|jpe?g|png)$/i.test(file.name);
 document.querySelectorAll("form[data-upload]").forEach((form) => {
     const button = form.querySelector("button[type=submit]");
     const bar = form.querySelector("progress");
     const list = form.querySelector(".photo-list");
     const camera = form.querySelector(".take-photos input");
     const chooser = form.querySelector(".choose input");
+    const addPage = form.querySelector(".add-page");
     const photos = [];
+    // The chosen non-photo file (a PDF); photos move into the page list.
+    let single = [];
 
     const chosenNote = document.createElement("p");
     chosenNote.className = "chosen";
@@ -60,11 +67,11 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
     chosenNote.hidden = true;
     form.querySelector(".upload-actions")?.after(chosenNote);
     const label = () => {
-        const picked = chooser?.files?.length ?? 0;
+        const picked = single.length;
         chosenNote.hidden = picked === 0;
         chosenNote.textContent =
             picked === 1
-                ? `Chosen: ${chooser.files[0].name}`
+                ? `Chosen: ${single[0].name}`
                 : `${picked} files chosen`;
         const count = photos.length + picked;
         button.textContent =
@@ -79,6 +86,13 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
                 const image = document.createElement("img");
                 image.src = photo.url;
                 image.alt = "";
+                // Browsers without HEIC support show the file name instead.
+                image.addEventListener("error", () => {
+                    const name = document.createElement("span");
+                    name.className = "photo-name";
+                    name.textContent = photo.file.name;
+                    image.replaceWith(name);
+                });
                 const caption = document.createElement("figcaption");
                 caption.textContent = `Page ${index + 1}`;
                 const remove = document.createElement("button");
@@ -97,6 +111,8 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         );
         list.hidden = photos.length === 0;
         if (camera) camera.disabled = photos.length >= MAX_PHOTOS;
+        if (addPage)
+            addPage.hidden = photos.length === 0 || photos.length >= MAX_PHOTOS;
         label();
     };
     camera?.addEventListener("change", () => {
@@ -106,13 +122,32 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         camera.value = "";
         render();
     });
-    chooser?.addEventListener("change", label);
+    chooser?.addEventListener("change", () => {
+        const files = [...(chooser.files ?? [])];
+        chooser.value = "";
+        form.querySelector("[role=alert]")?.remove();
+        if (files.length > 0 && files.every(isPhoto)) {
+            single = [];
+            for (const file of files)
+                if (photos.length < MAX_PHOTOS)
+                    photos.push({ file, url: URL.createObjectURL(file) });
+            render();
+            return;
+        }
+        if (photos.length > 0 && files.length > 0) {
+            failedNote(form, MIXED);
+            return;
+        }
+        single = files;
+        label();
+    });
+    addPage?.addEventListener("click", () => chooser?.click());
 
     form.addEventListener("submit", (event) => {
         event.preventDefault();
         const payload = new FormData();
         payload.set("csrf", form.elements.csrf.value);
-        for (const file of chooser?.files ?? []) payload.append("file", file);
+        for (const file of single) payload.append("file", file);
         for (const photo of photos) payload.append("file", photo.file);
         if (![...payload.getAll("file")].length) {
             failedNote(form, "Choose a file or take a photo first.");

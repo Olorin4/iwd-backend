@@ -335,3 +335,38 @@ test("busy message", () => {
         "We’re busy reading photos right now. Please try again in a minute."
     );
 });
+
+test("a received document can be replaced until Iron Wing verifies it", () => {
+    const html = page(
+        row({
+            signature_state: "COMPLETED",
+            payment_state: "READY",
+            operations: received(initialOperations(), ["W9"]),
+        })
+    );
+    const w9 = html.slice(
+        html.indexOf("W-9"),
+        html.indexOf("</li>", html.indexOf("W-9"))
+    );
+    expect(w9).toMatch(
+        /<details class="replace"><summary>Replace this document<\/summary>/
+    );
+    expect(w9).toContain("Send the whole document again, with every page.");
+    expect(w9).toContain('action="/p/fake/documents/W9"');
+    const verified = page(
+        row({
+            signature_state: "COMPLETED",
+            payment_state: "READY",
+            operations: verifyOperationItem(
+                received(initialOperations(), ["W9"]),
+                "W9",
+                { actor: "s", at }
+            ),
+        })
+    );
+    const v = verified.slice(
+        verified.indexOf("W-9"),
+        verified.indexOf("</li>", verified.indexOf("W-9"))
+    );
+    expect(v).not.toContain("Replace this document");
+});
