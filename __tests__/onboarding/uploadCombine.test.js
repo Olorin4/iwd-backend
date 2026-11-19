@@ -163,3 +163,57 @@ test("every declared HEIC size counts, and a HEIC without one is refused", async
     });
     expect(convert).not.toHaveBeenCalled();
 });
+
+test("a HEIC grid declaring a huge output or thousands of tiles is refused", async () => {
+    const { validateUpload } = await import(
+        "../../src/onboarding/files/validate.js"
+    );
+    const convert = jest.fn();
+    const idat = (rowsMinusOne, colsMinusOne, width, height) => {
+        // idat box: size, type, grid: version, flags(1 = 32-bit sizes), rows-1, cols-1, width, height.
+        const box = Buffer.alloc(20);
+        box.writeUInt32BE(20, 0);
+        box.write("idat", 4, "ascii");
+        box.writeUInt8(0, 8);
+        box.writeUInt8(1, 9);
+        box.writeUInt8(rowsMinusOne, 10);
+        box.writeUInt8(colsMinusOne, 11);
+        box.writeUInt32BE(width, 12);
+        box.writeUInt32BE(height, 16);
+        return box;
+    };
+    expect(
+        await validateUpload(Buffer.concat([heic, idat(0, 0, 20000, 20000)]), {
+            maxBytes,
+            convert,
+        })
+    ).toEqual({
+        ok: false,
+        code: "too_large",
+    });
+    expect(
+        await validateUpload(
+            Buffer.concat([heic, idat(255, 255, 1000, 1000)]),
+            { maxBytes, convert }
+        )
+    ).toEqual({
+        ok: false,
+        code: "too_large",
+    });
+    // Many tiles, each within the per-image cap, adding up past the total cap.
+    const tile = Buffer.alloc(20);
+    tile.writeUInt32BE(20, 0);
+    tile.write("ispe", 4, "ascii");
+    tile.writeUInt32BE(5000, 12);
+    tile.writeUInt32BE(5000, 16);
+    expect(
+        await validateUpload(Buffer.concat([heic, ...Array(7).fill(tile)]), {
+            maxBytes,
+            convert,
+        })
+    ).toEqual({
+        ok: false,
+        code: "too_large",
+    });
+    expect(convert).not.toHaveBeenCalled();
+});
