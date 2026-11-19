@@ -134,3 +134,31 @@ test("a HEIC that declares more than 50 megapixels is refused without converting
     });
     expect(convert).not.toHaveBeenCalled();
 });
+
+test("every declared HEIC size counts, and a HEIC without one is refused", async () => {
+    const { validateUpload } = await import(
+        "../../src/onboarding/files/validate.js"
+    );
+    const convert = jest.fn();
+    // A small first size box followed by a huge one (e.g. a thumbnail first).
+    const first = heic.indexOf("ispe");
+    const tail = Buffer.alloc(16);
+    tail.writeUInt32BE(16, 0);
+    tail.write("ispe", 4, "ascii");
+    tail.writeUInt32BE(20000, 8);
+    tail.writeUInt32BE(20000, 12);
+    const second = Buffer.concat([heic, tail]);
+    expect(first).toBeGreaterThan(0);
+    expect(await validateUpload(second, { maxBytes, convert })).toEqual({
+        ok: false,
+        code: "too_large",
+    });
+    const none = Buffer.from(heic);
+    let at;
+    while ((at = none.indexOf("ispe")) > 0) none.write("xxxx", at, "ascii");
+    expect(await validateUpload(none, { maxBytes, convert })).toEqual({
+        ok: false,
+        code: "unsupported_type",
+    });
+    expect(convert).not.toHaveBeenCalled();
+});
