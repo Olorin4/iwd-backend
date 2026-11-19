@@ -39,13 +39,73 @@ document
     .forEach((link) => link.addEventListener("click", beginPolling));
 if (portal?.dataset.poll === "true") beginPolling();
 
+const MAX_PHOTOS = 10;
+
+// Upload rows: "Choose file" (one PDF, or several photos from the gallery)
+// and, on phones, "Take photos" one page at a time. Photos collect in a
+// list with thumbnails; the server combines them into one PDF.
 document.querySelectorAll("form[data-upload]").forEach((form) => {
+    const button = form.querySelector("button[type=submit]");
+    const bar = form.querySelector("progress");
+    const list = form.querySelector(".photo-list");
+    const camera = form.querySelector(".take-photos input");
+    const chooser = form.querySelector(".choose input");
+    const photos = [];
+
+    const label = () => {
+        const count = photos.length + (chooser?.files?.length ?? 0);
+        button.textContent =
+            photos.length > 0
+                ? `Send ${count} page${count === 1 ? "" : "s"} as one PDF`
+                : "Upload";
+    };
+    const render = () => {
+        list.replaceChildren(
+            ...photos.map((photo, index) => {
+                const figure = document.createElement("figure");
+                const image = document.createElement("img");
+                image.src = photo.url;
+                image.alt = "";
+                const caption = document.createElement("figcaption");
+                caption.textContent = `Page ${index + 1}`;
+                const remove = document.createElement("button");
+                remove.type = "button";
+                remove.className = "remove";
+                remove.textContent = "×";
+                remove.setAttribute("aria-label", `Remove page ${index + 1}`);
+                remove.addEventListener("click", () => {
+                    URL.revokeObjectURL(photo.url);
+                    photos.splice(index, 1);
+                    render();
+                });
+                figure.append(image, caption, remove);
+                return figure;
+            })
+        );
+        list.hidden = photos.length === 0;
+        if (camera) camera.disabled = photos.length >= MAX_PHOTOS;
+        label();
+    };
+    camera?.addEventListener("change", () => {
+        for (const file of camera.files)
+            if (photos.length < MAX_PHOTOS)
+                photos.push({ file, url: URL.createObjectURL(file) });
+        camera.value = "";
+        render();
+    });
+    chooser?.addEventListener("change", label);
+
     form.addEventListener("submit", (event) => {
         event.preventDefault();
-        const button = form.querySelector("button");
-        const bar = form.querySelector("progress");
+        const payload = new FormData();
+        payload.set("csrf", form.elements.csrf.value);
+        for (const file of chooser?.files ?? []) payload.append("file", file);
+        for (const photo of photos) payload.append("file", photo.file);
+        if (![...payload.getAll("file")].length) {
+            failedNote(form, "Choose a file or take a photo first.");
+            return;
+        }
         const request = new XMLHttpRequest();
-        const payload = new FormData(form);
         button.disabled = true;
         bar.hidden = false;
         bar.removeAttribute("value");
@@ -57,13 +117,7 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         const failed = () => {
             button.disabled = false;
             bar.hidden = true;
-            let note = form.querySelector("[role=alert]");
-            if (!note) {
-                note = document.createElement("p");
-                note.setAttribute("role", "alert");
-                form.append(note);
-            }
-            note.textContent = "Upload failed. Try again.";
+            failedNote(form, "Upload failed. Try again.");
         };
         request.addEventListener("error", failed);
         request.addEventListener("load", () => {
@@ -75,6 +129,16 @@ document.querySelectorAll("form[data-upload]").forEach((form) => {
         request.send(payload);
     });
 });
+
+function failedNote(form, text) {
+    let note = form.querySelector("[role=alert]");
+    if (!note) {
+        note = document.createElement("p");
+        note.setAttribute("role", "alert");
+        form.append(note);
+    }
+    note.textContent = text;
+}
 
 for (const form of document.querySelectorAll("form[data-post]")) {
     form.addEventListener("submit", async (event) => {

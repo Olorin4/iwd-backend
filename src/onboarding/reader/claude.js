@@ -9,11 +9,7 @@ const documents = {
     FACTORING_NOA: "Factoring notice of assignment",
 };
 
-export async function extractDocument(
-    { client, model },
-    itemKey,
-    file
-) {
+export async function extractDocument({ client, model }, itemKey, file) {
     const { bytes, mediaType } = await readerInput(file);
     const schema = DOCUMENT_SCHEMAS[itemKey];
     const prompt =

@@ -1,8 +1,13 @@
 import { escapeHtml as html } from "../../emailService.js";
-import { PORTAL_CARRIER_SLOTS, portalItemLabel } from "../portalEmails.js";
-import { deriveReadiness, facetsOf, slotOf } from "../readiness.js";
+import {
+    PORTAL_CARRIER_SLOTS,
+    PORTAL_REQUIRED_SLOTS,
+    portalItemLabel,
+} from "../portalEmails.js";
+import { slotOf } from "../readiness.js";
+import { portalSteps } from "./steps.js";
 import { EQUIPMENT_TYPES } from "../questionnaire.js";
-import { boardName, joinNames, loadBoardGuide } from "./loadBoards.js";
+import { loadBoardGuide, loadBoardSummary } from "./loadBoards.js";
 
 const CONTACT = "onboarding@iron-wing-dispatching.com";
 const safe = (value) => html(String(value ?? ""));
@@ -10,11 +15,11 @@ const safe = (value) => html(String(value ?? ""));
 function shell(title, contents) {
     return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=6"></head>
+<title>${safe(title)} | Iron Wing</title><link rel="stylesheet" href="/portal-static/portal.css?v=9"></head>
 <body><header class="brand"><img src="/portal-static/logo.svg?v=1" alt="" width="56" height="56">
 <span>Iron Wing Logistics L.L.C.</span></header><main class="onboarding">${contents}</main>
 <footer>Questions? Reply to our email or write to <a href="mailto:${CONTACT}">${CONTACT}</a>.</footer>
-<script src="/portal-static/portal.js?v=3" defer></script></body></html>`;
+<script src="/portal-static/portal.js?v=4" defer></script></body></html>`;
 }
 
 export function messagePage(title, message) {
@@ -40,76 +45,108 @@ const errors = {
     request_closed: "This request is closed.",
     load_board_name: "Enter the name of the load board, then press Added.",
     invalid_load_board: "Choose a load board and try again.",
+    mixed_files: "Send either one PDF or photos of the pages, not both.",
+    too_many_pages: "Send at most 10 photos for one document.",
 };
 const allowedUploads =
     "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
 
-function itemRow(row, slot, { base, csrf, closed, ownFiles, factoringSaved }) {
+const icon = {
+    check: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"></path></svg>',
+    upload: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 16V4"></path><path d="M7 9l5-5 5 5"></path><path d="M4 20h16"></path></svg>',
+    doc: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path><path d="M14 3v5h5"></path><path d="M9 15l2 2 4-4"></path></svg>',
+    warn: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg>',
+    camera: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"></path><circle cx="12" cy="13" r="3.5"></circle></svg>',
+    hourglass:
+        '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h12"></path><path d="M6 21h12"></path><path d="M7 3c0 5 10 5 10 9s-10 4-10 9"></path><path d="M17 3c0 5-10 5-10 9s10 4 10 9"></path></svg>',
+};
+
+function uploadForm({ base, csrf, key, label }) {
+    return `<form class="upload" method="post" enctype="multipart/form-data" action="${base}/documents/${key}" data-upload>
+<input type="hidden" name="csrf" value="${csrf}">
+<div class="upload-actions"><label class="choose">Choose file<input name="file" type="file" multiple accept="${allowedUploads}" aria-label="Choose ${safe(label)}"></label>
+<label class="take-photos">${icon.camera}Take photos<input name="file" type="file" accept="image/*" capture="environment" aria-label="Take photos of ${safe(label)}"></label></div>
+<div class="photo-list" hidden></div>
+<button type="submit">Upload</button><progress max="100" hidden></progress></form>`;
+}
+
+// One document row (owner-approved redesign, A-style rows).
+function itemRow(row, slot, { base, csrf, closed, ownFiles }) {
     const item = row.operations.find((entry) => slotOf(entry.key) === slot);
     const key = slot === "FACTORING" ? "FACTORING_NOA" : slot;
     const label = portalItemLabel(key, row.terms);
-    const state =
-        {
-            PENDING: "Needed",
-            RECEIVED:
-                item?.key === "NOT_FACTORING"
-                    ? "No factoring — received"
-                    : "Received — we’re reviewing it",
-            VERIFIED:
-                item?.key === "NOT_FACTORING"
-                    ? "No factoring — verified ✓"
-                    : "Verified ✓",
-            REUPLOAD_REQUESTED: "New upload requested",
-        }[item?.state] ?? "Needed";
+    const optional = slot === "FACTORING";
+    const state = item?.state ?? "PENDING";
     const file = ownFiles.find((document) => document.item_key === key);
     const ownLink = file
-        ? `<p><a href="${base}/documents/${safe(file.id)}/file">Download your upload</a></p>`
+        ? ` · <a href="${base}/documents/${safe(file.id)}/file">your upload</a>`
         : "";
-    const canUpload = !closed && item?.state !== "VERIFIED";
-    return `<li${slot === "FACTORING" ? ' id="factoring"' : ""}><div><h3>${safe(label)}</h3><p class="state">${safe(state)}</p>
-${slot === "FACTORING" && factoringSaved && item?.key === "NOT_FACTORING" ? '<p class="notice" role="status">We recorded that you don’t use factoring.</p>' : ""}
-${item?.state === "REUPLOAD_REQUESTED" ? `<p class="notice">${safe(item.note)}</p>` : ""}${ownLink}</div>
-${
-    canUpload
-        ? `<div class="controls"><form method="post" enctype="multipart/form-data" action="${base}/documents/${key}" data-upload>
-<input type="hidden" name="csrf" value="${csrf}">
-<label class="sr-only" for="file-${key}">Choose ${safe(label)}</label>
-<input id="file-${key}" name="file" type="file" accept="${allowedUploads}" required>
-<button type="submit">Upload</button><progress max="100" hidden></progress></form>
-${
-    slot === "FACTORING" && item?.key !== "NOT_FACTORING"
-        ? `<form method="post" action="${base}/not-factoring"><input type="hidden" name="csrf" value="${csrf}">
-<button class="secondary" type="submit">I don't use factoring</button></form>`
-        : ""
-}</div>`
-        : ""
-}</li>`;
+    const status =
+        item?.key === "NOT_FACTORING"
+            ? "No factoring"
+            : ({
+                  RECEIVED: `Received — we’re reviewing it${ownLink}`,
+                  VERIFIED: `Verified ✓${ownLink}`,
+                  REUPLOAD_REQUESTED: `Iron Wing asks: ${safe(item?.note)}`,
+              }[state] ??
+              (optional
+                  ? "Only if you use a factoring company"
+                  : "PDF, or a photo of each page"));
+    const kind =
+        state === "VERIFIED" || state === "RECEIVED"
+            ? "done"
+            : state === "REUPLOAD_REQUESTED"
+              ? "redo"
+              : "needed";
+    const canUpload = !closed && state !== "VERIFIED";
+    return `<li class="doc doc-${kind}${optional ? " doc-optional" : ""}"${optional ? ' id="factoring"' : ""}>
+<div class="doc-head"><span class="doc-icon">${kind === "done" ? icon.doc : kind === "redo" ? icon.warn : icon.upload}</span>
+<div><h4>${safe(label)}${optional ? ' <span class="chip">Optional</span>' : ""}</h4><p class="doc-status">${status}</p></div></div>
+${canUpload && kind !== "done" ? uploadForm({ base, csrf, key, label }) : ""}</li>`;
 }
 
-// Once Iron Wing confirms access the step shows that instead of the guide.
-function loadBoardAccess(row, { base, csrf, dispatcher, justAdded }) {
-    const item = row.operations.find(
-        (entry) => entry.key === "LOAD_BOARD_ACCESS"
-    );
-    if (item?.state !== "VERIFIED")
-        return loadBoardGuide({ base, csrf, dispatcher, item, justAdded });
-    const list =
-        joinNames((item.boards ?? []).map((b) => boardName(b, item.note))) ||
-        "your load board";
-    return `<p id="load-boards" class="state success">Iron Wing confirmed access to ${safe(list)} ✓</p>`;
+const STEP_TITLES = {
+    sign: ["Sign your agreement", "Agreement signed"],
+    payment: ["Save payment method", "Payment method saved"],
+    documents: ["Upload your documents", "Documents sent"],
+    loadBoard: ["Set up load board access", "Load board access confirmed"],
+    about: ["About your operation", "About your operation"],
+};
+
+function stepNode(step, number) {
+    return step.state === "done"
+        ? `<span class="node node-done">${icon.check}</span>`
+        : `<span class="node node-${step.state}" aria-hidden="true">${number}</span>`;
 }
 
-// Shown once the onboarding is READY (every step done and verified).
-function readyCard(row) {
-    if (
-        row.cancelled_at ||
-        deriveReadiness(facetsOf(row)).readiness !== "READY"
-    )
-        return "";
-    return `<section class="card ready" role="status"><h2>You’re ready ✓</h2>
+function step(stepModel, number, { open, subtitle, body }) {
+    const [todo, done] = STEP_TITLES[stepModel.id];
+    const title = stepModel.state === "done" ? done : todo;
+    return `<li class="step step-${stepModel.state}">${stepNode(stepModel, number)}
+<details${open ? " open" : ""}><summary>${stepModel.state === "current" ? '<span class="here">You are here</span>' : ""}<span class="step-title">${title}${stepModel.state === "done" ? '<span class="sr-only"> (done)</span>' : ""}${stepModel.id === "about" ? " <small>· optional</small>" : ""}</span>${subtitle ? `<span class="step-sub">${subtitle}</span>` : ""}</summary>
+<div class="step-body">${body}</div></details></li>`;
+}
+
+// Once READY: the completion hero at the top of the page.
+function readyHero(base, dispatcher) {
+    return `<section class="ready-hero" role="status">
+<svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Onboarding complete"><circle cx="60" cy="60" r="54" fill="none" stroke="rgba(255,200,0,0.3)" stroke-width="10"></circle><circle cx="60" cy="60" r="44" fill="#ffc800"></circle><path d="M40 61l14 14 27-29" fill="none" stroke="#080d17" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+<h2>You’re ready</h2>
 <p>Your onboarding with Iron Wing is complete: your agreement is signed, your payment method is saved, your documents are verified and your dispatcher has load board access.</p>
-<p>Your Iron Wing dispatcher will contact you to plan your first loads. Download your signed agreement below; this page stays available for 30 days.</p></section>`;
+<p>${dispatcher ? `Your dispatcher <strong>${safe(dispatcher.name)}</strong>` : "Your Iron Wing dispatcher"} will contact you to plan your first loads.</p>
+<a class="button" href="${base}/agreement">Download your signed agreement</a>
+<p class="fine">This page stays available for 30 days.</p></section>`;
 }
+
+const UPLOAD_ERRORS = new Set([
+    "too_large",
+    "unsupported_type",
+    "empty",
+    "already_verified",
+    "upload_unavailable",
+    "mixed_files",
+    "too_many_pages",
+]);
 
 export function portalPage(
     row,
@@ -125,24 +162,20 @@ export function portalPage(
     } = {}
 ) {
     const base = safe(path);
-    const complete = signed || row.signature_state === "COMPLETED";
+    const view = signed ? { ...row, signature_state: "COMPLETED" } : row;
+    const model = portalSteps(view);
+    const complete = view.signature_state === "COMPLETED";
     const cancelled = Boolean(row.cancelled_at);
     const waiting = row.signature_waiting_for === "CARRIER";
     const locked = !complete || cancelled;
     const paid = ["READY", "PENDING_VERIFICATION"].includes(row.payment_state);
+    const method =
+        row.payment_method_type === "us_bank_account" ? "Bank account" : "Card";
     const last4 = row.payment_last4 ? " •••• " + row.payment_last4 : "";
     const paymentStatus =
         row.payment_state === "READY"
-            ? "Saved ✓" + last4
-            : "Saved — awaiting bank verification" + last4;
-    const signStatus = complete
-        ? '<p class="state success">Signed ✓</p>'
-        : cancelled ||
-            ["DECLINED", "EXPIRED", "CANCELLED"].includes(row.signature_state)
-          ? "<p>Signing is unavailable. Contact Iron Wing for help.</p>"
-          : waiting
-            ? `<a class="button" data-poll-link href="${base}/sign" target="_blank" rel="noopener noreferrer">Open agreement in SignWell</a>`
-            : "<p>Iron Wing is preparing your agreement.</p>";
+            ? `${method}${last4} saved ✓ · nothing charged`
+            : `${method}${last4} saved — awaiting bank verification`;
     const message =
         (Object.hasOwn(errors, query.error) ? errors[query.error] : null) ??
         (UPLOADABLE_NOTICE_KEYS.has(query.uploaded)
@@ -161,43 +194,94 @@ export function portalPage(
         returned ||
         ["saved", "cancelled"].includes(query.payment) ||
         query.signature === "returned";
-    return shell(
-        row.terms.legal_name + " onboarding",
-        `
-<h1>Onboarding for ${safe(row.terms.legal_name)}</h1>
-${readyCard(row)}
-${cancelled ? "<p class='notice'>This request is closed. Contact Iron Wing for help.</p>" : ""}
-${message ? `<p class="notice" role="status">${safe(message)}</p>` : ""}
-<div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-signature="${safe(row.signature_state)}" data-payment="${safe(row.payment_state)}">
-<section class="card"><h2><span class="step" aria-hidden="true">①</span> Sign your agreement</h2>
-${signStatus}${row.signature_state === "COMPLETED" ? `<p><a href="${base}/agreement">Download signed agreement</a></p>` : ""}</section>
-<section class="card"><h2><span class="step" aria-hidden="true">②</span> Save payment method</h2>
-${
-    paid
+    const byId = Object.fromEntries(model.steps.map((s) => [s.id, s]));
+    const openOn = {
+        documents:
+            UPLOAD_ERRORS.has(query.error) ||
+            UPLOADABLE_NOTICE_KEYS.has(query.uploaded),
+        loadBoard:
+            query.board === "added" ||
+            String(query.error ?? "").includes("load_board"),
+    };
+    const isOpen = (id) => byId[id].state === "current" || Boolean(openOn[id]);
+    const docItems = (row.operations ?? []).filter((i) =>
+        PORTAL_REQUIRED_SLOTS.includes(slotOf(i.key))
+    );
+    const docsVerified =
+        docItems.length > 0 && docItems.every((i) => i.state === "VERIFIED");
+    const signBody = complete
+        ? `<p class="state success">Signed ✓</p><p><a href="${base}/agreement">Download signed agreement</a></p>`
+        : cancelled ||
+            ["DECLINED", "EXPIRED", "CANCELLED"].includes(row.signature_state)
+          ? "<p>Signing is unavailable. Contact Iron Wing for help.</p>"
+          : waiting
+            ? `<a class="button" data-poll-link href="${base}/sign" target="_blank" rel="noopener noreferrer">Open agreement in SignWell</a>`
+            : "<p>Iron Wing is preparing your agreement.</p>";
+    const paymentBody = paid
         ? `<p class="state success">${safe(paymentStatus)}</p>`
         : locked
           ? "<p>Available after you sign.</p>"
-          : `<a class="button" data-poll-link href="${base}/payment" target="_blank" rel="noopener noreferrer">Save on Stripe</a><p>Nothing is charged when you save a payment method.</p>`
-}</section>
-<section class="card"><h2><span class="step" aria-hidden="true">③</span> Documents</h2>
-${
-    !complete
+          : `<a class="button" data-poll-link href="${base}/payment" target="_blank" rel="noopener noreferrer">Save on Stripe</a><p class="fine">Nothing is charged when you save a payment method.</p>`;
+    const documentsBody = !complete
         ? "<p>Available after you sign.</p>"
-        : `<ul class="documents">${PORTAL_CARRIER_SLOTS.map((slot) =>
+        : `<ul class="docs">${PORTAL_CARRIER_SLOTS.map((slot) =>
               itemRow(row, slot, {
                   base,
                   csrf: safe(csrf),
                   closed: cancelled,
                   ownFiles,
-                  factoringSaved: query.factoring === "saved",
               })
-          ).join("")}</ul>`
-}</section>
-<section class="card"><h2><span class="step" aria-hidden="true">④</span> Set up load board access</h2>
-${cancelled ? "<p>This request is closed.</p>" : locked ? "<p>Available after you sign.</p>" : loadBoardAccess(row, { base, csrf: safe(csrf), dispatcher, justAdded: query.board === "added" })}</section>
-<section class="card"><h2><span class="step" aria-hidden="true">⑤</span> About your operation <small>Optional</small></h2>
-${locked ? "<p>Available after you sign.</p>" : `<a href="${base}/questionnaire">${questionnaire ? "Edit your preferences" : "Answer a few questions"}</a>`}</section>
-</div>`
+          ).join("")}</ul>`;
+    const loadBoardBody = cancelled
+        ? "<p>This request is closed.</p>"
+        : locked
+          ? "<p>Available after you sign.</p>"
+          : loadBoardGuide({
+                base,
+                csrf: safe(csrf),
+                dispatcher,
+                item: row.operations.find(
+                    (entry) => entry.key === "LOAD_BOARD_ACCESS"
+                ),
+                justAdded: query.board === "added",
+            });
+    const lbItem = row.operations.find(
+        (entry) => entry.key === "LOAD_BOARD_ACCESS"
+    );
+    const subtitles = {
+        sign: complete ? "Signed ✓ · tap for your copy" : "",
+        payment: paid ? safe(paymentStatus) : "",
+        documents:
+            byId.documents.state === "done"
+                ? docsVerified
+                    ? "All verified ✓"
+                    : "Received · Iron Wing is reviewing"
+                : complete
+                  ? "PDF, or photos of each page"
+                  : "",
+        loadBoard: safe(loadBoardSummary(lbItem, dispatcher)),
+        about: questionnaire
+            ? "Your preferences are saved"
+            : "Lanes, rates, equipment, factoring company",
+    };
+    const n = model.doneCount;
+    return shell(
+        row.terms.legal_name + " onboarding",
+        `
+<section class="progress"><h1>Onboarding for ${safe(row.terms.legal_name)}</h1>
+<p class="progress-count">${n} of 4 steps done</p><div class="bar bar-${n}" aria-hidden="true"><span></span></div></section>
+${model.phase === "ready" ? readyHero(base, dispatcher) : ""}
+${model.phase === "allSet" ? `<section class="all-set" role="status">${icon.hourglass}<p>All set on your side. Iron Wing is reviewing your documents and setting up your account — you’ll see You’re ready here when we’re done. Nothing else to do.</p></section>` : ""}
+${cancelled ? "<p class='notice'>This request is closed. Contact Iron Wing for help.</p>" : ""}
+${message ? `<p class="notice" role="status">${safe(message)}</p>` : ""}
+<div data-portal data-status-url="${base}/status.json" data-poll="${poll}" data-signature="${safe(row.signature_state)}" data-payment="${safe(row.payment_state)}">
+<ol class="timeline">
+${step(byId.sign, 1, { open: isOpen("sign"), subtitle: subtitles.sign, body: signBody })}
+${step(byId.payment, 2, { open: isOpen("payment"), subtitle: subtitles.payment, body: paymentBody })}
+${step(byId.documents, 3, { open: isOpen("documents"), subtitle: subtitles.documents, body: documentsBody })}
+${step(byId.loadBoard, 4, { open: isOpen("loadBoard"), subtitle: subtitles.loadBoard, body: loadBoardBody })}
+${step(byId.about, 5, { open: query.questionnaire === "saved", subtitle: subtitles.about, body: locked ? "<p>Available after you sign.</p>" : `<a href="${base}/questionnaire">${questionnaire ? "Edit your preferences" : "Answer a few questions"}</a>` })}
+</ol></div>`
     );
 }
 

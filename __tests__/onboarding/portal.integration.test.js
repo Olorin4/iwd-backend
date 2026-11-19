@@ -386,7 +386,9 @@ test("portal guards host and private link, checks Origin and CSRF, and rejects d
     );
     const markup = await response.text();
     expect(markup).toMatch(/Synthetic Freight LLC/);
-    for (const step of ["①", "②", "③", "④"]) expect(markup).toContain(step);
+    // Timeline (redesign 2026-11-19): numbered steps in order.
+    // Timeline (redesign 2026-11-19): five steps, the four required first.
+    expect(markup.match(/<li class="step step-/g)).toHaveLength(5);
     expect((await refreshed(row.id)).portal_last_opened_at).toEqual(now);
     now = new Date(now.getTime() + 60 * 1000);
     await browser(base);
@@ -864,10 +866,8 @@ test("a form posted without JavaScript (Origin: null) passes only as a same-orig
     expect(saved.headers.get("location")).toBe(
         base + "?factoring=saved#factoring"
     );
-    const page = await browser(base + "?factoring=saved");
-    expect(await page.text()).toContain(
-        "We recorded that you don’t use factoring."
-    );
+    // The redesign drops the "I don't factor" button; the route stays for
+    // old links and still records the choice.
     expect(
         (await refreshed(row.id)).operations.find(
             (item) => item.key === "NOT_FACTORING"
@@ -1086,7 +1086,7 @@ test("staff confirm load board access; the status carries the boards and the pag
         revokeExisting: true,
     });
     expect(await (await browser(pathname(token))).text()).toContain(
-        "Iron Wing confirmed access to DAT One and Truckstop"
+        "Confirmed: DAT One and Truckstop"
     );
     await act(row, "unverify_operation_item", { key: "LOAD_BOARD_ACCESS" });
     expect(
@@ -1210,7 +1210,9 @@ test("'Added' records the board the carrier set up and the page says what happen
     expect(page).toContain(
         "You added a seat on DAT One and 123Loadboard for Nick Kalas."
     );
-    expect(page).toContain("Iron Wing will check access and confirm it here.");
+    expect(page).toContain(
+        "Waiting for Iron Wing to confirm access — it will show a green check here."
+    );
     expect(page).not.toContain("tell Iron Wing which board is ready");
     const status = await db.onboardingEvent.findFirst({
         where: { request_id: row.id, type: "onboarding.status.v1" },

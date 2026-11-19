@@ -371,7 +371,7 @@ test("puts separate dispatcher seat instructions between documents and the quest
     const options = { path: "/p/fake", csrf: "test" };
     const page = portalPage(row, options);
     expect(page).toMatch(
-        /③[^<]*<\/span> Documents[\s\S]+④[^<]*<\/span> Set up load board access[\s\S]+⑤[^<]*<\/span> About your operation/
+        /Upload your documents[\s\S]+Set up load board access[\s\S]+About your operation/
     );
     expect(page).toContain("account.dat.com");
     expect(page).toContain("Seat Assignments");
@@ -562,12 +562,12 @@ test("a READY onboarding opens with 'You're ready'; at least one load board is a
     };
     page = portalPage(ready, { path: "/p/fake" });
     expect(page).toMatch(
-        /<section class="card ready"[^>]*>[\s\S]*You’re ready/
+        /<section class="ready-hero"[^>]*>[\s\S]*You’re ready/
     );
     expect(page.indexOf("You’re ready")).toBeLessThan(
-        page.indexOf("Sign your agreement")
+        page.indexOf("Agreement signed")
     );
-    expect(page).toContain("Iron Wing confirmed access to Truckstop");
+    expect(page).toContain("Confirmed: Truckstop");
     expect(
         portalPage({ ...ready, cancelled_at: new Date() }, { path: "/p/fake" })
     ).not.toContain("You’re ready");
