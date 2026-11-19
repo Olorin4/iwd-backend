@@ -101,6 +101,9 @@ it("turns test mode off only explicitly and enables the outbox only when fully c
     });
     expect(config.outbox.enabled).toBe(true);
     expect(config.reconcile.enabled).toBe(true);
+    // Open packets every 2 minutes; the rest of the pass every 15.
+    expect(config.reconcile.intervalMs).toBe(15 * 60 * 1000);
+    expect(config.reconcile.envelopeIntervalMs).toBe(2 * 60 * 1000);
 });
 
 it("accepts one optional requester email and refuses lists or junk", () => {

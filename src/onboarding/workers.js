@@ -29,10 +29,7 @@ export async function reconcileOnce(deps) {
         deps.db,
         new Date(deps.now().getTime() - REPLAY_RECEIPT_TTL_MS)
     ).catch(() => log("onboarding_replay_prune_failed"));
-    for (const id of await openEnvelopeIds(deps.db, deps.now().getTime()))
-        await reconcileEnvelope(deps, id).catch(() =>
-            log("onboarding_reconcile_envelope_failed")
-        );
+    await reconcileEnvelopesOnce(deps);
     for (const id of await unsentRequestIds(deps))
         await reconcileSignature(deps, id).catch(() =>
             log("onboarding_reconcile_send_failed")
@@ -53,6 +50,16 @@ export async function reconcileOnce(deps) {
     for (const id of await portalReminderIds(deps))
         await sendDuePortalReminder(deps, id).catch(() =>
             log("onboarding_portal_reminder_failed")
+        );
+}
+
+/** Re-reads every open signature packet from the provider. */
+export async function reconcileEnvelopesOnce(deps) {
+    for (const id of await openEnvelopeIds(deps.db, deps.now().getTime()))
+        await reconcileEnvelope(deps, id).catch(() =>
+            deps.logger?.error?.({
+                code: "onboarding_reconcile_envelope_failed",
+            })
         );
 }
 
@@ -93,6 +100,15 @@ export function startOnboardingWorkers(deps) {
             every(
                 config.reconcile.intervalMs,
                 guard("onboarding_reconcile_failed", () => reconcileOnce(deps))
+            )
+        );
+    if (config.reconcile?.enabled && config.reconcile.envelopeIntervalMs)
+        timers.push(
+            every(
+                config.reconcile.envelopeIntervalMs,
+                guard("onboarding_reconcile_failed", () =>
+                    reconcileEnvelopesOnce(deps)
+                )
             )
         );
     if (config.reader?.enabled)

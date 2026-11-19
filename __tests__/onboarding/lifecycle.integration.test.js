@@ -522,10 +522,49 @@ it("workers start only when enabled and switched on", () => {
     none.stop();
     const both = startOnboardingWorkers({
         ...deps,
-        config: { ...config, reconcile: { enabled: true, intervalMs: 900000 } },
+        config: {
+            ...config,
+            reconcile: {
+                enabled: true,
+                intervalMs: 900000,
+                envelopeIntervalMs: 120000,
+            },
+        },
     });
-    expect(both.count).toBe(3);
+    // Outbox, the 15-minute pass, the 2-minute open-packet pass, retention.
+    expect(both.count).toBe(4);
     both.stop();
+});
+
+it("open packets are re-checked every 2 minutes, the rest of the pass every 15", async () => {
+    jest.useFakeTimers();
+    try {
+        const calls = [];
+        const workers = startOnboardingWorkers({
+            ...deps,
+            db: {
+                ...deps.db,
+                signatureEnvelope: {
+                    findMany: async () => (calls.push("envelopes"), []),
+                },
+            },
+            config: {
+                ...config,
+                outbox: { enabled: false },
+                reader: { enabled: false },
+                reconcile: {
+                    enabled: true,
+                    intervalMs: 900000,
+                    envelopeIntervalMs: 120000,
+                },
+            },
+        });
+        await jest.advanceTimersByTimeAsync(120000);
+        expect(calls).toEqual(["envelopes"]);
+        workers.stop();
+    } finally {
+        jest.useRealTimers();
+    }
 });
 
 it("keeps secrets out of logs, events and responses", async () => {

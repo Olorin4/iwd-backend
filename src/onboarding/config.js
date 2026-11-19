@@ -338,6 +338,8 @@ export function getOnboardingConfig(env = process.env) {
         reconcile: {
             enabled: env.ONBOARDING_RECONCILE_ENABLED === "1",
             intervalMs: 15 * 60 * 1000,
+            // Open signature packets: the backstop when a webhook is lost.
+            envelopeIntervalMs: 2 * 60 * 1000,
         },
         email: { from: env.ONBOARDING_EMAIL_FROM || env.EMAIL_USER || null },
     };
